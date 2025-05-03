@@ -1,6 +1,13 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useCatalogListPageStore } from './bricklink/catalog-list-page'
+import router from '@/router/index'
+
+interface Query {
+  f?: string
+  s?: string
+  v?: string
+}
 
 export const useModelsStore = defineStore('models', () => {
   const catalogListPage = useCatalogListPageStore()
@@ -68,5 +75,45 @@ export const useModelsStore = defineStore('models', () => {
   function setSelectedItem(table) {
     selectedItem.value = table.id
   }
-  return { search, selectedItem, setSelectedItem, itemTypes }
+  const currentQuery = computed(() => {
+    const query: Query = {}
+    if (selectedItem.value) {
+      query.v = selectedItem.value
+    }
+    if (search.value) {
+      query.s = search.value
+    }
+    return query
+  })
+
+  const currentQueryString = computed(() => {
+    const parts = []
+    if (selectedItem.value) {
+      parts.push('v=' + selectedItem.value)
+    }
+    if (search.value) {
+      parts.push('s=' + search.value)
+    }
+    if (parts.length === 0) {
+      return '/'
+    }
+    return '/?' + parts.join('&')
+  })
+  const pauseRedirect = ref(false)
+  watch(
+    () => {
+      return {
+        pauseRedirect: pauseRedirect,
+        query: currentQuery.value,
+      }
+    },
+    async () => {
+      if (pauseRedirect.value) {
+        return
+      }
+      router.push(currentQueryString.value)
+    },
+  )
+
+  return { search, selectedItem, setSelectedItem, itemTypes, currentQuery }
 })
