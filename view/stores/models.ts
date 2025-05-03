@@ -150,12 +150,26 @@ export const useModelsStore = defineStore('models', () => {
           label: 'Items',
           width: '100px',
           type: 'number',
+          clickFn: (type) => {
+            selectedItem.value = 'items'
+            filters.value.push({
+              key: 'itemType',
+              value: type.catType,
+            })
+          },
         },
         {
           id: 'categories',
           label: 'Categories',
           width: '100px',
           type: 'number',
+          clickFn: (type) => {
+            selectedItem.value = 'categories'
+            filters.value.push({
+              key: 'itemType',
+              value: type.catType,
+            })
+          },
         },
       ],
     },
