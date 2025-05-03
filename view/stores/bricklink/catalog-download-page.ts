@@ -213,13 +213,11 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
           }
           return out
         })
-      console.log('handlePageResponse', detail, itemType, rows, items)
       const map = new Map<string, any>()
       items.forEach((item) => {
         map.set(item.Number, item)
       })
       this.items.set(itemType, map)
-      console.log(this.items)
     },
   },
 })

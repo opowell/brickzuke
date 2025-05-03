@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { useCatalogListPageStore, type BrickLinkCategory } from './bricklink/catalog-list-page'
 import router from '@/router/index'
 import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
+import { useRoute } from 'vue-router'
 interface Query {
   f?: string
   s?: string
@@ -10,7 +11,6 @@ interface Query {
 }
 
 export const useModelsStore = defineStore('models', () => {
-  const urlParams = new URLSearchParams(window.location.search)
   const catalogListPage = useCatalogListPageStore()
   const catalogDownloadPage = useCatalogDownloadPageStore()
   const itemTypes = computed(() => [
@@ -35,7 +35,7 @@ export const useModelsStore = defineStore('models', () => {
         {
           id: 'items',
           label: 'Items',
-          width: '50px',
+          width: '60px',
           type: 'number',
         },
         {
@@ -43,6 +43,9 @@ export const useModelsStore = defineStore('models', () => {
           label: 'Name',
           itemValue: (category: BrickLinkCategory) => category.name + ' (' + category.catID + ')',
           width: '300px',
+          clickFn: (category: BrickLinkCategory) => {
+            selectedItem.value = undefined
+          },
         },
       ],
     },
@@ -105,7 +108,17 @@ export const useModelsStore = defineStore('models', () => {
       label: 'Stores',
     },
   ])
-  const search = ref(urlParams.get('s'))
+
+  const route = useRoute()
+  watch(
+    () => route.query,
+    () => {
+      search.value = route.query.s?.toString()
+      selectedItem.value = route.query.v?.toString()
+    },
+  )
+  const urlParams = new URLSearchParams(window.location.search)
+  const search = ref(urlParams.get('s') || undefined)
   const initialSelectedItem: string | undefined = urlParams.get('v') || undefined
   const selectedItem = ref<string | undefined>(initialSelectedItem)
   function setSelectedItem(table) {

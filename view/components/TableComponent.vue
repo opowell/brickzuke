@@ -22,6 +22,12 @@ const tableItems = computed(() => {
   }
   return table.items.slice(0, 1000)
 })
+function handleClick(column, item) {
+  if (!column.clickFn) {
+    return
+  }
+  return column.clickFn(item)
+}
 </script>
 
 <template>
@@ -50,11 +56,11 @@ const tableItems = computed(() => {
             :style="{ width: column.width || '100px' }"
           />
         </template>
-        <button v-else-if="column.type === 'number'">
-          {{ formatInteger(item[column.valueField || column.id]) }}
-        </button>
-        <button v-else>
-          <template v-if="column.itemValue">
+        <button v-else @click="handleClick(column, item)">
+          <template v-if="column.type === 'number'">
+            {{ formatInteger(item[column.valueField || column.id]) }}
+          </template>
+          <template v-else-if="column.itemValue">
             {{ column.itemValue(item) }}
           </template>
           <template v-else>
