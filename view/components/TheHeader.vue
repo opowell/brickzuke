@@ -11,7 +11,6 @@ const { search, selectedItem } = storeToRefs(modelsStore)
     <a href="/" class="home-link"><img class="home-icon" src="/favicon-32x32.png" /></a>
     <TheViews v-if="selectedItem" />
     <input v-model="search" placeholder="Search..." />
-    <nav>NAV</nav>
   </header>
 </template>
 

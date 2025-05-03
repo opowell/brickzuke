@@ -13,6 +13,13 @@ export interface QueuedCall {
   extraParams?: object
 }
 import indices from '../../../idb/indices'
+import { useCatalogDownloadPageStore } from '@/stores/bricklink/catalog-download-page'
+import { useCatalogItemInvPageStore } from '@/stores/bricklink/catalog-item-inv-page'
+import { useCatalogPageStore } from '@/stores/bricklink/catalog-page'
+import { useColorsPageStore } from '@/stores/bricklink/colors-page'
+import { useHomePageStore } from '@/stores/bricklink/home-page'
+import { useSearchAdvancedPageStore } from '@/stores/bricklink/search-advanced-page'
+import { useStoresPageStore } from '@/stores/bricklink/stores-page'
 
 export enum Call {
   GET_PRICES = 0,

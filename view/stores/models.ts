@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useCatalogListPageStore, type BrickLinkCategory } from './bricklink/catalog-list-page'
 import router from '@/router/index'
+import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 interface Query {
   f?: string
   s?: string
@@ -11,6 +12,7 @@ interface Query {
 export const useModelsStore = defineStore('models', () => {
   const urlParams = new URLSearchParams(window.location.search)
   const catalogListPage = useCatalogListPageStore()
+  const catalogDownloadPage = useCatalogDownloadPageStore()
   const itemTypes = computed(() => [
     {
       id: 'categories',
@@ -20,9 +22,9 @@ export const useModelsStore = defineStore('models', () => {
       columns: [
         {
           id: 'image',
-          label: 'Image',
           width: '100px',
           type: 'image',
+          hideLabel: true,
         },
         {
           id: 'type',
@@ -47,14 +49,30 @@ export const useModelsStore = defineStore('models', () => {
     {
       id: 'items',
       label: 'Items',
+      items: catalogDownloadPage.filteredItems,
       columns: [
         {
-          id: 'name',
-          label: 'Name',
+          id: 'image',
+          width: '100px',
+          type: 'image',
+          hideLabel: true,
         },
         {
           id: 'itemNumber',
           label: 'Item #',
+          valueField: 'Number',
+        },
+        {
+          id: 'name',
+          label: 'Name',
+          width: '200px',
+          valueField: 'Name',
+        },
+        {
+          id: 'category',
+          label: 'Category',
+          width: '200px',
+          valueField: 'Category Name',
         },
       ],
     },
@@ -136,6 +154,17 @@ export const useModelsStore = defineStore('models', () => {
         return
       }
       router.push(currentQueryString.value)
+    },
+  )
+  const catTypes = computed(() => {
+    return catalogListPage.itemTypes.map((type) => type.catType)
+  })
+  watch(
+    () => catTypes.value,
+    async () => {
+      for (let i = 0; i < catTypes.value.length; i++) {
+        await catalogDownloadPage.fetchItemPage(catTypes.value[i])
+      }
     },
   )
 

@@ -1,6 +1,9 @@
-export function getTableLabel(table) {
+import type { Table } from '@/components/TableComponent.vue'
+import { formatInteger } from './utils'
+
+export function getTableLabel(table: Table) {
   if (!table.items) {
     return table.label
   }
-  return table.label + ': ' + table.items.length
+  return table.label + ': ' + formatInteger(table.items.length)
 }

@@ -1,3 +1,4 @@
+import { defineStore } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml } from '~/assets/js/utils'
 

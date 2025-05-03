@@ -119,32 +119,33 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
   }),
   getters: {
     singleItem(state): Item | undefined {
-      const { itemIds } = useQueryStore()
-      if (!itemIds || itemIds.length !== 1) {
-        return
-      }
-      return state.itemsMap.get(itemIds[0])
+      return
+      // const { itemIds } = useQueryStore()
+      // if (!itemIds || itemIds.length !== 1) {
+      //   return
+      // }
+      // return state.itemsMap.get(itemIds[0])
     },
     filteredImages(state) {
-      if (this.singleItem) {
-        const { itemIds } = useQueryStore()
-        if (!itemIds || itemIds.length !== 1) {
-          return
-        }
-        const images = state.imagesMap.get(itemIds[0])
-        return images
-      }
+      // if (this.singleItem) {
+      //   const { itemIds } = useQueryStore()
+      //   if (!itemIds || itemIds.length !== 1) {
+      //     return
+      //   }
+      //   const images = state.imagesMap.get(itemIds[0])
+      //   return images
+      // }
       return []
     },
     filteredInventories(state) {
-      if (this.singleItem) {
-        const { itemIds } = useQueryStore()
-        if (!itemIds || itemIds.length !== 1) {
-          return
-        }
-        const inventories = state.inventoriesMap.get(itemIds[0])
-        return inventories
-      }
+      // if (this.singleItem) {
+      //   const { itemIds } = useQueryStore()
+      //   if (!itemIds || itemIds.length !== 1) {
+      //     return
+      //   }
+      //   const inventories = state.inventoriesMap.get(itemIds[0])
+      //   return inventories
+      // }
       return []
     },
   },
