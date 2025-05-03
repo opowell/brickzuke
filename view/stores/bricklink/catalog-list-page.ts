@@ -134,7 +134,6 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', {
       await makeTextCall(Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY, getPageUrl(catId, 1), getOptions())
     },
     async handleFetchResponseAll(detail: EventDetail) {
-      console.log('handleFetchResponseAll', detail)
       const itemTypeStrings = extractValueFromHtml(
         detail.response,
         ['<div class="catalog-list__category-list--title">'],

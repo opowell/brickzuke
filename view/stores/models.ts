@@ -1,13 +1,14 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-// import { useCatalogListPageStore } from './bricklink/catalog-list-page'
-// import { processQueue } from '@/assets/js/make-call'
+import { useCatalogListPageStore } from './bricklink/catalog-list-page'
 
-export const useModelsStore = defineStore('models', async () => {
-  const itemTypes = ref([
+export const useModelsStore = defineStore('models', () => {
+  const catalogListPage = useCatalogListPageStore()
+  const itemTypes = computed(() => [
     {
       id: 'categories',
       label: 'Categories',
+      items: catalogListPage.filteredCategories,
       columns: [
         {
           id: 'id',

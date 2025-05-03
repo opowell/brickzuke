@@ -129,7 +129,6 @@ export function handleEvent(detail: EventDetail) {
 }
 
 export async function processQueue(reps = 1) {
-  console.log('processQueue')
   const db = await getDbConnection()
   const queuedCalls = await getAllFromIndex<QueuedCall>(db, indices.QUEUED_CALLS_BY_DATE)
   if (!queuedCalls) {
@@ -224,7 +223,6 @@ export async function queueCall(
 ) {
   const db = await getDbConnection()
   const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
-  console.log('queueCall', url, options, extraParams)
   if (value) {
     handleEvent({
       request: {
