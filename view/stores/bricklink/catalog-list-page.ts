@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { ref } from 'vue'
 import {
   Call,
@@ -9,6 +9,7 @@ import {
   type EventDetail,
 } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
+import { useModelsStore } from '../models'
 
 export interface BrickLinkCategory {
   catID: string
@@ -63,7 +64,6 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', {
       // const queryStore = useQueryStore()
       // const { s } = storeToRefs(queryStore)
       // const search = s
-      const search = ref(undefined)
       let out = state.categories
       // const catalogItemPage = useCatalogItemPageStore()
       // if (catalogItemPage.singleItem) {
@@ -72,12 +72,14 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', {
       //     return catalogItemPage.singleItem.categories.includes(category.catID)
       //   })
       // }
-      if (search?.value && search.value !== '') {
-        const lowerCaseSearch = search.value.toLowerCase()
-        const caseMatch = search.value !== lowerCaseSearch
+      const modelsStore = useModelsStore()
+      const search = modelsStore.search
+      if (search && search !== '') {
+        const lowerCaseSearch = search.toLowerCase()
+        const caseMatch = search !== lowerCaseSearch
         out = out.filter((category) => {
           if (caseMatch) {
-            return category.name.includes(search.value)
+            return category.name.includes(search)
           }
           return category.name.toLowerCase().includes(lowerCaseSearch)
         })
