@@ -138,7 +138,6 @@ export async function processQueue(reps = 1) {
   let callsMade = 0
   for (let i = 0; i < queuedCalls.length; i++) {
     const queuedCall = queuedCalls[i]
-    console.log('queuedCall', queuedCall)
     const cached = await makeCall(
       queuedCall.callType,
       queuedCall.call,

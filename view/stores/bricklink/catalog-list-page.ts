@@ -1,10 +1,11 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   Call,
   CallType,
   makeTextCall,
   makeTextCalls,
+  processQueue,
   queueCall,
   type EventDetail,
 } from '~/assets/js/make-call'
@@ -52,216 +53,251 @@ export interface ItemType {
   count: number
   catType: string
 }
-export const useCatalogListPageStore = defineStore('catalogListPageStore', {
-  state: () => ({
-    parts: new Map<string, any[]>(),
-    itemTypes: [] as ItemType[],
-    categories: [] as BrickLinkCategory[],
-    categoriesMap: new Map<string, any>(),
-  }),
-  getters: {
-    filteredCategories: (state) => {
-      // const queryStore = useQueryStore()
-      // const { s } = storeToRefs(queryStore)
-      // const search = s
-      let out = state.categories
-      // const catalogItemPage = useCatalogItemPageStore()
-      // if (catalogItemPage.singleItem) {
-      //   out = out.filter((category) => {
-      //     // @ts-ignore
-      //     return catalogItemPage.singleItem.categories.includes(category.catID)
-      //   })
-      // }
-      const modelsStore = useModelsStore()
-      const search = modelsStore.search
-      if (search && search !== '') {
-        const lowerCaseSearch = search.toLowerCase()
-        const caseMatch = search !== lowerCaseSearch
-        out = out.filter((category) => {
-          if (caseMatch) {
-            return category.name.includes(search)
-          }
-          return category.name.toLowerCase().includes(lowerCaseSearch)
-        })
-      }
-      // const view = queryStore.views.get('categories')
-      // const filters = queryStore.filtersOfType('categories')
-      // const selectedIds = filters.map((f) => f.item)
-      // switch (view) {
-      //   case 'selected':
-      //     out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
-      //     break
-      //   case 'none':
-      //     if (queryStore.somethingOpen) {
-      //       out = []
-      //     }
-      //     break
-      // }
-      // if (
-      //   queryStore.somethingOpen &&
-      //   !['selected', 'all'].includes(queryStore.views.get('categories'))
-      // ) {
-      //   out = []
-      // } else if (selectedIds.length > 0) {
-      //   out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
-      // }
-      return out
-    },
-    partsByCategory: (state) => {
-      return (categoryId: string) => state.parts.get(categoryId)
-    },
-  },
-  actions: {
-    async fetchAll() {
-      return await makeTextCall(
-        Call.GET_CATALOG_LIST_PAGE_ALL,
-        'https://www.bricklink.com/catalogList.asp?v=3',
-        getOptions(),
-      )
-    },
-    async fetch(catId: string, page: number = 1) {
-      return await makeTextCall(Call.GET_CATALOG_LIST_PAGE, getPageUrl(catId, page), getOptions())
-    },
-    async fetchFirstIds(catIds: string[]) {
-      const calls = catIds.map((id) => {
-        return {
-          call: Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
-          url: getPageUrl(id, 1),
-          options: getOptions(),
+export const useCatalogListPageStore = defineStore('catalogListPageStore', () => {
+  const parts = ref(new Map<string, any[]>())
+  const itemTypes = ref<ItemType[]>([])
+  const categories = ref<BrickLinkCategory[]>([])
+  const categoriesMap = ref(new Map<string, any>())
+  const filteredCategories = computed(() => {
+    // const queryStore = useQueryStore()
+    let out = categories.value
+    // const catalogItemPage = useCatalogItemPageStore()
+    // if (catalogItemPage.singleItem) {
+    //   out = out.filter((category) => {
+    //     // @ts-ignore
+    //     return catalogItemPage.singleItem.categories.includes(category.catID)
+    //   })
+    // }
+    const modelsStore = useModelsStore()
+    const search = modelsStore.search
+    if (search && search !== '') {
+      const lowerCaseSearch = search.toLowerCase()
+      const caseMatch = search !== lowerCaseSearch
+      out = out.filter((category) => {
+        if (caseMatch) {
+          return category.name.includes(search)
         }
+        return category.name.toLowerCase().includes(lowerCaseSearch)
       })
-      await makeTextCalls(calls)
-    },
-    async fetchFirst(catId: string) {
-      await makeTextCall(Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY, getPageUrl(catId, 1), getOptions())
-    },
-    async handleFetchResponseAll(detail: EventDetail) {
-      const itemTypeStrings = extractValueFromHtml(
-        detail.response,
-        ['<div class="catalog-list__category-list--title">'],
-        ['</FONT></div></TD></TR>'],
+    }
+    // const view = queryStore.views.get('categories')
+    // const filters = queryStore.filtersOfType('categories')
+    // const selectedIds = filters.map((f) => f.item)
+    // switch (view) {
+    //   case 'selected':
+    //     out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
+    //     break
+    //   case 'none':
+    //     if (queryStore.somethingOpen) {
+    //       out = []
+    //     }
+    //     break
+    // }
+    // if (
+    //   queryStore.somethingOpen &&
+    //   !['selected', 'all'].includes(queryStore.views.get('categories'))
+    // ) {
+    //   out = []
+    // } else if (selectedIds.length > 0) {
+    //   out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
+    // }
+    return out.map((category) => {
+      const catParts = parts.value.get(category.catID)
+      let image = null
+      if (!catParts) {
+        return category
+      }
+      const firstPartWithImage = catParts.find((part) => !!part.image)
+      if (!firstPartWithImage) {
+        return category
+      }
+      image = firstPartWithImage.image
+      return {
+        ...category,
+        image,
+      }
+    })
+  })
+  const partsByCategory = computed(() => {
+    return (categoryId: string) => parts.value.get(categoryId)
+  })
+  async function fetchAll() {
+    return await makeTextCall(
+      Call.GET_CATALOG_LIST_PAGE_ALL,
+      'https://www.bricklink.com/catalogList.asp?v=3',
+      getOptions(),
+    )
+  }
+  async function fetch(catId: string, page: number = 1) {
+    return await makeTextCall(Call.GET_CATALOG_LIST_PAGE, getPageUrl(catId, page), getOptions())
+  }
+  async function fetchFirstIds(catIds: string[]) {
+    const calls = catIds.map((id) => {
+      return {
+        call: Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
+        url: getPageUrl(id, 1),
+        options: getOptions(),
+      }
+    })
+    await makeTextCalls(calls)
+  }
+  async function fetchFirst(catId: string) {
+    await makeTextCall(Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY, getPageUrl(catId, 1), getOptions())
+  }
+  async function handleFetchResponseAll(detail: EventDetail) {
+    const itemTypeStrings = extractValueFromHtml(
+      detail.response,
+      ['<div class="catalog-list__category-list--title">'],
+      ['</FONT></div></TD></TR>'],
+    )
+    const names = itemTypeStrings.map((type: string) => {
+      return extractValueFromHtml(type, '\r\n                                    ', '\r\n')
+    })
+    const counts = itemTypeStrings.map((type: string) => {
+      return extractValueFromHtml(
+        type,
+        '<div class="catalog-list__category-list--pagination"><FONT CLASS="fv"><B>',
+        '</B>',
       )
-      const names = itemTypeStrings.map((type: string) => {
-        return extractValueFromHtml(type, '\r\n                                    ', '\r\n')
-      })
-      const counts = itemTypeStrings.map((type: string) => {
-        return extractValueFromHtml(
-          type,
-          '<div class="catalog-list__category-list--pagination"><FONT CLASS="fv"><B>',
-          '</B>',
+    })
+    const catTypes = itemTypeStrings.map((type: string) => {
+      return extractValueFromHtml(type, '(<A HREF="/catalogList.asp?catType=', '"')
+    })
+    const items = itemTypeStrings.map((type: string) => {
+      return extractValueFromHtml(type, '<A HREF="/catalogList.asp?', ')</span>')
+    })
+    const itemParams = items.map((item: string[]) => {
+      return item.map((x) => {
+        return extractValuesFromHtml(
+          x,
+          ['catID=', 'catXrefLevel=', 'catType=', '>', '>('],
+          ['&', '&', '"', '<'],
         )
       })
-      const catTypes = itemTypeStrings.map((type: string) => {
-        return extractValueFromHtml(type, '(<A HREF="/catalogList.asp?catType=', '"')
+    })
+    const localItemTypes = []
+    for (let i = 0; i < names.length; i++) {
+      localItemTypes.push({
+        name: names[i][0],
+        count: Number.parseInt(counts[i][0]),
+        catType: catTypes[i][0],
       })
-      const items = itemTypeStrings.map((type: string) => {
-        return extractValueFromHtml(type, '<A HREF="/catalogList.asp?', ')</span>')
+    }
+    const localCategories = itemParams.map((typeCategories) => {
+      return typeCategories.map((category) => {
+        return {
+          catID: category[0],
+          catXrefLevel: category[1],
+          catType: category[2],
+          name: category[3],
+          items: category[4],
+        }
       })
-      const itemParams = items.map((item: string[]) => {
-        return item.map((x) => {
-          return extractValuesFromHtml(
-            x,
-            ['catID=', 'catXrefLevel=', 'catType=', '>', '>('],
-            ['&', '&', '"', '<'],
-          )
-        })
+    })
+    categoriesMap.value = new Map<string, any>()
+    localCategories.forEach((type) => {
+      type.forEach((category) => {
+        let value = categoriesMap.value.get(category.catID)
+        if (!value) {
+          value = {
+            ...category,
+            items: 0,
+          }
+        }
+        value.items += Number.parseInt(category.items)
+        categoriesMap.value.set(category.catID, value)
       })
-      const itemTypes = []
-      for (let i = 0; i < names.length; i++) {
-        itemTypes.push({
-          name: names[i][0],
-          count: Number.parseInt(counts[i][0]),
-          catType: catTypes[i][0],
-        })
+    })
+    categories.value = Array.from(categoriesMap.value.values())
+    itemTypes.value = localItemTypes
+  }
+  async function handleFetchResponse(detail: EventDetail, fetchAll = true) {
+    const params = extractValuesFromHtml(detail.request.url, ['catID=', 'pg='], ['&', ''])
+    const catId = params[0]
+    const page = params[1]
+    const numPagesExtraction = extractValueFromHtml(
+      detail.response,
+      [
+        'Items Found.  Page <B>',
+        '<B>', // numPages
+      ],
+      ['</B> (Showing', ''],
+    )
+    if (page === '1' && fetchAll) {
+      parts.value.delete(catId)
+      const numPages = Number.parseInt(numPagesExtraction[0][0])
+      for (let i = numPages; i > 1; i--) {
+        await queueCall(
+          CallType.TEXT,
+          Call.GET_CATALOG_LIST_PAGE,
+          getPageUrl(catId, i),
+          getOptions(),
+        )
       }
-      const categories = itemParams.map((typeCategories) => {
-        return typeCategories.map((category) => {
-          return {
-            catID: category[0],
-            catXrefLevel: category[1],
-            catType: category[2],
-            name: category[3],
-            items: category[4],
-          }
-        })
-      })
-      this.categoriesMap = new Map<string, any>()
-      categories.forEach((type) => {
-        type.forEach((category) => {
-          let value = this.categoriesMap.get(category.catID)
-          if (!value) {
-            value = {
-              ...category,
-              items: 0,
-            }
-          }
-          value.items += Number.parseInt(category.items)
-          this.categoriesMap.set(category.catID, value)
-        })
-      })
-      this.categories = Array.from(this.categoriesMap.values())
-      this.itemTypes = itemTypes
-    },
-    async handleFetchResponse(detail: EventDetail, fetchAll = true) {
-      const params = extractValuesFromHtml(detail.request.url, ['catID=', 'pg='], ['&', ''])
-      const catId = params[0]
-      const page = params[1]
-      const numPagesExtraction = extractValueFromHtml(
-        detail.response,
+    }
+    const localParts = extractValueFromHtml(
+      detail.response,
+      ['<TR class="catalog-list__body-header">', '<TR'],
+      ['</TABLE>', '</TR>'],
+    )
+    if (!localParts[0]) {
+      // console.log('something wrong', detail, parts)
+      return
+    }
+    const parts2 = localParts[0].map((partHtml: string) => {
+      const values = extractValuesFromHtml(
+        partHtml,
         [
-          'Items Found.  Page <B>',
-          '<B>', // numPages
+          "data-itemid='", // item id
+          "data-itemcolorid='", // color id,
+          "SRC='", // image
+          '<A HREF="',
+          '>', // item number
+          '<strong>', // item name
         ],
-        ['</B> (Showing', ''],
+        ["' ", "'", "'", '"', '</A>', '</strong>'],
       )
-      if (page === '1' && fetchAll) {
-        this.parts.delete(catId)
-        const numPages = Number.parseInt(numPagesExtraction[0][0])
-        for (let i = numPages; i > 1; i--) {
-          await queueCall(
-            CallType.TEXT,
-            Call.GET_CATALOG_LIST_PAGE,
-            getPageUrl(catId, i),
-            getOptions(),
-          )
-        }
+      return {
+        itemId: values[0],
+        colorId: values[1],
+        image: values[2],
+        itemNumber: values[4],
+        itemName: values[5],
       }
-      const parts = extractValueFromHtml(
-        detail.response,
-        ['<TR class="catalog-list__body-header">', '<TR'],
-        ['</TABLE>', '</TR>'],
-      )
-      if (!parts[0]) {
-        // console.log('something wrong', detail, parts)
-        return
-      }
-      const parts2 = parts[0].map((partHtml: string) => {
-        const values = extractValuesFromHtml(
-          partHtml,
-          [
-            "data-itemid='", // item id
-            "data-itemcolorid='", // color id,
-            "SRC='", // image
-            '<A HREF="',
-            '>', // item number
-            '<strong>', // item name
-          ],
-          ["' ", "'", "'", '"', '</A>', '</strong>'],
-        )
-        return {
-          itemId: values[0],
-          colorId: values[1],
-          image: values[2],
-          itemNumber: values[4],
-          itemName: values[5],
-        }
-      })
-      let currentValue = this.parts.get(catId)
-      if (!currentValue) {
-        currentValue = []
-      }
-      currentValue.push(...parts2)
-      this.parts.set(catId, currentValue)
+    })
+    let currentValue = parts.value.get(catId)
+    if (!currentValue) {
+      currentValue = []
+    }
+    currentValue.push(...parts2)
+    parts.value.set(catId, currentValue)
+  }
+  const categoryIds = computed(() => {
+    return categories.value.map((c) => c.catID)
+  })
+  watch(
+    categoryIds,
+    async () => {
+      await fetchFirstIds(categoryIds.value)
+      processQueue()
     },
-  },
+    {
+      immediate: true,
+    },
+  )
+
+  return {
+    parts,
+    itemTypes,
+    categories,
+    categoriesMap,
+    filteredCategories,
+    partsByCategory,
+    fetchAll,
+    fetch,
+    fetchFirstIds,
+    fetchFirst,
+    handleFetchResponse,
+    handleFetchResponseAll,
+  }
 })

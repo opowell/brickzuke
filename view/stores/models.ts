@@ -2,7 +2,6 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useCatalogListPageStore } from './bricklink/catalog-list-page'
 import router from '@/router/index'
-
 interface Query {
   f?: string
   s?: string
@@ -10,20 +9,42 @@ interface Query {
 }
 
 export const useModelsStore = defineStore('models', () => {
+  const urlParams = new URLSearchParams(window.location.search)
   const catalogListPage = useCatalogListPageStore()
   const itemTypes = computed(() => [
     {
       id: 'categories',
       label: 'Categories',
       items: catalogListPage.filteredCategories,
+      idField: 'catID',
       columns: [
+        {
+          id: 'image',
+          label: 'Image',
+          width: '100px',
+          type: 'image',
+        },
         {
           id: 'id',
           label: 'Id',
+          valueField: 'catID',
+          width: '50px',
+        },
+        {
+          id: 'type',
+          label: 'Type',
+          valueField: 'catType',
+          width: '50px',
+        },
+        {
+          id: 'items',
+          label: 'Items',
+          width: '50px',
         },
         {
           id: 'name',
           label: 'Name',
+          width: '300px',
         },
       ],
     },
@@ -70,8 +91,9 @@ export const useModelsStore = defineStore('models', () => {
       label: 'Stores',
     },
   ])
-  const search = ref()
-  const selectedItem = ref<string | undefined>()
+  const search = ref(urlParams.get('s'))
+  const initialSelectedItem: string | undefined = urlParams.get('v') || undefined
+  const selectedItem = ref<string | undefined>(initialSelectedItem)
   function setSelectedItem(table) {
     selectedItem.value = table.id
   }
@@ -84,6 +106,12 @@ export const useModelsStore = defineStore('models', () => {
       query.s = search.value
     }
     return query
+  })
+  const selectedItemType = computed(() => {
+    if (!selectedItem.value) {
+      return
+    }
+    return itemTypes.value.find((type) => type.id === selectedItem.value)
   })
 
   const currentQueryString = computed(() => {
@@ -115,5 +143,5 @@ export const useModelsStore = defineStore('models', () => {
     },
   )
 
-  return { search, selectedItem, setSelectedItem, itemTypes, currentQuery }
+  return { search, selectedItem, selectedItemType, setSelectedItem, itemTypes, currentQuery }
 })
