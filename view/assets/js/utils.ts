@@ -2,6 +2,9 @@ export function formatInteger(x: number | undefined) {
   if (x === undefined) {
     return
   }
+  if (isNaN(x)) {
+    return x
+  }
   if (x < 1000) {
     return x
   }

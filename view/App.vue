@@ -4,13 +4,12 @@ import TheHeader from './components/TheHeader.vue'
 import TheContent from './components/TheContent.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
-import { useCatalogListPageStore } from '~/stores/bricklink/catalog-list-page'
+import { fetchAll as catalogListFetchAll } from '~/stores/bricklink/catalog-list-page'
 import { processQueue } from '@/assets/js/make-call'
 onMounted(async () => {
   initStorageUsageFunction()
   initBrickLinkWorker()
-  const catalogListPage = useCatalogListPageStore()
-  await catalogListPage.fetchAll()
+  await catalogListFetchAll()
   await processQueue()
 })
 </script>

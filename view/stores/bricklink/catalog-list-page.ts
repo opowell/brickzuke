@@ -20,6 +20,30 @@ export interface BrickLinkCategory {
   items: number
 }
 
+export async function fetchAll() {
+  return await makeTextCall(
+    Call.GET_CATALOG_LIST_PAGE_ALL,
+    'https://www.bricklink.com/catalogList.asp?v=3',
+    getOptions(),
+  )
+}
+export async function fetch(catId: string, page: number = 1) {
+  return await makeTextCall(Call.GET_CATALOG_LIST_PAGE, getPageUrl(catId, page), getOptions())
+}
+export async function fetchFirstIds(catIds: string[]) {
+  const calls = catIds.map((id) => {
+    return {
+      call: Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
+      url: getPageUrl(id, 1),
+      options: getOptions(),
+    }
+  })
+  await makeTextCalls(calls)
+}
+export async function fetchFirst(catId: string) {
+  await makeTextCall(Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY, getPageUrl(catId, 1), getOptions())
+}
+
 function getPageUrl(catId: string, page: number) {
   return `https://www.bricklink.com/catalogList.asp?catID=${catId}&pg=${page}`
 }
@@ -54,10 +78,13 @@ export interface ItemType {
   catType: string
 }
 export const useCatalogListPageStore = defineStore('catalogListPageStore', () => {
+  // refs
   const parts = ref(new Map<string, any[]>())
   const itemTypes = ref<ItemType[]>([])
   const categories = ref<BrickLinkCategory[]>([])
   const categoriesMap = ref(new Map<string, BrickLinkCategory>())
+
+  // computed
   const filteredCategories = computed(() => {
     // const queryStore = useQueryStore()
     let out = categories.value
@@ -129,29 +156,31 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
   const partsByCategory = computed(() => {
     return (categoryId: string) => parts.value.get(categoryId)
   })
-  async function fetchAll() {
-    return await makeTextCall(
-      Call.GET_CATALOG_LIST_PAGE_ALL,
-      'https://www.bricklink.com/catalogList.asp?v=3',
-      getOptions(),
-    )
-  }
-  async function fetch(catId: string, page: number = 1) {
-    return await makeTextCall(Call.GET_CATALOG_LIST_PAGE, getPageUrl(catId, page), getOptions())
-  }
-  async function fetchFirstIds(catIds: string[]) {
-    const calls = catIds.map((id) => {
+  const categoryIds = computed(() => {
+    return categories.value.map((c) => c.catID)
+  })
+  const filteredItemTypes = computed(() => {
+    return itemTypes.value.map((type) => {
       return {
-        call: Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
-        url: getPageUrl(id, 1),
-        options: getOptions(),
+        ...type,
+        categories: categories.value.filter((c) => c.catType === type.catType).length,
       }
     })
-    await makeTextCalls(calls)
-  }
-  async function fetchFirst(catId: string) {
-    await makeTextCall(Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY, getPageUrl(catId, 1), getOptions())
-  }
+  })
+
+  // watchers
+  watch(
+    categoryIds,
+    async () => {
+      await fetchFirstIds(categoryIds.value)
+      processQueue()
+    },
+    {
+      immediate: true,
+    },
+  )
+
+  // methods
   async function handleFetchResponseAll(detail: EventDetail) {
     const itemTypeStrings = extractValueFromHtml(
       detail.response,
@@ -280,31 +309,17 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
     currentValue.push(...parts2)
     parts.value.set(catId, currentValue)
   }
-  const categoryIds = computed(() => {
-    return categories.value.map((c) => c.catID)
-  })
-  watch(
-    categoryIds,
-    async () => {
-      await fetchFirstIds(categoryIds.value)
-      processQueue()
-    },
-    {
-      immediate: true,
-    },
-  )
 
+  // return
   return {
     parts,
     itemTypes,
     categories,
     categoriesMap,
     filteredCategories,
+    filteredItemTypes,
     partsByCategory,
-    fetchAll,
     fetch,
-    fetchFirstIds,
-    fetchFirst,
     handleFetchResponse,
     handleFetchResponseAll,
   }

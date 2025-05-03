@@ -15,6 +15,7 @@ interface Filter {
 }
 interface BrickLinkItem {
   'Category ID': string
+  itemType: string
 }
 
 export const useModelsStore = defineStore('models', () => {
@@ -94,6 +95,12 @@ export const useModelsStore = defineStore('models', () => {
           id: 'itemType',
           label: 'Type',
           width: '60px',
+          clickFn: (item: BrickLinkItem) => {
+            filters.value.push({
+              key: 'itemType',
+              value: item.itemType,
+            })
+          },
         },
         {
           id: 'itemNumber',
@@ -124,7 +131,7 @@ export const useModelsStore = defineStore('models', () => {
     {
       id: 'itemTypes',
       label: 'Item types',
-      items: catalogListPage.itemTypes,
+      items: catalogListPage.filteredItemTypes,
       columns: [
         {
           id: 'name',
@@ -141,6 +148,12 @@ export const useModelsStore = defineStore('models', () => {
         {
           id: 'count',
           label: 'Items',
+          width: '100px',
+          type: 'number',
+        },
+        {
+          id: 'categories',
+          label: 'Categories',
           width: '100px',
           type: 'number',
         },
