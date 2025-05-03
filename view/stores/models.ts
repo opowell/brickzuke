@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { useCatalogListPageStore } from './bricklink/catalog-list-page'
+import { useCatalogListPageStore, type BrickLinkCategory } from './bricklink/catalog-list-page'
 import router from '@/router/index'
 interface Query {
   f?: string
@@ -25,12 +25,6 @@ export const useModelsStore = defineStore('models', () => {
           type: 'image',
         },
         {
-          id: 'id',
-          label: 'Id',
-          valueField: 'catID',
-          width: '50px',
-        },
-        {
           id: 'type',
           label: 'Type',
           valueField: 'catType',
@@ -45,6 +39,7 @@ export const useModelsStore = defineStore('models', () => {
         {
           id: 'name',
           label: 'Name',
+          itemValue: (category: BrickLinkCategory) => category.name + ' (' + category.catID + ')',
           width: '300px',
         },
       ],

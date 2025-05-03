@@ -57,7 +57,7 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
   const parts = ref(new Map<string, any[]>())
   const itemTypes = ref<ItemType[]>([])
   const categories = ref<BrickLinkCategory[]>([])
-  const categoriesMap = ref(new Map<string, any>())
+  const categoriesMap = ref(new Map<string, BrickLinkCategory>())
   const filteredCategories = computed(() => {
     // const queryStore = useQueryStore()
     let out = categories.value
