@@ -14,6 +14,9 @@ interface Filter {
   value: string
 }
 interface BrickLinkItem {
+  id: string
+  Name: string
+  Number: string
   'Category ID': string
   itemType: string
 }
@@ -103,15 +106,18 @@ export const useModelsStore = defineStore('models', () => {
           },
         },
         {
-          id: 'itemNumber',
-          label: 'Item #',
-          valueField: 'Number',
-        },
-        {
           id: 'name',
           label: 'Name',
-          width: '200px',
+          width: '300px',
           valueField: 'Name',
+          itemValue: (item: BrickLinkItem) => item.Name + ' (' + item.Number + ')',
+          clickFn: (item: BrickLinkItem) => {
+            selectedItem.value = undefined
+            filters.value.push({
+              key: 'item',
+              value: item.id,
+            })
+          },
         },
         {
           id: 'category',
