@@ -40,6 +40,7 @@ export const useModelsStore = defineStore('models', () => {
           id: 'items',
           label: 'Items',
           width: '50px',
+          type: 'number',
         },
         {
           id: 'name',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatInteger } from '@/assets/js/utils.ts'
 interface TableColumn {
   id: string
   label: string
@@ -28,6 +29,9 @@ defineProps<{
         <template v-if="column.type === 'image'">
           <img :src="item[column.valueField || column.id]" />
         </template>
+        <button v-else-if="column.type === 'number'">
+          {{ formatInteger(item[column.valueField || column.id]) }}
+        </button>
         <button v-else>{{ item[column.valueField || column.id] }}</button>
       </div>
     </div>
