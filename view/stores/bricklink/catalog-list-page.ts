@@ -101,6 +101,14 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
     // } else if (selectedIds.length > 0) {
     //   out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
     // }
+    const itemTypeFilters = modelsStore.filters
+      .filter((f) => f.key === 'itemType')
+      .map((f) => f.value)
+    if (itemTypeFilters.length > 0) {
+      out = out.filter((category) => {
+        return itemTypeFilters.includes(category.catType)
+      })
+    }
     return out.map((category) => {
       const catParts = parts.value.get(category.catID)
       let image = null

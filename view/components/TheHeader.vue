@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import TheViews from './header/TheViews.vue'
+import TheFilters from './header/TheFilters.vue'
 import { storeToRefs } from 'pinia'
 import { useModelsStore } from '../stores/models.ts'
 const modelsStore = useModelsStore()
@@ -10,6 +11,7 @@ const { search, selectedItem } = storeToRefs(modelsStore)
   <header>
     <a href="/" class="home-link"><img class="home-icon" src="/favicon-32x32.png" /></a>
     <TheViews v-if="selectedItem" />
+    <TheFilters />
     <input v-model="search" placeholder="Search..." />
   </header>
 </template>

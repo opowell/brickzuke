@@ -83,4 +83,7 @@ function handleClick(column, item) {
   display: flex;
   gap: 0.5rem;
 }
+.row > * {
+  flex: 0 0 auto;
+}
 </style>

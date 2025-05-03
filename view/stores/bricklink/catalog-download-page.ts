@@ -99,31 +99,23 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
         // return out;
       }
       const modelsStore = useModelsStore()
-      const {
-        // filters,
-        search,
-      } = storeToRefs(modelsStore)
-      if (
-        !search.value ||
-        search.value === ''
-        // && filters.value.length === 0
-      ) {
+      const { filters, search } = storeToRefs(modelsStore)
+      if ((!search.value || search.value === '') && filters.value.length === 0) {
         return out
       }
-      // @ts-ignore
       const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
       const caseMatch = search.value !== lowerCaseSearch
-      // const filteredCategories = filters.value.filter((f) => f.key === 'categories')
-      // const includedCategoryIds = filteredCategories
-      //   .filter((f) => f.action === 'include')
-      //   .map((f) => f.item)
+      const filteredCategories = filters.value.filter((f) => f.key === 'category')
+      const includedCategoryIds = filteredCategories
+        // .filter((f) => f.action === 'include')
+        .map((f) => f.value)
       // const excludedCategoryIds = filteredCategories
       //   .filter((f) => f.action === 'exclude')
       //   .map((f) => f.item)
-      // const filteredItemTypes = filters.value.filter((f) => f.key === 'itemTypes')
-      // const includedItemTypeIds = filteredItemTypes
-      //   .filter((f) => f.action === 'include')
-      //   .map((f) => f.item)
+      const filteredItemTypes = filters.value.filter((f) => f.key === 'itemType')
+      const includedItemTypeIds = filteredItemTypes
+        // .filter((f) => f.action === 'include')
+        .map((f) => f.value)
       // const excludedItemTypeIds = filteredItemTypes
       //   .filter((f) => f.action === 'exclude')
       //   .map((f) => f.item)
@@ -137,12 +129,12 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
               return true
             }
             // if (!singleItem.value) {
-            //   if (includedCategoryIds.length > 0) {
-            //     return includedCategoryIds.includes(item['Category ID'])
-            //   } else if (excludedCategoryIds.length > 0) {
-            //     return !excludedCategoryIds.includes(item['Category ID'])
-            //   }
-            // }
+            if (includedCategoryIds.length > 0) {
+              return includedCategoryIds.includes(item['Category ID'])
+              //   } else if (excludedCategoryIds.length > 0) {
+              //     return !excludedCategoryIds.includes(item['Category ID'])
+              //   }
+            }
             return false
           } else {
             if (item.Name.toLowerCase().includes(lowerCaseSearch)) {
@@ -155,30 +147,25 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
           }
         }
         if (!singleItem.value) {
-          // if (includedCategoryIds.length > 0) {
-          //   if (!includedCategoryIds.includes(item['Category ID'])) {
+          if (includedCategoryIds.length > 0) {
+            if (!includedCategoryIds.includes(item['Category ID'])) {
+              return false
+            }
+            // } else if (excludedCategoryIds.length > 0) {
+            //   if (excludedCategoryIds.includes(item['Category ID'])) {
+            //     return false
+            //   }
+          }
+        }
+        if (includedItemTypeIds.length > 0) {
+          if (!includedItemTypeIds.includes(item.itemType)) {
+            return false
+          }
+          // } else if (excludedItemTypeIds.length > 0) {
+          //   if (excludedItemTypeIds.includes(itemType)) {
           //     return false
           //   }
-          // } else if (excludedCategoryIds.length > 0) {
-          //   if (excludedCategoryIds.includes(item['Category ID'])) {
-          //     return false
-          //   }
-          // }
         }
-        const itemType = itemTypeMap.get(item.itemType)
-        // console.log("check", item.itemType, itemType, includedItemTypeIds);
-        if (!itemType) {
-          console.log('ERROR, unknown type!', itemType)
-        }
-        // if (includedItemTypeIds.length > 0) {
-        //   if (!includedItemTypeIds.includes(itemType)) {
-        //     return false
-        //   }
-        // } else if (excludedItemTypeIds.length > 0) {
-        //   if (excludedItemTypeIds.includes(itemType)) {
-        //     return false
-        //   }
-        // }
         return true
       })
     },

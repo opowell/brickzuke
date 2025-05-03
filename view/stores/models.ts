@@ -5,14 +5,33 @@ import router from '@/router/index'
 import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 import { useRoute } from 'vue-router'
 interface Query {
-  f?: string
+  f?: Filter[]
   s?: string
   v?: string
 }
+interface Filter {
+  key: string
+  value: string
+}
+interface BrickLinkItem {
+  'Category ID': string
+}
 
 export const useModelsStore = defineStore('models', () => {
+  // imports
   const catalogListPage = useCatalogListPageStore()
   const catalogDownloadPage = useCatalogDownloadPageStore()
+  const route = useRoute()
+
+  // refs
+  const filters = ref<Filter[]>([])
+  const urlParams = new URLSearchParams(window.location.search)
+  const initialSelectedItem: string | undefined = urlParams.get('v') || undefined
+  const search = ref(urlParams.get('s') || undefined)
+  const selectedItem = ref<string | undefined>(initialSelectedItem)
+  const pauseRedirect = ref(false)
+
+  // computeds
   const itemTypes = computed(() => [
     {
       id: 'categories',
@@ -30,13 +49,20 @@ export const useModelsStore = defineStore('models', () => {
           id: 'type',
           label: 'Type',
           valueField: 'catType',
-          width: '50px',
+          width: '55px',
         },
         {
           id: 'items',
           label: 'Items',
           width: '60px',
           type: 'number',
+          clickFn: (category: BrickLinkCategory) => {
+            selectedItem.value = 'items'
+            filters.value.push({
+              key: 'category',
+              value: category.catID,
+            })
+          },
         },
         {
           id: 'name',
@@ -45,6 +71,10 @@ export const useModelsStore = defineStore('models', () => {
           width: '300px',
           clickFn: (category: BrickLinkCategory) => {
             selectedItem.value = undefined
+            filters.value.push({
+              key: 'category',
+              value: category.catID,
+            })
           },
         },
       ],
@@ -59,6 +89,11 @@ export const useModelsStore = defineStore('models', () => {
           width: '100px',
           type: 'image',
           hideLabel: true,
+        },
+        {
+          id: 'itemType',
+          label: 'Type',
+          width: '60px',
         },
         {
           id: 'itemNumber',
@@ -76,12 +111,40 @@ export const useModelsStore = defineStore('models', () => {
           label: 'Category',
           width: '200px',
           valueField: 'Category Name',
+          clickFn: (item: BrickLinkItem) => {
+            selectedItem.value = undefined
+            filters.value.push({
+              key: 'category',
+              value: item['Category ID'],
+            })
+          },
         },
       ],
     },
     {
       id: 'itemTypes',
       label: 'Item types',
+      items: catalogListPage.itemTypes,
+      columns: [
+        {
+          id: 'name',
+          label: 'Name',
+          width: '100px',
+          clickFn: (type) => {
+            selectedItem.value = undefined
+            filters.value.push({
+              key: 'itemType',
+              value: type.catType,
+            })
+          },
+        },
+        {
+          id: 'count',
+          label: 'Items',
+          width: '100px',
+          type: 'number',
+        },
+      ],
     },
     {
       id: 'colors',
@@ -108,22 +171,6 @@ export const useModelsStore = defineStore('models', () => {
       label: 'Stores',
     },
   ])
-
-  const route = useRoute()
-  watch(
-    () => route.query,
-    () => {
-      search.value = route.query.s?.toString()
-      selectedItem.value = route.query.v?.toString()
-    },
-  )
-  const urlParams = new URLSearchParams(window.location.search)
-  const search = ref(urlParams.get('s') || undefined)
-  const initialSelectedItem: string | undefined = urlParams.get('v') || undefined
-  const selectedItem = ref<string | undefined>(initialSelectedItem)
-  function setSelectedItem(table) {
-    selectedItem.value = table.id
-  }
   const currentQuery = computed(() => {
     const query: Query = {}
     if (selectedItem.value) {
@@ -131,6 +178,9 @@ export const useModelsStore = defineStore('models', () => {
     }
     if (search.value) {
       query.s = search.value
+    }
+    if (filters.value.length > 0) {
+      query.f = filters.value
     }
     return query
   })
@@ -140,7 +190,6 @@ export const useModelsStore = defineStore('models', () => {
     }
     return itemTypes.value.find((type) => type.id === selectedItem.value)
   })
-
   const currentQueryString = computed(() => {
     const parts = []
     if (selectedItem.value) {
@@ -149,12 +198,40 @@ export const useModelsStore = defineStore('models', () => {
     if (search.value) {
       parts.push('s=' + search.value)
     }
+    if (filters.value.length > 0) {
+      parts.push('f=' + filters.value.map((filter) => filter.key + '_' + filter.value).join(','))
+    }
     if (parts.length === 0) {
       return '/'
     }
     return '/?' + parts.join('&')
   })
-  const pauseRedirect = ref(false)
+  const catTypes = computed(() => {
+    return catalogListPage.itemTypes.map((type) => type.catType)
+  })
+
+  // watchers
+  watch(
+    () => route.query,
+    () => {
+      pauseRedirect.value = true
+      search.value = route.query.s?.toString()
+      selectedItem.value = route.query.v?.toString()
+      const filtersString = route.query.f?.toString()
+      if (filtersString) {
+        filters.value = filtersString.split(',').map((fs) => {
+          const parts = fs.split('_')
+          return {
+            key: parts[0],
+            value: parts[1],
+          }
+        })
+      } else {
+        filters.value = []
+      }
+      pauseRedirect.value = false
+    },
+  )
   watch(
     () => {
       return {
@@ -166,12 +243,12 @@ export const useModelsStore = defineStore('models', () => {
       if (pauseRedirect.value) {
         return
       }
+      if (route.fullPath === currentQueryString.value) {
+        return
+      }
       router.push(currentQueryString.value)
     },
   )
-  const catTypes = computed(() => {
-    return catalogListPage.itemTypes.map((type) => type.catType)
-  })
   watch(
     () => catTypes.value,
     async () => {
@@ -181,5 +258,19 @@ export const useModelsStore = defineStore('models', () => {
     },
   )
 
-  return { search, selectedItem, selectedItemType, setSelectedItem, itemTypes, currentQuery }
+  // methods
+  function setSelectedItem(table) {
+    selectedItem.value = table.id
+  }
+
+  // return
+  return {
+    filters,
+    search,
+    selectedItem,
+    selectedItemType,
+    setSelectedItem,
+    itemTypes,
+    currentQuery,
+  }
 })
