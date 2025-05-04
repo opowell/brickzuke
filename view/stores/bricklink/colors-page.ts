@@ -1,9 +1,9 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
-import { useQueryStore } from '../query'
 import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useCatalogItemPageStore } from './catalog-item-page'
+import { useModelsStore } from '../models'
 
 interface BrickLinkColor {
   cssCode: string
@@ -23,9 +23,9 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
       return Array.from(state.colors.values())
     },
     filteredColors(state): BrickLinkColor[] {
-      const queryStore = useQueryStore()
-      const { s } = storeToRefs(queryStore)
-      const search = s
+      console.log('filteredColors')
+      const modelsStore = useModelsStore()
+      const { search } = storeToRefs(modelsStore)
       const catalogItemPage = useCatalogItemPageStore()
       const catalogItemPageRefs = storeToRefs(catalogItemPage)
       const singleItem = catalogItemPageRefs.singleItem
@@ -46,7 +46,7 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
         itemVariants?.forEach((iv) => {
           activeColors.set(iv.colorId, true)
         })
-        const keys = activeColors.keys()
+        const keys = Array.from(activeColors.keys())
         keys.forEach((key) => {
           const color = state.colors.get(key)
           if (!color) {
@@ -70,7 +70,7 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
     },
   },
   actions: {
-    async fetch() {
+    async fetchColorsPage() {
       makeTextCall(Call.GET_COLORS_PAGE, 'https://www.bricklink.com/catalogColors.asp', {
         headers: {
           accept:

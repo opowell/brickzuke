@@ -12,6 +12,7 @@ import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
 import { processQueue } from '@/assets/js/make-call'
 import { useCatalogItemInvPageStore } from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
+import { useColorsPageStore } from './bricklink/colors-page'
 interface Query {
   f?: Filter[]
   s?: string
@@ -52,6 +53,13 @@ export const useModelsStore = defineStore('models', () => {
     return catalogItemPage.imagesMap.get(
       singleItem.value.itemType + '-' + singleItem.value.itemNumber,
     )
+  })
+  console.log('colors')
+  const colors = computed(() => {
+    const colorsPage = useColorsPageStore()
+    const { filteredColors } = storeToRefs(colorsPage)
+    console.log(filteredColors.value)
+    return filteredColors.value
   })
   const inventories = computed(() => {
     const catalogItemPageStore = useCatalogItemPageStore()
@@ -311,6 +319,30 @@ export const useModelsStore = defineStore('models', () => {
       {
         id: 'colors',
         label: 'Colors',
+        items: colors.value,
+        idField: 'colorID',
+        columns: [
+          {
+            id: 'name',
+            label: 'Name',
+            itemValue: (color) => color.colorName + ' (' + color.colorID + ')',
+          },
+          {
+            id: 'countItems',
+            label: 'Items',
+            type: 'number',
+          },
+          {
+            id: 'countParts',
+            label: 'Parts',
+            type: 'number',
+          },
+          {
+            id: 'countSets',
+            label: 'Sets',
+            type: 'number',
+          },
+        ],
       },
       {
         id: 'conditions',
@@ -483,6 +515,7 @@ export const useModelsStore = defineStore('models', () => {
 
   // return
   return {
+    colors,
     filters,
     search,
     selectedItem,
