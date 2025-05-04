@@ -1,9 +1,16 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { useCatalogListPageStore, type BrickLinkCategory } from './bricklink/catalog-list-page'
+import {
+  useCatalogListPageStore,
+  type BrickLinkCategory,
+  type ItemType,
+} from './bricklink/catalog-list-page'
 import router from '@/router/index'
 import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 import { useRoute } from 'vue-router'
+import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
+import { processQueue } from '@/assets/js/make-call'
+import { useCatalogItemInvPageStore } from './bricklink/catalog-item-inv-page'
 interface Query {
   f?: Filter[]
   s?: string
@@ -24,6 +31,8 @@ interface BrickLinkItem {
 export const useModelsStore = defineStore('models', () => {
   // imports
   const catalogListPage = useCatalogListPageStore()
+  const catalogItemPage = useCatalogItemPageStore()
+  const catalogItemInvPage = useCatalogItemInvPageStore()
   const catalogDownloadPage = useCatalogDownloadPageStore()
   const route = useRoute()
 
@@ -66,6 +75,7 @@ export const useModelsStore = defineStore('models', () => {
               key: 'category',
               value: category.catID,
             })
+            search.value = undefined
           },
         },
         {
@@ -79,6 +89,7 @@ export const useModelsStore = defineStore('models', () => {
               key: 'category',
               value: category.catID,
             })
+            search.value = undefined
           },
         },
       ],
@@ -103,6 +114,7 @@ export const useModelsStore = defineStore('models', () => {
               key: 'itemType',
               value: item.itemType,
             })
+            search.value = undefined
           },
         },
         {
@@ -117,6 +129,7 @@ export const useModelsStore = defineStore('models', () => {
               key: 'item',
               value: item.id,
             })
+            search.value = undefined
           },
         },
         {
@@ -130,6 +143,7 @@ export const useModelsStore = defineStore('models', () => {
               key: 'category',
               value: item['Category ID'],
             })
+            search.value = undefined
           },
         },
       ],
@@ -143,12 +157,13 @@ export const useModelsStore = defineStore('models', () => {
           id: 'name',
           label: 'Name',
           width: '100px',
-          clickFn: (type) => {
+          clickFn: (type: ItemType) => {
             selectedItem.value = undefined
             filters.value.push({
               key: 'itemType',
               value: type.catType,
             })
+            search.value = undefined
           },
         },
         {
@@ -156,12 +171,13 @@ export const useModelsStore = defineStore('models', () => {
           label: 'Items',
           width: '100px',
           type: 'number',
-          clickFn: (type) => {
+          clickFn: (type: ItemType) => {
             selectedItem.value = 'items'
             filters.value.push({
               key: 'itemType',
               value: type.catType,
             })
+            search.value = undefined
           },
         },
         {
@@ -175,6 +191,7 @@ export const useModelsStore = defineStore('models', () => {
               key: 'itemType',
               value: type.catType,
             })
+            search.value = undefined
           },
         },
       ],
@@ -288,6 +305,42 @@ export const useModelsStore = defineStore('models', () => {
       for (let i = 0; i < catTypes.value.length; i++) {
         await catalogDownloadPage.fetchItemPage(catTypes.value[i])
       }
+    },
+  )
+  const itemIds = computed(() => {
+    return filters.value
+      .filter((f) => f.key === 'item')
+      .map((x) => x.value)
+      .filter((x) => x !== undefined)
+  })
+
+  watch(
+    itemIds,
+    async () => {
+      if (!itemIds.value) {
+        return
+      }
+      for (let i = 0; i < itemIds.value.length; i++) {
+        const itemKey = itemIds.value[i]
+        if (!itemKey) {
+          continue
+        }
+        const type = itemKey[0]
+        const itemId = itemKey.substring(2)
+        await catalogItemPage.fetchItemPage(type, itemId)
+        switch (type) {
+          case 'S':
+            await catalogItemInvPage.fetchItemPage(type, itemId)
+            break
+          case 'P':
+            // await catalogItemInPage.fetchItemPage(type, itemId);
+            break
+        }
+        processQueue(2)
+      }
+    },
+    {
+      immediate: true,
     },
   )
 
