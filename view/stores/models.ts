@@ -53,6 +53,16 @@ export const useModelsStore = defineStore('models', () => {
       singleItem.value.itemType + '-' + singleItem.value.itemNumber,
     )
   })
+  const inventories = computed(() => {
+    const catalogItemPageStore = useCatalogItemPageStore()
+    const { singleItem } = storeToRefs(catalogItemPageStore)
+    if (!singleItem.value) {
+      return []
+    }
+    return catalogItemPageStore.inventoriesMap.get(
+      singleItem.value.itemType + '-' + singleItem.value.itemNumber,
+    )
+  })
   const itemTypes = computed(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
     const catalogListPage = useCatalogListPageStore()
@@ -244,6 +254,57 @@ export const useModelsStore = defineStore('models', () => {
               })
               search.value = undefined
             },
+          },
+        ],
+      },
+      {
+        id: 'inventories',
+        label: 'Inventories',
+        items: inventories.value,
+        idField: 'invId',
+        columns: [
+          {
+            id: 'image',
+            width: '200px',
+            type: 'image',
+            hideLabel: true,
+          },
+          {
+            id: 'price',
+            label: 'Price',
+            width: '100px',
+          },
+          {
+            id: 'description',
+            label: 'Description',
+            width: '300px',
+          },
+          {
+            id: 'sellerCountryName',
+            label: 'Country',
+            width: '100px',
+          },
+          {
+            id: 'sellerStoreName',
+            label: 'Store',
+            width: '200px',
+          },
+          {
+            id: 'condition',
+            label: 'Condition',
+            width: '100px',
+          },
+          {
+            id: 'quantity',
+            label: 'Quant.',
+            width: '80px',
+            type: 'number',
+          },
+          {
+            id: 'sellerFeedbackScore',
+            label: 'Feedback',
+            width: '100px',
+            type: 'number',
           },
         ],
       },

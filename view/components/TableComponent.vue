@@ -55,7 +55,7 @@ function handleClick(column, item) {
         <template v-if="column.type === 'image'">
           <img
             :src="item[column.valueField || column.id]"
-            :style="{ width: column.width || '100px' }"
+            :style="{ 'max-width': column.width || '100px' }"
           />
         </template>
         <template v-else>

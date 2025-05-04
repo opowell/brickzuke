@@ -43,9 +43,13 @@ interface InventoriesResponse extends EventDetail {
       idInv: string
       strDesc: string
       mDisplaySalePrice: string
-      strStoreName: string
-      strSellerCountryCode: string
       strStorename: string
+      strSellerCountryCode: string
+      strSellerCountryName: string
+      codeNew: string
+      n4Qty: number
+      n4SellerFeedbackScore: number
+      idInvImg: number
     }[]
   }
 }
@@ -188,13 +192,22 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       this.inventoriesMap.set(
         itemType + '-' + itemNumber,
         detail.response.list.map((i) => {
+          let image =
+            'https://img.bricklink.com/ItemImage/' + itemType + 'T/0/' + itemNumber + '.t1.png'
+          if (i.idInvImg !== 0) {
+            image = 'https://www.bricklink.com/myImg/' + i.idInvImg + '.jpg'
+          }
           return {
-            id: i.idInv,
-            count: i.strDesc,
-            name: i.mDisplaySalePrice,
-            storeName: i.strStoreName,
+            invId: i.idInv,
+            description: i.strDesc,
+            price: i.mDisplaySalePrice,
             sellerCountryCode: i.strSellerCountryCode,
+            sellerCountryName: i.strSellerCountryName,
             sellerStoreName: i.strStorename,
+            condition: i.codeNew,
+            quantity: i.n4Qty,
+            sellerFeedbackScore: i.n4SellerFeedbackScore,
+            image,
           }
         }),
       )

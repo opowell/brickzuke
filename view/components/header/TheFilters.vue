@@ -44,11 +44,19 @@ const uiFilters = computed(() => {
     }
   })
 })
+function removeFilter(index: number) {
+  console.log(filters.value, index)
+  filters.value.splice(index, 1)
+}
 </script>
 
 <template>
   <div class="filters">
-    <button v-for="filter in uiFilters" :key="filter.key + '#' + filter.value">
+    <button
+      v-for="(filter, index) in uiFilters"
+      :key="filter.key + '#' + filter.value"
+      @click="removeFilter(index)"
+    >
       {{ filter.key }}: {{ filter.value }}
     </button>
   </div>
@@ -58,5 +66,9 @@ const uiFilters = computed(() => {
 .filters {
   display: flex;
   gap: 0.3rem;
+}
+button:hover {
+  opacity: 0.5;
+  text-decoration: line-through;
 }
 </style>

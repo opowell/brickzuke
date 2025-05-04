@@ -142,16 +142,16 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
       const catalogItemPage = useCatalogItemPageStore()
       if (catalogItemPage.singleItem) {
         const catalogInvItemPage = useCatalogItemInvPageStore()
-
         const typeMap = catalogInvItemPage.items.get(catalogItemPage.singleItem.itemType)
         if (typeMap) {
           const invItems = typeMap.get(catalogItemPage.singleItem.itemNumber)
-          if (invItems && invItems.map((ii) => ii.catString).includes(category.catID)) {
-            return true
+          if (invItems) {
+            return invItems.map((ii) => ii.catString).includes(category.catID)
           }
+          return false
         }
       }
-      return false
+      return true
     })
     return out.map((category) => {
       const catParts = parts.value.get(category.catID)
