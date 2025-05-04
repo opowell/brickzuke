@@ -10,8 +10,8 @@ const { search, selectedItem } = storeToRefs(modelsStore)
 <template>
   <header>
     <a href="/" class="home-link"><img class="home-icon" src="/favicon-32x32.png" /></a>
-    <TheViews v-if="selectedItem" />
     <TheFilters />
+    <TheViews v-if="selectedItem" />
     <input v-model="search" placeholder="Search..." />
   </header>
 </template>

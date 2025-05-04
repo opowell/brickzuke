@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import {
   useCatalogListPageStore,
   type BrickLinkCategory,
@@ -30,10 +30,6 @@ interface BrickLinkItem {
 
 export const useModelsStore = defineStore('models', () => {
   // imports
-  const catalogListPage = useCatalogListPageStore()
-  const catalogItemPage = useCatalogItemPageStore()
-  const catalogItemInvPage = useCatalogItemInvPageStore()
-  const catalogDownloadPage = useCatalogDownloadPageStore()
   const route = useRoute()
 
   // refs
@@ -45,182 +41,211 @@ export const useModelsStore = defineStore('models', () => {
   const pauseRedirect = ref(false)
 
   // computeds
-  const itemTypes = computed(() => [
-    {
-      id: 'categories',
-      label: 'Categories',
-      items: catalogListPage.filteredCategories,
-      idField: 'catID',
-      columns: [
-        {
-          id: 'image',
-          width: '100px',
-          type: 'image',
-          hideLabel: true,
-        },
-        {
-          id: 'type',
-          label: 'Type',
-          valueField: 'catType',
-          width: '55px',
-        },
-        {
-          id: 'items',
-          label: 'Items',
-          width: '60px',
-          type: 'number',
-          clickFn: (category: BrickLinkCategory) => {
-            selectedItem.value = 'items'
-            filters.value.push({
-              key: 'category',
-              value: category.catID,
-            })
-            search.value = undefined
+  const images = computed(() => {
+    const catalogItemPage = useCatalogItemPageStore()
+    const { singleItem } = storeToRefs(catalogItemPage)
+    if (!singleItem.value) {
+      return []
+    }
+    return catalogItemPage.imagesMap.get(
+      singleItem.value.itemType + '-' + singleItem.value.itemNumber,
+    )
+  })
+  const itemTypes = computed(() => {
+    const catalogDownloadPage = useCatalogDownloadPageStore()
+    const catalogListPage = useCatalogListPageStore()
+    return [
+      {
+        id: 'categories',
+        label: 'Categories',
+        items: catalogListPage.filteredCategories,
+        idField: 'catID',
+        columns: [
+          {
+            id: 'image',
+            width: '100px',
+            type: 'image',
+            hideLabel: true,
           },
-        },
-        {
-          id: 'name',
-          label: 'Name',
-          itemValue: (category: BrickLinkCategory) => category.name + ' (' + category.catID + ')',
-          width: '300px',
-          clickFn: (category: BrickLinkCategory) => {
-            selectedItem.value = undefined
-            filters.value.push({
-              key: 'category',
-              value: category.catID,
-            })
-            search.value = undefined
+          {
+            id: 'type',
+            label: 'Type',
+            valueField: 'catType',
+            width: '55px',
           },
-        },
-      ],
-    },
-    {
-      id: 'items',
-      label: 'Items',
-      items: catalogDownloadPage.filteredItems,
-      columns: [
-        {
-          id: 'image',
-          width: '100px',
-          type: 'image',
-          hideLabel: true,
-        },
-        {
-          id: 'itemType',
-          label: 'Type',
-          width: '60px',
-          clickFn: (item: BrickLinkItem) => {
-            filters.value.push({
-              key: 'itemType',
-              value: item.itemType,
-            })
-            search.value = undefined
+          {
+            id: 'items',
+            label: 'Items',
+            width: '60px',
+            type: 'number',
+            clickFn: (category: BrickLinkCategory) => {
+              selectedItem.value = 'items'
+              filters.value.push({
+                key: 'category',
+                value: category.catID,
+              })
+              search.value = undefined
+            },
           },
-        },
-        {
-          id: 'name',
-          label: 'Name',
-          width: '300px',
-          valueField: 'Name',
-          itemValue: (item: BrickLinkItem) => item.Name + ' (' + item.Number + ')',
-          clickFn: (item: BrickLinkItem) => {
-            selectedItem.value = undefined
-            filters.value.push({
-              key: 'item',
-              value: item.id,
-            })
-            search.value = undefined
+          {
+            id: 'name',
+            label: 'Name',
+            itemValue: (category: BrickLinkCategory) => category.name + ' (' + category.catID + ')',
+            width: '300px',
+            clickFn: (category: BrickLinkCategory) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'category',
+                value: category.catID,
+              })
+              search.value = undefined
+            },
           },
-        },
-        {
-          id: 'category',
-          label: 'Category',
-          width: '200px',
-          valueField: 'Category Name',
-          clickFn: (item: BrickLinkItem) => {
-            selectedItem.value = undefined
-            filters.value.push({
-              key: 'category',
-              value: item['Category ID'],
-            })
-            search.value = undefined
+        ],
+      },
+      {
+        id: 'items',
+        label: 'Items',
+        items: catalogDownloadPage.filteredItems,
+        columns: [
+          {
+            id: 'image',
+            width: '100px',
+            type: 'image',
+            hideLabel: true,
           },
-        },
-      ],
-    },
-    {
-      id: 'itemTypes',
-      label: 'Item types',
-      items: catalogListPage.filteredItemTypes,
-      columns: [
-        {
-          id: 'name',
-          label: 'Name',
-          width: '100px',
-          clickFn: (type: ItemType) => {
-            selectedItem.value = undefined
-            filters.value.push({
-              key: 'itemType',
-              value: type.catType,
-            })
-            search.value = undefined
+          {
+            id: 'itemType',
+            label: 'Type',
+            width: '60px',
+            clickFn: (item: BrickLinkItem) => {
+              filters.value.push({
+                key: 'itemType',
+                value: item.itemType,
+              })
+              search.value = undefined
+            },
           },
-        },
-        {
-          id: 'count',
-          label: 'Items',
-          width: '100px',
-          type: 'number',
-          clickFn: (type: ItemType) => {
-            selectedItem.value = 'items'
-            filters.value.push({
-              key: 'itemType',
-              value: type.catType,
-            })
-            search.value = undefined
+          {
+            id: 'name',
+            label: 'Name',
+            width: '300px',
+            valueField: 'Name',
+            itemValue: (item: BrickLinkItem) => item.Name + ' (' + item.Number + ')',
+            clickFn: (item: BrickLinkItem) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'item',
+                value: item.id,
+              })
+              search.value = undefined
+            },
           },
-        },
-        {
-          id: 'categories',
-          label: 'Categories',
-          width: '100px',
-          type: 'number',
-          clickFn: (type) => {
-            selectedItem.value = 'categories'
-            filters.value.push({
-              key: 'itemType',
-              value: type.catType,
-            })
-            search.value = undefined
+          {
+            id: 'category',
+            label: 'Category',
+            width: '200px',
+            valueField: 'Category Name',
+            clickFn: (item: BrickLinkItem) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'category',
+                value: item['Category ID'],
+              })
+              search.value = undefined
+            },
           },
-        },
-      ],
-    },
-    {
-      id: 'colors',
-      label: 'Colors',
-    },
-    {
-      id: 'conditions',
-      label: 'Conditions',
-    },
-    {
-      id: 'years',
-      label: 'Years',
-    },
-    {
-      id: 'storeRegions',
-      label: 'Store regions',
-    },
-    {
-      id: 'storeCountries',
-      label: 'Store countries',
-    },
-    {
-      id: 'stores',
-      label: 'Stores',
-    },
-  ])
+        ],
+      },
+      {
+        id: 'itemTypes',
+        label: 'Item types',
+        items: catalogListPage.filteredItemTypes,
+        columns: [
+          {
+            id: 'name',
+            label: 'Name',
+            width: '100px',
+            clickFn: (type: ItemType) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'itemType',
+                value: type.catType,
+              })
+              search.value = undefined
+            },
+          },
+          {
+            id: 'count',
+            label: 'Items',
+            width: '100px',
+            type: 'number',
+            clickFn: (type: ItemType) => {
+              selectedItem.value = 'items'
+              filters.value.push({
+                key: 'itemType',
+                value: type.catType,
+              })
+              search.value = undefined
+            },
+          },
+          {
+            id: 'categories',
+            label: 'Categories',
+            width: '100px',
+            type: 'number',
+            clickFn: (type) => {
+              selectedItem.value = 'categories'
+              filters.value.push({
+                key: 'itemType',
+                value: type.catType,
+              })
+              search.value = undefined
+            },
+          },
+        ],
+      },
+      {
+        id: 'colors',
+        label: 'Colors',
+      },
+      {
+        id: 'conditions',
+        label: 'Conditions',
+      },
+      {
+        id: 'years',
+        label: 'Years',
+      },
+      {
+        id: 'storeRegions',
+        label: 'Store regions',
+      },
+      {
+        id: 'storeCountries',
+        label: 'Store countries',
+      },
+      {
+        id: 'stores',
+        label: 'Stores',
+      },
+      {
+        id: 'images',
+        label: 'Images',
+        items: images.value,
+        columns: [
+          {
+            id: 'image',
+            width: 'unset',
+            type: 'image',
+            hideLabel: true,
+          },
+        ],
+        hideSelect: true,
+        hidePriceModifier: true,
+      },
+    ]
+  })
   const currentQuery = computed(() => {
     const query: Query = {}
     if (selectedItem.value) {
@@ -257,6 +282,7 @@ export const useModelsStore = defineStore('models', () => {
     return '/?' + parts.join('&')
   })
   const catTypes = computed(() => {
+    const catalogListPage = useCatalogListPageStore()
     return catalogListPage.itemTypes.map((type) => type.catType)
   })
 
@@ -302,6 +328,7 @@ export const useModelsStore = defineStore('models', () => {
   watch(
     () => catTypes.value,
     async () => {
+      const catalogDownloadPage = useCatalogDownloadPageStore()
       for (let i = 0; i < catTypes.value.length; i++) {
         await catalogDownloadPage.fetchItemPage(catTypes.value[i])
       }
@@ -327,9 +354,11 @@ export const useModelsStore = defineStore('models', () => {
         }
         const type = itemKey[0]
         const itemId = itemKey.substring(2)
+        const catalogItemPage = useCatalogItemPageStore()
         await catalogItemPage.fetchItemPage(type, itemId)
         switch (type) {
           case 'S':
+            const catalogItemInvPage = useCatalogItemInvPageStore()
             await catalogItemInvPage.fetchItemPage(type, itemId)
             break
           case 'P':
@@ -359,5 +388,6 @@ export const useModelsStore = defineStore('models', () => {
     itemTypes,
     currentQuery,
     itemIds,
+    images,
   }
 })

@@ -12,6 +12,8 @@ export interface Table {
   columns: TableColumn[]
   items: any[]
   idField: string
+  hidePriceModifier?: boolean
+  hideSelect?: boolean
 }
 const { table } = defineProps<{
   table: Table
@@ -33,7 +35,7 @@ function handleClick(column, item) {
 <template>
   <div class="table">
     <div class="row">
-      <div><input type="checkbox" /></div>
+      <div v-if="!table.hideSelect"><input type="checkbox" /></div>
       <div
         v-for="column in table.columns"
         :key="column.id"
@@ -41,10 +43,10 @@ function handleClick(column, item) {
       >
         <button v-if="column.label">{{ column.label }}</button>
       </div>
-      <div>Price factor</div>
+      <div v-if="!table.hidePriceModifier">Price factor</div>
     </div>
     <div v-for="item in tableItems" :key="item[table.idField]" class="row">
-      <div><input type="checkbox" /></div>
+      <div v-if="!table.hideSelect"><input type="checkbox" /></div>
       <div
         v-for="column in table.columns"
         :key="column.id"
@@ -68,7 +70,7 @@ function handleClick(column, item) {
           </template>
         </button>
       </div>
-      <div><input /></div>
+      <div v-if="!table.hidePriceModifier"><input /></div>
     </div>
   </div>
 </template>
