@@ -358,5 +358,6 @@ export const useModelsStore = defineStore('models', () => {
     setSelectedItem,
     itemTypes,
     currentQuery,
+    itemIds,
   }
 })
