@@ -11,6 +11,7 @@ import { useRoute } from 'vue-router'
 import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
 import { processQueue } from '@/assets/js/make-call'
 import { useCatalogItemInvPageStore } from './bricklink/catalog-item-inv-page'
+import { formatInteger } from '@/assets/js/utils'
 interface Query {
   f?: Filter[]
   s?: string
@@ -26,6 +27,7 @@ interface BrickLinkItem {
   Number: string
   'Category ID': string
   itemType: string
+  'Weight (in Grams)': string
 }
 
 export const useModelsStore = defineStore('models', () => {
@@ -154,6 +156,31 @@ export const useModelsStore = defineStore('models', () => {
               })
               search.value = undefined
             },
+          },
+          {
+            id: 'weight',
+            label: 'Weight',
+            width: '70px',
+            itemValue: (item: BrickLinkItem) =>
+              formatInteger(Number.parseFloat(item['Weight (in Grams)']) * 100, [
+                {
+                  start: 0,
+                  end: 100,
+                  suffix: 'cg',
+                },
+                {
+                  start: 100,
+                  modifier: 0.01,
+                  decimalPlaces: 1,
+                  suffix: 'g',
+                },
+              ]),
+          },
+          {
+            id: 'dimensions',
+            label: 'Dimensions',
+            width: '110px',
+            valueField: 'Dimensions',
           },
         ],
       },

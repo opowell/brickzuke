@@ -1,20 +1,63 @@
-export function formatInteger(x: number | undefined) {
+// import * as math from 'mathjs'
+// math.divide(
+//     math.bignumber(actualPrice),
+//   math.bignumber(cheapP)
+interface Breakpoint {
+  start?: number
+  end?: number
+  suffix?: string
+  decimalPlaces?: number
+  modifier?: number
+}
+
+const defaultBreakpoints = [
+  {
+    start: 0,
+    end: 1000,
+  },
+  {
+    end: 10000,
+    suffix: 'k',
+    modifier: 0.001,
+    decimalPlaces: 1,
+  },
+  {
+    end: 1000000,
+    modifier: 0.001,
+    suffix: 'k',
+  },
+  {
+    suffix: 'm',
+    modifier: 0.000001,
+    decimalPlaces: 1,
+  },
+]
+
+export function formatInteger(x?: number, breakpoints: Breakpoint[] = defaultBreakpoints) {
   if (x === undefined) {
     return
   }
   if (isNaN(x)) {
     return x
   }
-  if (x < 1000) {
-    return x
+  for (let i = 0; i < breakpoints.length; i++) {
+    const breakpoint = breakpoints[i]
+    if (breakpoint.start && x < breakpoint.start) {
+      continue
+    }
+    if (breakpoint.end && x >= breakpoint.end) {
+      continue
+    }
+    let val: string | number = x
+    if (breakpoint.modifier) {
+      val = x * breakpoint.modifier
+    }
+    val = val.toFixed(breakpoint.decimalPlaces || 0)
+    if (breakpoint.suffix) {
+      val += breakpoint.suffix
+    }
+    return val
   }
-  if (x < 10000) {
-    return (x / 1000).toFixed(1) + 'k'
-  }
-  if (x < 1000000) {
-    return (x / 1000).toFixed(0) + 'k'
-  }
-  return (x / 1000000).toFixed(1) + 'm'
 }
 
 export function extractValueFromHtml(

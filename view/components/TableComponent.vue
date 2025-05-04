@@ -58,17 +58,30 @@ function handleClick(column, item) {
             :style="{ width: column.width || '100px' }"
           />
         </template>
-        <button v-else @click="handleClick(column, item)">
-          <template v-if="column.type === 'number'">
-            {{ formatInteger(item[column.valueField || column.id]) }}
-          </template>
-          <template v-else-if="column.itemValue">
-            {{ column.itemValue(item) }}
-          </template>
-          <template v-else>
-            {{ item[column.valueField || column.id] }}
-          </template>
-        </button>
+        <template v-else>
+          <button v-if="column.clickFn" @click="handleClick(column, item)">
+            <template v-if="column.type === 'number'">
+              {{ formatInteger(item[column.valueField || column.id]) }}
+            </template>
+            <template v-else-if="column.itemValue">
+              {{ column.itemValue(item) }}
+            </template>
+            <template v-else>
+              {{ item[column.valueField || column.id] }}
+            </template>
+          </button>
+          <div v-else>
+            <template v-if="column.type === 'number'">
+              {{ formatInteger(item[column.valueField || column.id]) }}
+            </template>
+            <template v-else-if="column.itemValue">
+              {{ column.itemValue(item) }}
+            </template>
+            <template v-else>
+              {{ item[column.valueField || column.id] }}
+            </template>
+          </div>
+        </template>
       </div>
       <div v-if="!table.hidePriceModifier"><input /></div>
     </div>

@@ -37,7 +37,6 @@ function getValue(filter: Filter) {
   return filter.value
 }
 const uiFilters = computed(() => {
-  console.log('uiFilters')
   return filters.value.map((filter) => {
     return {
       key: getKey(filter.key),
