@@ -170,9 +170,23 @@ export const useModelsStore = defineStore('models', () => {
                 },
                 {
                   start: 100,
+                  end: 10000,
                   modifier: 0.01,
                   decimalPlaces: 1,
                   suffix: 'g',
+                },
+                {
+                  start: 10000,
+                  end: 100000,
+                  modifier: 0.01,
+                  decimalPlaces: 0,
+                  suffix: 'g',
+                },
+                {
+                  start: 100000,
+                  modifier: 0.00001,
+                  decimalPlaces: 1,
+                  suffix: 'kg',
                 },
               ]),
           },
