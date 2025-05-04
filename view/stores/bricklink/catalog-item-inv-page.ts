@@ -62,8 +62,10 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
             "SRC='", // thumbnail
             '<TD ALIGN="RIGHT">&nbsp;', // quantity
             'itemType=', // itemType
+            'catType=', // catType
+            'catString=', // catString
           ],
-          [' ', '"', "'", '&nbsp;', '"'],
+          [' ', '"', "'", '&nbsp;', '"', '&', "'"],
         )
         let colorId = undefined
         if (row.includes('idColor=')) {
@@ -81,6 +83,8 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
           thumbnail: params[2],
           quantity: Number.parseInt(params[3]),
           colorId,
+          catType: params[5],
+          catString: params[6],
         }
       })
       let typeMap = this.items.get(itemType)

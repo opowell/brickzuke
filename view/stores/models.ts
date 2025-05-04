@@ -140,6 +140,7 @@ export const useModelsStore = defineStore('models', () => {
                 key: 'item',
                 value: item.id,
               })
+              filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
               search.value = undefined
             },
           },

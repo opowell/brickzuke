@@ -1,3 +1,4 @@
+import { useCatalogItemInvPageStore } from '@/stores/bricklink/catalog-item-inv-page'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import {
@@ -11,6 +12,7 @@ import {
 } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
+import { useCatalogItemPageStore } from './catalog-item-page'
 
 export interface BrickLinkCategory {
   catID: string
@@ -131,11 +133,26 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
     const itemTypeFilters = modelsStore.filters
       .filter((f) => f.key === 'itemType')
       .map((f) => f.value)
-    if (itemTypeFilters.length > 0) {
-      out = out.filter((category) => {
-        return itemTypeFilters.includes(category.catType)
-      })
-    }
+    out = out.filter((category) => {
+      if (itemTypeFilters.length > 0) {
+        if (itemTypeFilters.includes(category.catType)) {
+          return true
+        }
+      }
+      const catalogItemPage = useCatalogItemPageStore()
+      if (catalogItemPage.singleItem) {
+        const catalogInvItemPage = useCatalogItemInvPageStore()
+
+        const typeMap = catalogInvItemPage.items.get(catalogItemPage.singleItem.itemType)
+        if (typeMap) {
+          const invItems = typeMap.get(catalogItemPage.singleItem.itemNumber)
+          if (invItems && invItems.map((ii) => ii.catString).includes(category.catID)) {
+            return true
+          }
+        }
+      }
+      return false
+    })
     return out.map((category) => {
       const catParts = parts.value.get(category.catID)
       let image = null
