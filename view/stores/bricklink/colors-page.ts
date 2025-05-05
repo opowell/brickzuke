@@ -23,7 +23,6 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
       return Array.from(state.colors.values())
     },
     filteredColors(state): BrickLinkColor[] {
-      console.log('filteredColors')
       const modelsStore = useModelsStore()
       const { search } = storeToRefs(modelsStore)
       const catalogItemPage = useCatalogItemPageStore()

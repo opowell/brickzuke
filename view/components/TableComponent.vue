@@ -14,6 +14,7 @@ export interface Table {
   idField: string
   hidePriceModifier?: boolean
   hideSelect?: boolean
+  itemValue?: (item: any) => string
 }
 const { table } = defineProps<{
   table: Table
@@ -63,23 +64,15 @@ function handleClick(column, item) {
             <template v-if="column.type === 'number'">
               {{ formatInteger(item[column.valueField || column.id]) }}
             </template>
-            <template v-else-if="column.itemValue">
-              {{ column.itemValue(item) }}
-            </template>
-            <template v-else>
-              {{ item[column.valueField || column.id] }}
-            </template>
+            <div v-else-if="column.itemValue" v-html="column.itemValue(item)" />
+            <div v-else v-html="item[column.valueField || column.id]" />
           </button>
           <div v-else>
             <template v-if="column.type === 'number'">
               {{ formatInteger(item[column.valueField || column.id]) }}
             </template>
-            <template v-else-if="column.itemValue">
-              {{ column.itemValue(item) }}
-            </template>
-            <template v-else>
-              {{ item[column.valueField || column.id] }}
-            </template>
+            <div v-else-if="column.itemValue" v-html="column.itemValue(item)" />
+            <div v-else v-html="item[column.valueField || column.id]" />
           </div>
         </template>
       </div>
