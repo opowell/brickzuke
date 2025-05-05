@@ -52,6 +52,24 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
     if (!singleItem.value) {
       return
     }
+    const itemVariants = items.value
+      .get(singleItem.value.itemType)
+      ?.get(singleItem.value.itemNumber)
+      ?.map((invItem) => {
+        return {
+          ...invItem,
+          quantity: undefined,
+        }
+      })
+    return itemVariants
+  })
+  const filteredItemInventories = computed(() => {
+    const catalogItemPage = useCatalogItemPageStore()
+    const catalogItemPageRefs = storeToRefs(catalogItemPage)
+    const singleItem = catalogItemPageRefs.singleItem
+    if (!singleItem.value) {
+      return
+    }
     const invItems = items.value.get(singleItem.value.itemType)?.get(singleItem.value.itemNumber)
     return invItems
   })
@@ -113,5 +131,6 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
     handlePageResponse,
     items,
     filteredItemVariants,
+    filteredItemInventories,
   }
 })

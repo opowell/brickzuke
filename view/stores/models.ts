@@ -123,9 +123,9 @@ export const useModelsStore = defineStore('models', () => {
         ],
       },
       {
-        id: 'itemVariants',
-        label: 'Item variants',
-        items: catalogItemInvPage.filteredItemVariants,
+        id: 'itemInventories',
+        label: 'Item inventories',
+        items: catalogItemInvPage.filteredItemInventories,
         columns: [
           {
             id: 'image',
@@ -174,6 +174,56 @@ export const useModelsStore = defineStore('models', () => {
             id: 'quantity',
             label: 'Quantity',
             width: '80px',
+          },
+        ],
+      },
+      {
+        id: 'itemVariants',
+        label: 'Item variants',
+        items: catalogItemInvPage.filteredItemVariants,
+        columns: [
+          {
+            id: 'image',
+            width: '100px',
+            type: 'image',
+            valueField: 'thumbnail',
+            hideLabel: true,
+          },
+          {
+            id: 'itemType',
+            label: 'Type',
+            width: '60px',
+            clickFn: (item: BrickLinkItem) => {
+              filters.value.push({
+                key: 'itemType',
+                value: item.itemType,
+              })
+              search.value = undefined
+            },
+          },
+          {
+            id: 'name',
+            label: 'Name',
+            width: '300px',
+            clickFn: (item: BrickLinkItem) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'item',
+                value: item.id,
+              })
+              filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
+              search.value = undefined
+            },
+          },
+          {
+            id: 'categoryName',
+            label: 'Category',
+            width: '100px',
+          },
+          {
+            id: 'colorId',
+            label: 'Color',
+            width: '60px',
           },
         ],
       },
