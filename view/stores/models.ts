@@ -17,10 +17,15 @@ interface Query {
   f?: Filter[]
   s?: string
   v?: string
+  b?: Sort[]
 }
 interface Filter {
   key: string
   value: string
+}
+interface Sort {
+  key: string
+  dir: 'a' | 'd'
 }
 interface BrickLinkItem {
   id: string
@@ -28,7 +33,7 @@ interface BrickLinkItem {
   Number: string
   'Category ID': string
   itemType: string
-  'Weight (in Grams)': string
+  weight: string
 }
 
 export const useModelsStore = defineStore('models', () => {
@@ -37,6 +42,7 @@ export const useModelsStore = defineStore('models', () => {
 
   // refs
   const filters = ref<Filter[]>([])
+  const sorts = ref<Sort[]>([])
   const urlParams = new URLSearchParams(window.location.search)
   const initialSelectedItem: string | undefined = urlParams.get('v') || undefined
   const search = ref(urlParams.get('s') || undefined)
@@ -290,7 +296,7 @@ export const useModelsStore = defineStore('models', () => {
             label: 'Weight',
             width: '70px',
             itemValue: (item: BrickLinkItem) =>
-              formatInteger(Number.parseFloat(item['Weight (in Grams)']) * 100, [
+              formatInteger(Number.parseFloat(item.weight) * 100, [
                 {
                   start: 0,
                   end: 100,
@@ -501,6 +507,9 @@ export const useModelsStore = defineStore('models', () => {
     if (filters.value.length > 0) {
       query.f = filters.value
     }
+    if (sorts.value.length > 0) {
+      query.b = sorts.value
+    }
     return query
   })
   const selectedItemType = computed(() => {
@@ -520,6 +529,9 @@ export const useModelsStore = defineStore('models', () => {
     if (filters.value.length > 0) {
       parts.push('f=' + filters.value.map((filter) => filter.key + '_' + filter.value).join(','))
     }
+    if (sorts.value.length > 0) {
+      parts.push('b=' + sorts.value.map((sort) => sort.key + '_' + sort.dir).join(','))
+    }
     if (parts.length === 0) {
       return '/'
     }
@@ -529,7 +541,12 @@ export const useModelsStore = defineStore('models', () => {
     const catalogListPage = useCatalogListPageStore()
     return catalogListPage.itemTypes.map((type) => type.catType)
   })
-
+  const itemIds = computed(() => {
+    return filters.value
+      .filter((f) => f.key === 'item')
+      .map((x) => x.value)
+      .filter((x) => x !== undefined)
+  })
   // watchers
   watch(
     () => route.query,
@@ -548,6 +565,18 @@ export const useModelsStore = defineStore('models', () => {
         })
       } else {
         filters.value = []
+      }
+      const sortsString = route.query.b?.toString()
+      if (sortsString) {
+        sorts.value = sortsString.split(',').map((bs) => {
+          const parts = bs.split('_')
+          return {
+            key: parts[0],
+            dir: parts[1],
+          }
+        })
+      } else {
+        sorts.value = []
       }
       pauseRedirect.value = false
     },
@@ -578,13 +607,6 @@ export const useModelsStore = defineStore('models', () => {
       }
     },
   )
-  const itemIds = computed(() => {
-    return filters.value
-      .filter((f) => f.key === 'item')
-      .map((x) => x.value)
-      .filter((x) => x !== undefined)
-  })
-
   watch(
     itemIds,
     async () => {
@@ -616,16 +638,33 @@ export const useModelsStore = defineStore('models', () => {
       immediate: true,
     },
   )
+  watch(selectedItem, () => {
+    sorts.value = []
+  })
 
   // methods
   function setSelectedItem(table) {
     selectedItem.value = table.id
   }
 
+  function addSort(key: string, dir: 'a' | 'd') {
+    const existingSort = sorts.value.find((s) => s.key === key)
+    if (existingSort) {
+      existingSort.dir = dir
+      return
+    }
+    sorts.value.push({
+      key,
+      dir,
+    })
+  }
+
   // return
   return {
+    addSort,
     colors,
     filters,
+    sorts,
     search,
     selectedItem,
     selectedItemType,

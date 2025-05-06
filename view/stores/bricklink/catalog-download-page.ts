@@ -97,7 +97,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       // return out;
     }
     const modelsStore = useModelsStore()
-    const { filters, search } = storeToRefs(modelsStore)
+    const { filters, search, sorts } = storeToRefs(modelsStore)
     if ((!search.value || search.value === '') && filters.value.length === 0) {
       return out
     }
@@ -117,7 +117,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     // const excludedItemTypeIds = filteredItemTypes
     //   .filter((f) => f.action === 'exclude')
     //   .map((f) => f.item)
-    return out.filter((item) => {
+    out = out.filter((item) => {
       if (search.value) {
         if (caseMatch) {
           if (item.Name.includes(search.value)) {
@@ -166,6 +166,22 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       }
       return true
     })
+    if (sorts.value.length > 0) {
+      out = out.sort((a, b) => {
+        for (let i = 0; i < sorts.value.length; i++) {
+          const sort = sorts.value[i]
+          if (a[sort.key] === b[sort.key]) {
+            continue
+          }
+          if (sort.dir === 'a' && a[sort.key] > b[sort.key]) {
+            return 1
+          } else {
+            return -1
+          }
+        }
+      })
+    }
+    return out
   })
   async function fetchItemPage(type: string) {
     return await makeTextCall(
@@ -194,6 +210,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
         } else {
           out.image = `https://img.bricklink.com/ItemImage/${itemType}L/${out.Number}.png`
         }
+        out.weight = out['Weight (in Grams)']
         return out
       })
     const map = new Map<string, any>()

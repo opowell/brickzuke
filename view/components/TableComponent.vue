@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatInteger } from '@/assets/js/utils.ts'
+import { useModelsStore } from '@/stores/models'
 import { computed } from 'vue'
 interface TableColumn {
   id: string
@@ -16,6 +17,7 @@ export interface Table {
   hideSelect?: boolean
   itemValue?: (item: any) => string
 }
+const modelsStore = useModelsStore()
 const { table } = defineProps<{
   table: Table
 }>()
@@ -31,6 +33,9 @@ function handleClick(column, item) {
   }
   return column.clickFn(item)
 }
+function sortBy(column: TableColumn) {
+  modelsStore.addSort(column.id, 'a')
+}
 </script>
 
 <template>
@@ -42,9 +47,9 @@ function handleClick(column, item) {
         :key="column.id"
         :style="{ width: column.width || '100px' }"
       >
-        <button v-if="column.label">{{ column.label }}</button>
+        <button v-if="column.label" @click="sortBy(column)">{{ column.label }}</button>
       </div>
-      <div v-if="!table.hidePriceModifier">Price factor</div>
+      <div v-if="!table.hidePriceModifier">Price mod.</div>
     </div>
     <div v-for="item in tableItems" :key="item[table.idField]" class="row">
       <div v-if="!table.hideSelect"><input type="checkbox" /></div>
@@ -76,7 +81,7 @@ function handleClick(column, item) {
           </div>
         </template>
       </div>
-      <div v-if="!table.hidePriceModifier"><input /></div>
+      <div v-if="!table.hidePriceModifier"><input style="width: 75px" /></div>
     </div>
   </div>
 </template>
