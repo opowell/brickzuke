@@ -6,6 +6,7 @@ import { useQueryStore } from '../query'
 import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useModelsStore } from '../models'
 import { computed, ref } from 'vue'
+import { ONE_MONTH } from '@/assets/js/timesToMs'
 
 interface Category {
   id: string
@@ -188,6 +189,8 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
       getOptions(type),
+      undefined,
+      ONE_MONTH,
     )
   }
   async function handlePageResponse(detail: EventDetail) {

@@ -3,9 +3,13 @@ import { formatInteger } from '@/assets/js/utils.ts'
 import { useModelsStore } from '@/stores/models'
 import { computed } from 'vue'
 interface TableColumn {
+  width?: string
   id: string
   label: string
   valueField: string
+  type?: string
+  itemValue?: (item: any) => string
+  clickFn?: (item: any) => string
 }
 export interface Table {
   id: string
@@ -15,7 +19,6 @@ export interface Table {
   idField: string
   hidePriceModifier?: boolean
   hideSelect?: boolean
-  itemValue?: (item: any) => string
 }
 const modelsStore = useModelsStore()
 const { table } = defineProps<{
@@ -27,7 +30,7 @@ const tableItems = computed(() => {
   }
   return table.items.slice(0, 1000)
 })
-function handleClick(column, item) {
+function handleClick(column: TableColumn, item: any) {
   if (!column.clickFn) {
     return
   }

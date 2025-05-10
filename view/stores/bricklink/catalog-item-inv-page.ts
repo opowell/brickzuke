@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useCatalogItemPageStore } from './catalog-item-page'
+import { ONE_DAY } from '@/assets/js/timesToMs'
 
 interface ItemVariant {
   itemType: string
@@ -43,6 +44,8 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
         mode: 'cors',
         credentials: 'include',
       },
+      undefined,
+      ONE_DAY,
     )
   }
   const filteredItemVariants = computed(() => {

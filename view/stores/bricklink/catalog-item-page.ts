@@ -8,6 +8,7 @@ import {
 } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
+import { ONE_DAY, ONE_WEEK } from '@/assets/js/timesToMs'
 
 interface ImagesResponse extends EventDetail {
   request: {
@@ -162,6 +163,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         {
           itemType,
         },
+        ONE_WEEK,
       )
     },
     async fetchInventories(itemNumber: string, itemId: string, itemType: string) {
@@ -174,6 +176,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           itemId,
           itemNumber,
         },
+        ONE_DAY,
       )
     },
     async fetchItemPage(type: string, itemId: string) {
@@ -181,6 +184,8 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         Call.GET_CATALOG_ITEM_PAGE,
         getPageUrl(type, itemId),
         getOptions(type, itemId),
+        undefined,
+        ONE_WEEK,
       )
     },
     async handleInventoriesResponse(detail: InventoriesResponse) {

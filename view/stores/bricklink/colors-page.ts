@@ -4,6 +4,7 @@ import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useCatalogItemPageStore } from './catalog-item-page'
 import { useModelsStore } from '../models'
+import { ONE_MONTH, ONE_YEAR } from '@/assets/js/timesToMs'
 
 interface BrickLinkColor {
   cssCode: string
@@ -70,28 +71,34 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
   },
   actions: {
     async fetchColorsPage() {
-      makeTextCall(Call.GET_COLORS_PAGE, 'https://www.bricklink.com/catalogColors.asp', {
-        headers: {
-          accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'accept-language': 'en,de;q=0.9,es;q=0.8,en-US;q=0.7',
-          'cache-control': 'max-age=0',
-          priority: 'u=0, i',
-          'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"macOS"',
-          'sec-fetch-dest': 'document',
-          'sec-fetch-mode': 'navigate',
-          'sec-fetch-site': 'none',
-          'sec-fetch-user': '?1',
-          'upgrade-insecure-requests': '1',
+      makeTextCall(
+        Call.GET_COLORS_PAGE,
+        'https://www.bricklink.com/catalogColors.asp',
+        {
+          headers: {
+            accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-language': 'en,de;q=0.9,es;q=0.8,en-US;q=0.7',
+            'cache-control': 'max-age=0',
+            priority: 'u=0, i',
+            'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'none',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1',
+          },
+          referrerPolicy: 'strict-origin-when-cross-origin',
+          body: null,
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'include',
         },
-        referrerPolicy: 'strict-origin-when-cross-origin',
-        body: null,
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'include',
-      })
+        undefined,
+        ONE_YEAR,
+      )
     },
     handleFetchResponse(response: string) {
       const count = extractValueFromHtml(

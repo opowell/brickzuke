@@ -11,6 +11,7 @@ export interface QueuedCall {
   url: string
   options: object
   extraParams?: object
+  storageTime?: number
 }
 import indices from '../../../idb/indices'
 import { useCatalogDownloadPageStore } from '@/stores/bricklink/catalog-download-page'
@@ -41,16 +42,28 @@ export enum CallType {
   JSON = 'json',
   TEXT = 'text',
 }
-export async function makeTextCall(call: Call, url: string, options: object, extraParams?: object) {
-  return await queueCall(CallType.TEXT, call, url, options, extraParams)
+export async function makeTextCall(
+  call: Call,
+  url: string,
+  options: object,
+  extraParams?: object,
+  storageTime?: number,
+) {
+  return await queueCall(CallType.TEXT, call, url, options, extraParams, storageTime)
 }
 export async function makeTextCalls(
-  calls: { call: Call; url: string; options: object; extraParams?: object }[],
+  calls: { call: Call; url: string; options: object; extraParams?: object; storageTime?: number }[],
 ) {
   return await queueCalls(CallType.TEXT, calls)
 }
-export async function makeJsonCall(call: Call, url: string, options: object, extraParams?: object) {
-  return await queueCall(CallType.JSON, call, url, options, extraParams)
+export async function makeJsonCall(
+  call: Call,
+  url: string,
+  options: object,
+  extraParams?: object,
+  storageTime?: number,
+) {
+  return await queueCall(CallType.JSON, call, url, options, extraParams, storageTime)
 }
 export interface EventDetail {
   request: {
@@ -58,6 +71,7 @@ export interface EventDetail {
     url: string
     options: { body?: string }
     extraParams?: object
+    storageTime?: number
   }
   response: any
 }
@@ -151,6 +165,7 @@ export async function processQueue(reps = 1) {
       queuedCall.url,
       queuedCall.options,
       queuedCall.extraParams,
+      queuedCall.storageTime,
     )
     await deleteQueuedCall(db, queuedCall.id)
     if (!cached) {
@@ -169,6 +184,7 @@ export async function queueCalls(
     url: string
     options: object
     extraParams?: object
+    storageTime?: number
   }[],
 ) {
   const db = await getDbConnection()
@@ -198,6 +214,7 @@ export async function queueCalls(
     const call = callObject.call
     const options = callObject.options
     const extraParams = callObject.extraParams
+    const storageTime = callObject.storageTime
     await put(db, STORES.QUEUED_CALLS, {
       callType,
       call,
@@ -205,6 +222,7 @@ export async function queueCalls(
       options,
       extraParams,
       date: new Date(),
+      storageTime,
     })
   }
 }
@@ -226,6 +244,7 @@ export async function queueCall(
   url: string,
   options: object,
   extraParams?: object,
+  storageTime?: number,
 ) {
   const db = await getDbConnection()
   const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
@@ -248,6 +267,7 @@ export async function queueCall(
     options,
     extraParams,
     date: new Date(),
+    storageTime,
   })
   return false
 }
@@ -258,6 +278,7 @@ export async function makeCall(
   url: string,
   options: object,
   extraParams?: object,
+  storageTime?: number,
 ): Promise<boolean> {
   const db = await getDbConnection()
   const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
@@ -281,6 +302,7 @@ export async function makeCall(
         url,
         options,
         extraParams,
+        storageTime,
       },
     }),
   )

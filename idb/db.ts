@@ -13,30 +13,12 @@ export async function getAll<T>(
 export async function count(db: IDBPDatabase, storeDefinition: StoreDefinition) {
   return await db.count(storeDefinition.name)
 }
-export async function getAllKeys(db: IDBPDatabase, storeDefinition: StoreDefinition) {
-  return await db.getAllKeys(storeDefinition.name)
-}
-
-export async function getFromIndex<T>(
-  db: IDBPDatabase,
-  index: IndexDefinition,
-  query: IDBKeyRange | IDBValidKey,
-): Promise<T | undefined> {
-  return await db.getFromIndex(index.store.name, index.name, query)
-}
 export async function get<T>(
   db: IDBPDatabase,
   store: StoreDefinition,
   query: IDBKeyRange | IDBValidKey,
 ): Promise<T | undefined> {
   return await db.get(store.name, query)
-}
-export async function countFromIndex(
-  db: IDBPDatabase,
-  index: IndexDefinition,
-  query?: IDBKeyRange | IDBValidKey | null | undefined,
-) {
-  return await db.countFromIndex(index.store.name, index.name, query)
 }
 export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value: T) {
   if (isProxy(value)) {
@@ -48,15 +30,6 @@ export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value:
     console.log(value, e)
   }
 }
-
-export async function getAllKeysFromIndex(
-  db: IDBPDatabase,
-  index: IndexDefinition,
-  query?: IDBValidKey | IDBKeyRange | null | undefined,
-) {
-  return await db.getAllKeysFromIndex(index.store.name, index.name, query)
-}
-
 export async function dbDelete(db: IDBPDatabase, storeDef: StoreDefinition, keyPath: IDBValidKey) {
   try {
     return await db.delete(storeDef.name, keyPath)

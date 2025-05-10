@@ -1,10 +1,10 @@
 declare global {
   interface Window {
-    getStorageUsage: Function;
+    getStorageUsage: () => Promise<void>
   }
 }
-import { getStorageUsage } from "./utils";
+import { getStorageUsage } from './utils'
 
 export function initStorageUsageFunction() {
-  window.getStorageUsage = getStorageUsage;
+  window.getStorageUsage = getStorageUsage
 }

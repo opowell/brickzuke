@@ -4,8 +4,6 @@ import { put } from '../../../idb/db'
 import { getDbConnection } from '../../../idb/idb'
 import stores from '../../../idb/stores'
 
-interface StoredCall {}
-
 export function initBrickLinkWorker() {
   const STORAGE_TIME = 1000 * 60 * 60 * 24 * 7 // 7 days
   // @ts-expect-error
@@ -16,7 +14,7 @@ export function initBrickLinkWorker() {
       url: callKey(request.url, request.options),
       options: request.options,
       response: e.detail.response,
-      expiryTime: Date.now() + STORAGE_TIME,
+      expiryTime: Date.now() + (e.detail.request.storageTime || STORAGE_TIME),
     })
     handleEvent(e.detail)
   })

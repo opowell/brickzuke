@@ -144,7 +144,7 @@ export function extractValuesFromHtml(
   }
   return matches
 }
-export async function getStorageUsage() {
+export async function getStorageUsage(): Promise<void> {
   if (!navigator.storage || !navigator.storage.estimate) {
     return
   }

@@ -13,6 +13,7 @@ import {
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { useCatalogItemPageStore } from './catalog-item-page'
+import { ONE_MONTH, ONE_WEEK, ONE_YEAR } from '@/assets/js/timesToMs'
 
 export interface BrickLinkCategory {
   catID: string
@@ -27,10 +28,18 @@ export async function fetchAll() {
     Call.GET_CATALOG_LIST_PAGE_ALL,
     'https://www.bricklink.com/catalogList.asp?v=3',
     getOptions(),
+    undefined,
+    ONE_WEEK,
   )
 }
 export async function fetch(catId: string, page: number = 1) {
-  return await makeTextCall(Call.GET_CATALOG_LIST_PAGE, getPageUrl(catId, page), getOptions())
+  return await makeTextCall(
+    Call.GET_CATALOG_LIST_PAGE,
+    getPageUrl(catId, page),
+    getOptions(),
+    undefined,
+    ONE_MONTH,
+  )
 }
 export async function fetchFirstIds(catIds: string[]) {
   const calls = catIds.map((id) => {
@@ -38,12 +47,20 @@ export async function fetchFirstIds(catIds: string[]) {
       call: Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
       url: getPageUrl(id, 1),
       options: getOptions(),
+      undefined,
+      ONE_YEAR,
     }
   })
   await makeTextCalls(calls)
 }
 export async function fetchFirst(catId: string) {
-  await makeTextCall(Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY, getPageUrl(catId, 1), getOptions())
+  await makeTextCall(
+    Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
+    getPageUrl(catId, 1),
+    getOptions(),
+    undefined,
+    ONE_YEAR,
+  )
 }
 
 function getPageUrl(catId: string, page: number) {

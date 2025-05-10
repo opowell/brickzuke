@@ -1,3 +1,5 @@
+import { ComputedRef } from 'vue'
+
 export interface Cart {
   id: number
   name: string
@@ -386,13 +388,7 @@ export interface CachedItemVariant extends ItemVariant {
 
 export interface SearchFilter {
   searchId: IDBValidKey
-  type:
-    | 'category'
-    | 'color'
-    | 'store'
-    | 'condition'
-    | 'externalCategory'
-    | 'storeCountry'
+  type: 'category' | 'color' | 'store' | 'condition' | 'externalCategory' | 'storeCountry'
   objectId: string | number
   isExcluded: boolean
 }
