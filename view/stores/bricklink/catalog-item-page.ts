@@ -190,6 +190,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       )
     },
     async handleInventoriesResponse(detail: InventoriesResponse) {
+      console.log('handleInventoriesResponse', detail)
       const itemNumber = detail.request.extraParams?.itemNumber
       const itemType = detail.request.extraParams?.itemType
       if (!detail.response.list) {
@@ -223,6 +224,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       const modelsStore = useModelsStore()
       const { sorts } = storeToRefs(modelsStore)
       if (sorts.value.length > 0) {
+        console.log('sort')
         storeInventories = storeInventories.sort((a, b) => {
           for (let i = 0; i < sorts.value.length; i++) {
             const sort = sorts.value[i]

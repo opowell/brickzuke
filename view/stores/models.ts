@@ -13,6 +13,7 @@ import { processQueue } from '@/assets/js/make-call'
 import { useCatalogItemInvPageStore } from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore } from './bricklink/colors-page'
+import { useStoresPageStore } from './bricklink/stores-page'
 interface Query {
   f?: Filter[]
   s?: string
@@ -74,6 +75,14 @@ export const useModelsStore = defineStore('models', () => {
     return catalogItemPageStore.inventoriesMap.get(
       singleItem.value.itemType + '-' + singleItem.value.itemNumber,
     )
+  })
+  const countries = computed(() => {
+    const storesPageStore = useStoresPageStore()
+    return storesPageStore.filteredCountries
+  })
+  const regions = computed(() => {
+    const storesPageStore = useStoresPageStore()
+    return storesPageStore.filteredRegions
   })
   const itemTypes = computed(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
@@ -406,6 +415,16 @@ export const useModelsStore = defineStore('models', () => {
             id: 'sellerCountryName',
             label: 'Country',
             width: '100px',
+            clickFn: (storeInvItem) => {
+              console.log(storeInvItem)
+              selectedItem.value = undefined
+              filters.value = []
+              filters.value.push({
+                key: 'country',
+                value: storeInvItem.sellerCountryCode,
+              })
+              search.value = undefined
+            },
           },
           {
             id: 'sellerStoreName',
@@ -468,12 +487,78 @@ export const useModelsStore = defineStore('models', () => {
         label: 'Years',
       },
       {
-        id: 'storeRegions',
-        label: 'Store regions',
+        id: 'regions',
+        label: 'Regions',
+        items: regions.value,
+        idField: 'name',
+        columns: [
+          {
+            id: 'name',
+            label: 'Name',
+            clickFn: (region) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'region',
+                value: region.name,
+              })
+              search.value = undefined
+            },
+            width: '200px',
+          },
+          {
+            id: 'countries',
+            label: 'Countries',
+            valueField: 'countryCount',
+            clickFn: (region) => {
+              selectedItem.value = 'countries'
+              filters.value.push({
+                key: 'region',
+                value: region.name,
+              })
+              search.value = undefined
+            },
+          },
+        ],
       },
       {
-        id: 'storeCountries',
-        label: 'Store countries',
+        id: 'countries',
+        label: 'Countries',
+        items: countries.value,
+        idField: 'countryCode',
+        columns: [
+          {
+            id: 'image',
+            width: '30px',
+            type: 'image',
+            hideLabel: true,
+          },
+          {
+            id: 'countryName',
+            label: 'Name',
+            clickFn: (country) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'country',
+                value: country.countryName,
+              })
+              search.value = undefined
+            },
+            width: '200px',
+          },
+          {
+            id: 'storeCount',
+            label: 'Stores',
+            type: 'number',
+            clickFn: (country) => {
+              selectedItem.value = 'stores'
+              filters.value.push({
+                key: 'country',
+                value: country.countryCode,
+              })
+              search.value = undefined
+            },
+          },
+        ],
       },
       {
         id: 'stores',
@@ -597,6 +682,9 @@ export const useModelsStore = defineStore('models', () => {
       }
       router.push(currentQueryString.value)
     },
+    {
+      deep: true,
+    },
   )
   watch(
     () => catTypes.value,
@@ -650,7 +738,7 @@ export const useModelsStore = defineStore('models', () => {
   function addSort(key: string, dir: 'a' | 'd') {
     const existingSort = sorts.value.find((s) => s.key === key)
     if (existingSort) {
-      existingSort.dir = dir
+      existingSort.dir = existingSort.dir === 'a' ? 'd' : 'a'
       return
     }
     sorts.value.push({

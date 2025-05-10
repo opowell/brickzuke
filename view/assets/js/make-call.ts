@@ -76,6 +76,7 @@ export interface EventDetail {
   response: any
 }
 export function handleEvent(detail: EventDetail) {
+  document.dispatchEvent(new CustomEvent('pulse'))
   try {
     switch (detail.request.call) {
       case Call.GET_HOME_PAGE: {
@@ -294,6 +295,7 @@ export async function makeCall(
     })
     return true
   }
+  console.log('dispatch call', url)
   document.dispatchEvent(
     new CustomEvent('bzClientToServer', {
       detail: {

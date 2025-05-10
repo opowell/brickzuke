@@ -1,10 +1,11 @@
-import { ONE_MONTH, ONE_YEAR } from '@/assets/js/timesToMs'
-import { defineStore } from 'pinia'
+import { ONE_YEAR } from '@/assets/js/timesToMs'
+import { defineStore, storeToRefs } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
+import { useModelsStore } from '../models'
 
 export interface Country {
-  region: string
+  regionId: string
   countryCode: string
   groupState: 'Y' | 'N'
   image: string
@@ -31,9 +32,8 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     },
     filteredRegions: (state): Region[] => {
       const out = Array.from(state.regionsMap.values())
-      const queryStore = useQueryStore()
-      const { s } = storeToRefs(queryStore)
-      const search = s
+      const queryStore = useModelsStore()
+      const { search } = storeToRefs(queryStore)
       if (!search.value || search.value === '') {
         return out
       }
@@ -41,37 +41,29 @@ export const useStoresPageStore = defineStore('storesPageStore', {
       const caseMatch = search.value !== lowerCaseSearch
       return out.filter((region) => {
         if (caseMatch) {
-          // @ts-ignore undefined case already handled above
+          // @ts-expect-error undefined case already handled above
           return region.name.includes(search.value)
         }
         return region.name.toLowerCase().includes(lowerCaseSearch)
       })
     },
     filteredCountries(): Country[] {
-      const queryStore = useQueryStore()
-      const { s, filters } = storeToRefs(queryStore)
-      const search = s
+      const queryStore = useModelsStore()
+      const { search, filters } = storeToRefs(queryStore)
       if ((!search.value || search.value === '') && filters.value.length === 0) {
         return this.countriesArray
       }
       const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
       const caseMatch = search.value !== lowerCaseSearch
-      const filteredRegions = filters.value.filter((f) => f.key === 'regions')
-      const includedRegionIds = filteredRegions
-        .filter((f) => f.action === 'include')
-        .map((f) => f.item)
-      const excludedRegionIds = filteredRegions
-        .filter((f) => f.action === 'exclude')
-        .map((f) => f.item)
+      const filteredRegions = filters.value.filter((f) => f.key === 'region')
+      const includedRegionIds = filteredRegions.map((f) => f.value)
       return this.countriesArray.filter((item) => {
         if (search.value && caseMatch) {
           if (!item.countryName.includes(search.value)) {
             return false
           }
           if (includedRegionIds.length > 0) {
-            return includedRegionIds.includes(item.region)
-          } else if (excludedRegionIds.length > 0) {
-            return !excludedRegionIds.includes(item.region)
+            return includedRegionIds.includes(item.regionId)
           }
           return true
         }
@@ -79,16 +71,14 @@ export const useStoresPageStore = defineStore('storesPageStore', {
           return false
         }
         if (includedRegionIds.length > 0) {
-          return includedRegionIds.includes(item.region)
-        } else if (excludedRegionIds.length > 0) {
-          return !excludedRegionIds.includes(item.region)
+          return includedRegionIds.includes(item.regionId)
         }
         return true
       })
     },
   },
   actions: {
-    async fetch() {
+    async fetchStoresPage() {
       makeTextCall(
         Call.GET_STORES_PAGE,
         'https://www.bricklink.com/browse.asp',
@@ -146,7 +136,7 @@ export const useStoresPageStore = defineStore('storesPageStore', {
           const parts = extractValuesFromHtml(
             c,
             [
-              '', // country code
+              'countryID=', // country code
               "src='", // image
               '>', // country name
               '<span>', // store count
