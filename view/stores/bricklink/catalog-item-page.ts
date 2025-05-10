@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import {
   Call,
   makeJsonCall,
@@ -41,6 +41,7 @@ interface InventoriesResponse extends EventDetail {
   }
   response: {
     list: {
+      idColor: string
       idInv: string
       strDesc: string
       mDisplaySalePrice: string
@@ -194,28 +195,57 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       if (!detail.response.list) {
         return
       }
-      this.inventoriesMap.set(
-        itemType + '-' + itemNumber,
-        detail.response.list.map((i) => {
-          let image =
-            'https://img.bricklink.com/ItemImage/' + itemType + 'T/0/' + itemNumber + '.t1.png'
-          if (i.idInvImg !== 0) {
-            image = 'https://www.bricklink.com/myImg/' + i.idInvImg + '.jpg'
+      let storeInventories = detail.response.list.map((i) => {
+        let image =
+          'https://img.bricklink.com/ItemImage/' +
+          itemType +
+          'T/' +
+          i.idColor +
+          '/' +
+          itemNumber +
+          '.t1.png'
+        if (i.idInvImg !== 0) {
+          image = 'https://www.bricklink.com/myImg/' + i.idInvImg + '.jpg'
+        }
+        return {
+          invId: i.idInv,
+          description: i.strDesc,
+          price: i.mDisplaySalePrice,
+          sellerCountryCode: i.strSellerCountryCode,
+          sellerCountryName: i.strSellerCountryName,
+          sellerStoreName: i.strStorename,
+          condition: i.codeNew,
+          quantity: i.n4Qty,
+          sellerFeedbackScore: i.n4SellerFeedbackScore,
+          image,
+        }
+      })
+      const modelsStore = useModelsStore()
+      const { sorts } = storeToRefs(modelsStore)
+      if (sorts.value.length > 0) {
+        storeInventories = storeInventories.sort((a, b) => {
+          for (let i = 0; i < sorts.value.length; i++) {
+            const sort = sorts.value[i]
+            if (a[sort.key] === b[sort.key]) {
+              continue
+            }
+            if (sort.dir === 'a') {
+              if (a[sort.key] > b[sort.key]) {
+                return 1
+              } else {
+                return -1
+              }
+            } else if (sort.dir === 'd') {
+              if (a[sort.key] < b[sort.key]) {
+                return 1
+              } else {
+                return -1
+              }
+            }
           }
-          return {
-            invId: i.idInv,
-            description: i.strDesc,
-            price: i.mDisplaySalePrice,
-            sellerCountryCode: i.strSellerCountryCode,
-            sellerCountryName: i.strSellerCountryName,
-            sellerStoreName: i.strStorename,
-            condition: i.codeNew,
-            quantity: i.n4Qty,
-            sellerFeedbackScore: i.n4SellerFeedbackScore,
-            image,
-          }
-        }),
-      )
+        })
+      }
+      this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
     },
     async handleImagesResponse(detail: ImagesResponse) {
       const itemNumber = detail.response.item.strItemNoFull

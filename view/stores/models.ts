@@ -382,13 +382,13 @@ export const useModelsStore = defineStore('models', () => {
       },
       {
         id: 'inventories',
-        label: 'Inventories',
+        label: 'Store inventories',
         items: inventories.value,
         idField: 'invId',
         columns: [
           {
             id: 'image',
-            width: '200px',
+            width: '70px',
             type: 'image',
             hideLabel: true,
           },
