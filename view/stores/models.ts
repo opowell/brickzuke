@@ -14,6 +14,7 @@ import { useCatalogItemInvPageStore, type ItemVariant } from './bricklink/catalo
 import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore } from './bricklink/colors-page'
 import { useStoresPageStore, type Store } from './bricklink/stores-page'
+import type { Table } from '@/components/TableComponent.vue'
 interface Query {
   f?: Filter[]
   s?: string
@@ -88,7 +89,7 @@ export const useModelsStore = defineStore('models', () => {
     const storesPageStore = useStoresPageStore()
     return storesPageStore.filteredRegions
   })
-  const itemTypes = computed(() => {
+  const itemTypes = computed<Table[]>(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
     const catalogItemInvPage = useCatalogItemInvPageStore()
     const catalogListPage = useCatalogListPageStore()
@@ -362,7 +363,7 @@ export const useModelsStore = defineStore('models', () => {
           {
             id: 'name',
             label: 'Name',
-            width: '100px',
+            width: '105px',
             clickFn: (type: ItemType) => {
               selectedItem.value = undefined
               filters.value.push({
@@ -389,7 +390,7 @@ export const useModelsStore = defineStore('models', () => {
           {
             id: 'categories',
             label: 'Categories',
-            width: '100px',
+            width: '105px',
             type: 'number',
             clickFn: (type) => {
               selectedItem.value = 'categories'

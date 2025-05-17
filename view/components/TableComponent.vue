@@ -5,18 +5,18 @@ import { computed } from 'vue'
 interface TableColumn {
   width?: string
   id: string
-  label: string
-  valueField: string
+  label?: string
+  valueField?: string
   type?: string
-  itemValue?: (item: any) => string
-  clickFn?: (item: any) => string
+  itemValue?: (item: any) => string | number | undefined
+  clickFn?: (item: any) => void
 }
 export interface Table {
   id: string
   label: string
-  columns: TableColumn[]
-  items: any[]
-  idField: string
+  columns?: TableColumn[]
+  items?: any[]
+  idField?: string
   hidePriceModifier?: boolean
   hideSelect?: boolean
 }
