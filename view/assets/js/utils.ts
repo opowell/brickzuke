@@ -1,6 +1,9 @@
 // import * as math from 'mathjs'
 // math.divide(
 //     math.bignumber(actualPrice),
+
+import type { Sort } from '@/stores/models'
+
 //   math.bignumber(cheapP)
 interface Breakpoint {
   start?: number
@@ -160,4 +163,30 @@ export async function getStorageUsage(): Promise<void> {
   console.log(`Usage: ${usageInGB} GB`)
   console.log(`Usage %: ${percentageUsed}`)
   console.log(`Remaining: ${remaining} GB`)
+}
+export function sortItems(items: any[], sorts: Sort[]) {
+  if (sorts.length === 0) {
+    return
+  }
+  items.sort((a, b) => {
+    for (let i = 0; i < sorts.length; i++) {
+      const sort = sorts[i]
+      if (a[sort.key] === b[sort.key]) {
+        continue
+      }
+      if (sort.dir === 'a') {
+        if (a[sort.key] > b[sort.key]) {
+          return 1
+        } else {
+          return -1
+        }
+      } else {
+        if (a[sort.key] > b[sort.key]) {
+          return -1
+        } else {
+          return 1
+        }
+      }
+    }
+  })
 }

@@ -1,17 +1,12 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
-import { extractValuesFromHtml } from '~/assets/js/utils'
+import { extractValuesFromHtml, sortItems } from '~/assets/js/utils'
 import { useCatalogItemPageStore } from './catalog-item-page'
-import { useQueryStore } from '../query'
 import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useModelsStore } from '../models'
 import { computed, ref } from 'vue'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
 
-interface Category {
-  id: string
-  name: string
-}
 interface BrickLinkItem {
   Number: string
 }
@@ -167,21 +162,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       }
       return true
     })
-    if (sorts.value.length > 0) {
-      out = out.sort((a, b) => {
-        for (let i = 0; i < sorts.value.length; i++) {
-          const sort = sorts.value[i]
-          if (a[sort.key] === b[sort.key]) {
-            continue
-          }
-          if (sort.dir === 'a' && a[sort.key] > b[sort.key]) {
-            return 1
-          } else {
-            return -1
-          }
-        }
-      })
-    }
+    sortItems(out, sorts.value)
     return out
   })
   async function fetchItemPage(type: string) {

@@ -13,7 +13,7 @@ import { processQueue } from '@/assets/js/make-call'
 import { useCatalogItemInvPageStore } from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore } from './bricklink/colors-page'
-import { useStoresPageStore } from './bricklink/stores-page'
+import { useStoresPageStore, type Store } from './bricklink/stores-page'
 interface Query {
   f?: Filter[]
   s?: string
@@ -24,7 +24,7 @@ interface Filter {
   key: string
   value: string
 }
-interface Sort {
+export interface Sort {
   key: string
   dir: 'a' | 'd'
 }
@@ -79,6 +79,10 @@ export const useModelsStore = defineStore('models', () => {
   const countries = computed(() => {
     const storesPageStore = useStoresPageStore()
     return storesPageStore.filteredCountries
+  })
+  const stores = computed(() => {
+    const storesPageStore = useStoresPageStore()
+    return storesPageStore.filteredStores
   })
   const regions = computed(() => {
     const storesPageStore = useStoresPageStore()
@@ -563,6 +567,63 @@ export const useModelsStore = defineStore('models', () => {
       {
         id: 'stores',
         label: 'Stores',
+        items: stores.value,
+        columns: [
+          {
+            id: 'countryID',
+            label: 'Country',
+            clickFn: (store: Store) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'country',
+                value: store.countryID,
+              })
+              search.value = undefined
+            },
+            width: '90px',
+          },
+          {
+            id: 'stateName',
+            label: 'Province',
+            clickFn: (store: Store) => {
+              if (!store.stateName) {
+                return
+              }
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'province',
+                value: store.stateName,
+              })
+              search.value = undefined
+            },
+            width: '90px',
+          },
+          {
+            id: 'name',
+            label: 'Name',
+            itemValue: (store: Store) => store.name + ' (' + store.id + ')',
+            clickFn: (store: Store) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'store',
+                value: store.id,
+              })
+              search.value = undefined
+            },
+            width: '200px',
+          },
+          {
+            id: 'lots',
+            label: 'Lots',
+            type: 'number',
+            width: '70px',
+          },
+          {
+            id: 'instantCheckout',
+            label: 'Instant Checkout',
+            width: '100px',
+          },
+        ],
       },
       {
         id: 'images',
@@ -694,6 +755,9 @@ export const useModelsStore = defineStore('models', () => {
         await catalogDownloadPage.fetchItemPage(catTypes.value[i])
       }
     },
+    {
+      immediate: true,
+    },
   )
   watch(
     itemIds,
@@ -761,5 +825,6 @@ export const useModelsStore = defineStore('models', () => {
     currentQuery,
     itemIds,
     images,
+    catTypes,
   }
 })

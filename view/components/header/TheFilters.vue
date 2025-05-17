@@ -55,10 +55,9 @@ function removeFilter(index: number) {
     <button
       v-for="(filter, index) in uiFilters"
       :key="filter.key + '#' + filter.value"
+      v-html="filter.key + ': ' + filter.value"
       @click="removeFilter(index)"
-    >
-      {{ filter.key }}: {{ filter.value }}
-    </button>
+    />
   </div>
 </template>
 

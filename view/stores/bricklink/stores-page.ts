@@ -1,8 +1,11 @@
-import { ONE_YEAR } from '@/assets/js/timesToMs'
+import { ONE_WEEK, ONE_YEAR } from '@/assets/js/timesToMs'
 import { defineStore, storeToRefs } from 'pinia'
-import { Call, makeTextCall } from '~/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
+import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
+import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
+
+const INSTANT_CHECKOUT_HTML =
+  '<a href="https://www.bricklink.com/help.asp?helpID=2466"><I class="fas fa-bolt icon-instant-checkout"></I></a>'
 
 export interface Country {
   regionId: string
@@ -17,6 +20,15 @@ export interface Region {
   countryCount: number
 }
 
+export interface Store {
+  name: string
+  id: string
+  lots: number
+  stateName?: string
+  instantCheckout?: boolean
+  countryID: string
+}
+
 export const useStoresPageStore = defineStore('storesPageStore', {
   state: () => ({
     countries: 0,
@@ -25,10 +37,14 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     regions: 0,
     regionsMap: new Map<string, Region>(),
     loaded: false,
+    storesMap: new Map<string, Store[]>(),
   }),
   getters: {
     countriesArray(state): Country[] {
       return Array.from(state.countriesMap.values())
+    },
+    storesArray(state): Store[] {
+      return Array.from(state.storesMap.values()).flat()
     },
     filteredRegions: (state): Region[] => {
       const out = Array.from(state.regionsMap.values())
@@ -76,8 +92,90 @@ export const useStoresPageStore = defineStore('storesPageStore', {
         return true
       })
     },
+    filteredStores(): Store[] {
+      const queryStore = useModelsStore()
+      const { search, filters, sorts } = storeToRefs(queryStore)
+      let out = [...this.storesArray]
+      const filteredCountries = filters.value.filter((f) => f.key === 'country')
+      const includedCountryIds = filteredCountries.map((f) => f.value)
+      if (includedCountryIds.length > 0) {
+        out = []
+        includedCountryIds.forEach((countryId) => {
+          const stores = this.storesMap.get(countryId)
+          if (!stores) {
+            return
+          }
+          out.push(...stores)
+        })
+      }
+      if ((!search.value || search.value === '') && filters.value.length === 0) {
+      } else {
+        const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
+        const caseMatch = search.value !== lowerCaseSearch
+        const filteredRegions = filters.value.filter((f) => f.key === 'region')
+        const includedRegionIds = filteredRegions.map((f) => f.value)
+        out = out.filter((item) => {
+          const country = this.countriesMap.get(item.countryID)
+          if (search.value && caseMatch) {
+            if (!item.name.includes(search.value)) {
+              return false
+            }
+            if (includedRegionIds.length > 0) {
+              if (!country) {
+                return false
+              }
+              return includedRegionIds.includes(country.regionId)
+            }
+            return true
+          }
+          if (lowerCaseSearch && !item.name.toLowerCase().includes(lowerCaseSearch)) {
+            return false
+          }
+          if (includedRegionIds.length > 0) {
+            if (!country) {
+              return false
+            }
+            return includedRegionIds.includes(country.regionId)
+          }
+          return true
+        })
+      }
+      sortItems(out, sorts.value)
+      return out
+    },
   },
   actions: {
+    async fetchStoresInCountryPage(countryID: string) {
+      makeTextCall(
+        Call.GET_COUNTRY_STORES_PAGE,
+        'https://www.bricklink.com/browseStores.asp?countryID=' + countryID + '&groupState=Y',
+        {
+          headers: {
+            accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-language': 'en,de;q=0.9,es;q=0.8,en-US;q=0.7',
+            priority: 'u=0, i',
+            'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'none',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1',
+          },
+          referrerPolicy: 'strict-origin-when-cross-origin',
+          body: null,
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'include',
+        },
+        {
+          countryID,
+        },
+        ONE_WEEK,
+      )
+    },
     async fetchStoresPage() {
       makeTextCall(
         Call.GET_STORES_PAGE,
@@ -106,6 +204,54 @@ export const useStoresPageStore = defineStore('storesPageStore', {
         undefined,
         ONE_YEAR,
       )
+    },
+    handleCountryStoresResponse(detail: EventDetail) {
+      const response = detail.response
+      const storesHtml = extractValueFromHtml(
+        response,
+        '<!-- Classic Contents Start -->',
+        '<!-- Classic Contents End-->',
+      )[0]
+      const states = [
+        {
+          name: undefined,
+          html: storesHtml,
+        },
+      ]
+      if (storesHtml.includes('<FONT FACE')) {
+        states.pop()
+        const statesHtml = extractValueFromHtml(storesHtml, 'FACE="Tahoma,Arial', '<FONT')
+        statesHtml.forEach((stateHtml: string) => {
+          const stateName = extractValueFromHtml(stateHtml, '">', '</FONT>')[0]
+          states.push({
+            name: stateName,
+            html: stateHtml,
+          })
+        })
+      }
+      const countryID = detail.request.extraParams.countryID
+      const stores: Store[] = []
+      states.forEach((stateObj) => {
+        const stateHtml = stateObj.html
+        const stateName = stateObj.name
+        const storesHtml = extractValueFromHtml(stateHtml, '<A HREF=', '<BR>')
+        storesHtml.forEach((store: string) => {
+          const instantCheckout = store.includes(INSTANT_CHECKOUT_HTML)
+          if (instantCheckout) {
+            store = store.replace(INSTANT_CHECKOUT_HTML, '')
+          }
+          const params = extractValuesFromHtml(store, ['p=', '>', ' - '], ["'", '</A>'])
+          stores.push({
+            stateName,
+            id: params[0],
+            name: params[1],
+            lots: Number.parseInt(params[2].replaceAll(',', '')),
+            instantCheckout,
+            countryID,
+          })
+        })
+      })
+      this.storesMap.set(countryID, stores)
     },
     handleFetchResponse(response: string) {
       const stores = extractValueFromHtml(

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import TheHeader from './components/TheHeader.vue'
 import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
@@ -9,6 +9,8 @@ import { fetchAll as catalogListFetchAll } from '~/stores/bricklink/catalog-list
 import { processQueue } from '@/assets/js/make-call'
 import { useColorsPageStore } from './stores/bricklink/colors-page'
 import { useStoresPageStore } from './stores/bricklink/stores-page'
+import { useModelsStore } from './stores/models'
+import { storeToRefs } from 'pinia'
 const colorsPage = useColorsPageStore()
 const storesPage = useStoresPageStore()
 onMounted(async () => {
@@ -19,6 +21,23 @@ onMounted(async () => {
   await storesPage.fetchStoresPage()
   await processQueue(3)
 })
+const modelsStore = useModelsStore()
+const modelsStoreRefs = storeToRefs(modelsStore)
+const countryFilters = computed(() => {
+  return modelsStoreRefs.filters.value.filter((f) => f.key === 'country')
+})
+watch(
+  countryFilters,
+  async () => {
+    for (let i = 0; i < countryFilters.value.length; i++) {
+      await storesPage.fetchStoresInCountryPage(countryFilters.value[i].value)
+    }
+    processQueue(Math.max(3, countryFilters.value.length))
+  },
+  {
+    immediate: true,
+  },
+)
 </script>
 <template>
   <TheHeader />
