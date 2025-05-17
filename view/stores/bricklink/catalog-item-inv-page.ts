@@ -5,7 +5,7 @@ import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useCatalogItemPageStore } from './catalog-item-page'
 import { ONE_DAY } from '@/assets/js/timesToMs'
 
-interface ItemVariant {
+export interface ItemVariant {
   itemType: string
   itemId: string
   name: string
@@ -66,7 +66,7 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       })
     return itemVariants
   })
-  const filteredItemInventories = computed(() => {
+  const filteredItemInventories = computed<ItemVariant[] | undefined>(() => {
     const catalogItemPage = useCatalogItemPageStore()
     const catalogItemPageRefs = storeToRefs(catalogItemPage)
     const singleItem = catalogItemPageRefs.singleItem

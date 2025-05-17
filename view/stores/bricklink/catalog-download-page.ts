@@ -61,6 +61,8 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     const catalogItemPageRefs = storeToRefs(catalogItemPage)
     const singleItem = catalogItemPageRefs.singleItem
     let out = itemsArray.value
+    const modelsStore = useModelsStore()
+    const { filters, search, sorts } = storeToRefs(modelsStore)
     if (singleItem.value) {
       const catalogItemInvPage = useCatalogItemInvPageStore()
       const invItems = catalogItemInvPage.items
@@ -74,6 +76,8 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
           )
           return index === firstIndex
         })
+        const filteredCategories = filters.value.filter((f) => f.key === 'category')
+        const includedCategoryIds = filteredCategories.map((f) => f.value)
         uniqueItems.forEach((invItem) => {
           const typeMap = items.value.get(invItem.itemType)
           if (!typeMap) {
@@ -82,6 +86,11 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
           const item = typeMap.get(invItem.itemId)
           if (!item) {
             return
+          }
+          if (includedCategoryIds.length > 0) {
+            if (!includedCategoryIds.includes(invItem.catString)) {
+              return
+            }
           }
           const keys = Object.keys(item)
           const dupe = {}
@@ -92,8 +101,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       }
       // return out;
     }
-    const modelsStore = useModelsStore()
-    const { filters, search, sorts } = storeToRefs(modelsStore)
     if ((!search.value || search.value === '') && filters.value.length === 0) {
       return out
     }

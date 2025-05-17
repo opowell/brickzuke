@@ -10,7 +10,7 @@ import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 import { useRoute } from 'vue-router'
 import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
 import { processQueue } from '@/assets/js/make-call'
-import { useCatalogItemInvPageStore } from './bricklink/catalog-item-inv-page'
+import { useCatalogItemInvPageStore, type ItemVariant } from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore } from './bricklink/colors-page'
 import { useStoresPageStore, type Store } from './bricklink/stores-page'
@@ -157,7 +157,7 @@ export const useModelsStore = defineStore('models', () => {
             id: 'itemType',
             label: 'Type',
             width: '60px',
-            clickFn: (item: BrickLinkItem) => {
+            clickFn: (item: ItemVariant) => {
               filters.value.push({
                 key: 'itemType',
                 value: item.itemType,
@@ -169,11 +169,11 @@ export const useModelsStore = defineStore('models', () => {
             id: 'name',
             label: 'Name',
             width: '300px',
-            clickFn: (item: BrickLinkItem) => {
+            clickFn: (item: ItemVariant) => {
               selectedItem.value = undefined
               filters.value.push({
                 key: 'item',
-                value: item.id,
+                value: item.itemId,
               })
               filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
               search.value = undefined
@@ -183,6 +183,15 @@ export const useModelsStore = defineStore('models', () => {
             id: 'categoryName',
             label: 'Category',
             width: '100px',
+            clickFn: (item: ItemVariant) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'category',
+                value: item.catString,
+              })
+              // filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
+              search.value = undefined
+            },
           },
           {
             id: 'colorId',

@@ -98,6 +98,7 @@ function sortBy(column: TableColumn) {
 .row {
   display: flex;
   gap: 0.5rem;
+  word-break: break-word;
 }
 .row > * {
   flex: 0 0 auto;
