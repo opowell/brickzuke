@@ -15,6 +15,13 @@ import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore } from './bricklink/colors-page'
 import { useStoresPageStore, type Store } from './bricklink/stores-page'
 import type { Table } from '@/components/TableComponent.vue'
+const IMAGES_PREVIEW_COLUMN = {
+  id: 'image',
+  width: 'unset',
+  type: 'image',
+  hideLabel: true,
+}
+
 interface Query {
   f?: Filter[]
   s?: string
@@ -89,7 +96,7 @@ export const useModelsStore = defineStore('models', () => {
     const storesPageStore = useStoresPageStore()
     return storesPageStore.filteredRegions
   })
-  const itemTypes = computed<Table[]>(() => {
+  const itemTypes = computed<Table<any>[]>(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
     const catalogItemInvPage = useCatalogItemInvPageStore()
     const catalogListPage = useCatalogListPageStore()
@@ -99,6 +106,7 @@ export const useModelsStore = defineStore('models', () => {
         label: 'Categories',
         items: catalogListPage.filteredCategories,
         idField: 'catID',
+        preview: 'name',
         columns: [
           {
             id: 'image',
@@ -110,7 +118,7 @@ export const useModelsStore = defineStore('models', () => {
             id: 'type',
             label: 'Type',
             valueField: 'catType',
-            width: '55px',
+            width: '60px',
           },
           {
             id: 'items',
@@ -146,13 +154,14 @@ export const useModelsStore = defineStore('models', () => {
         id: 'itemInventories',
         label: 'Item inventories',
         items: catalogItemInvPage.filteredItemInventories,
+        preview: 'name',
         columns: [
           {
             id: 'image',
             width: '100px',
+            label: 'Variant',
             type: 'image',
             valueField: 'thumbnail',
-            hideLabel: true,
           },
           {
             id: 'itemType',
@@ -168,7 +177,7 @@ export const useModelsStore = defineStore('models', () => {
           },
           {
             id: 'name',
-            label: 'Name',
+            label: 'Item',
             width: '300px',
             clickFn: (item: ItemVariant) => {
               selectedItem.value = undefined
@@ -197,12 +206,24 @@ export const useModelsStore = defineStore('models', () => {
           {
             id: 'colorId',
             label: 'Color',
+            valueField: 'colorName',
             width: '60px',
+            clickFn: (item: ItemVariant) => {
+              if (!item.colorId) {
+                return
+              }
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'color',
+                value: item.colorId,
+              })
+              search.value = undefined
+            },
           },
           {
             id: 'quantity',
             label: 'Quantity',
-            width: '80px',
+            width: '90px',
           },
         ],
       },
@@ -260,6 +281,7 @@ export const useModelsStore = defineStore('models', () => {
         id: 'items',
         label: 'Items',
         items: catalogDownloadPage.filteredItems,
+        preview: 'Name',
         columns: [
           {
             id: 'image',
@@ -639,14 +661,8 @@ export const useModelsStore = defineStore('models', () => {
         id: 'images',
         label: 'Images',
         items: images.value,
-        columns: [
-          {
-            id: 'image',
-            width: 'unset',
-            type: 'image',
-            hideLabel: true,
-          },
-        ],
+        preview: IMAGES_PREVIEW_COLUMN,
+        columns: [IMAGES_PREVIEW_COLUMN],
         hideSelect: true,
         hidePriceModifier: true,
       },

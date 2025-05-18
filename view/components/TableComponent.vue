@@ -1,24 +1,25 @@
 <script setup lang="ts">
-import { formatInteger } from '@/assets/js/utils.ts'
 import { useModelsStore } from '@/stores/models'
 import { computed } from 'vue'
-interface TableColumn {
+import TableCell from './TableCell.vue'
+export interface TableColumn<T> {
   width?: string
   id: string
   label?: string
   valueField?: string
   type?: string
-  itemValue?: (item: any) => string | number | undefined
-  clickFn?: (item: any) => void
+  itemValue?: (item: T) => string | number | undefined
+  clickFn?: (item: T) => void
 }
-export interface Table {
+export interface Table<T> {
   id: string
   label: string
-  columns?: TableColumn[]
-  items?: any[]
+  columns?: TableColumn<T>[]
+  items?: T[]
   idField?: string
   hidePriceModifier?: boolean
   hideSelect?: boolean
+  preview?: string | ((item: T) => string)
 }
 const modelsStore = useModelsStore()
 const { table } = defineProps<{
@@ -30,12 +31,6 @@ const tableItems = computed(() => {
   }
   return table.items.slice(0, 1000)
 })
-function handleClick(column: TableColumn, item: any) {
-  if (!column.clickFn) {
-    return
-  }
-  return column.clickFn(item)
-}
 function sortBy(column: TableColumn) {
   modelsStore.addSort(column.id, 'a')
 }
@@ -56,34 +51,7 @@ function sortBy(column: TableColumn) {
     </div>
     <div v-for="item in tableItems" :key="item[table.idField]" class="row">
       <div v-if="!table.hideSelect"><input type="checkbox" /></div>
-      <div
-        v-for="column in table.columns"
-        :key="column.id"
-        :style="{ width: column.width || '100px' }"
-      >
-        <template v-if="column.type === 'image'">
-          <img
-            :src="item[column.valueField || column.id]"
-            :style="{ 'max-width': column.width || '100px' }"
-          />
-        </template>
-        <template v-else>
-          <button v-if="column.clickFn" @click="handleClick(column, item)">
-            <template v-if="column.type === 'number'">
-              {{ formatInteger(item[column.valueField || column.id]) }}
-            </template>
-            <div v-else-if="column.itemValue" v-html="column.itemValue(item)" />
-            <div v-else v-html="item[column.valueField || column.id]" />
-          </button>
-          <div v-else>
-            <template v-if="column.type === 'number'">
-              {{ formatInteger(item[column.valueField || column.id]) }}
-            </template>
-            <div v-else-if="column.itemValue" v-html="column.itemValue(item)" />
-            <div v-else v-html="item[column.valueField || column.id]" />
-          </div>
-        </template>
-      </div>
+      <TableCell v-for="column in table.columns" :key="column.id" :column="column" :item="item" />
       <div v-if="!table.hidePriceModifier"><input style="width: 75px" /></div>
     </div>
   </div>

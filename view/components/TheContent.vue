@@ -6,14 +6,24 @@ const modelsStore = useModelsStore()
 const { itemTypes, selectedItemType } = storeToRefs(modelsStore)
 const setSelectedItem = modelsStore.setSelectedItem
 import { getTableLabel } from '@/assets/js/getTableLabel.ts'
+import TableCell from './TableCell.vue'
 </script>
 
 <template>
   <section>
     <TableComponent v-if="selectedItemType" :table="selectedItemType" />
     <div v-else class="buttons">
-      <div v-for="table in itemTypes" :key="table.id">
-        <button @click="setSelectedItem(table)">{{ getTableLabel(table) }}</button>
+      <div v-for="table in itemTypes" :key="table.id" class="itemType">
+        <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />
+        <template v-if="table.preview"
+          >:
+          <div v-for="item in table.items?.slice(0, 10)" :key="item.id">
+            <template v-if="typeof table.preview === 'string'">
+              <button v-html="item[table.preview]"></button>
+            </template>
+            <TableCell v-else :column="table.preview" :item="item" />
+          </div>
+        </template>
       </div>
     </div>
   </section>
@@ -29,5 +39,11 @@ section {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+.itemType {
+  display: flex;
+  gap: 0.3rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 </style>

@@ -9,9 +9,12 @@ const { itemTypes, selectedItem } = storeToRefs(modelsStore)
 <template>
   <select v-model="selectedItem">
     <option value="">Everything</option>
-    <option v-for="itemType in itemTypes" :key="itemType.id" :value="itemType.id">
-      {{ getTableLabel(itemType) }}
-    </option>
+    <option
+      v-for="itemType in itemTypes"
+      :key="itemType.id"
+      :value="itemType.id"
+      v-html="getTableLabel(itemType)"
+    />
   </select>
 </template>
 

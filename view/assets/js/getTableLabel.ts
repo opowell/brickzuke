@@ -5,5 +5,5 @@ export function getTableLabel(table: Table) {
   if (!table.items) {
     return table.label
   }
-  return table.label + ': ' + formatInteger(table.items.length)
+  return table.label + ':&nbsp;' + formatInteger(table.items.length)
 }

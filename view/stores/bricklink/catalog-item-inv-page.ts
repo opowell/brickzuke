@@ -11,7 +11,8 @@ export interface ItemVariant {
   name: string
   thumbnail: string
   quantity: number
-  colorId: string
+  colorId?: string
+  colorName?: string
   catType: string
   catString: string
 }
@@ -101,22 +102,36 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
         ],
         [' ', '"', "'", '&nbsp;', '"', '&', "'", '<'],
       )
+      const name = params[1]
       let colorId = undefined
+      let colorName = undefined
       if (row.includes('idColor=')) {
         colorId = extractValuesFromHtml(
           row,
           'idColor=', // colorId
           '"',
         )[0]
+        const variantName = extractValuesFromHtml(
+          row,
+          '</A></TD><TD><B>', // variantName
+          '</B>',
+        )[0]
+        if (!variantName) {
+          console.log('no variant', row)
+        } else {
+          colorName = variantName.replace(name, '').trim()
+          console.log(colorName, variantName)
+        }
       }
 
       return {
         itemType: params[4],
         itemId: params[0],
-        name: params[1],
+        name,
         thumbnail: params[2],
         quantity: Number.parseInt(params[3]),
         colorId,
+        colorName,
         catType: params[5],
         catString: params[6],
         categoryName: params[7],
