@@ -21,7 +21,7 @@ import TableCell from './TableCell.vue'
             <template v-if="typeof table.preview === 'string'">
               <button v-html="item[table.preview]"></button>
             </template>
-            <TableCell v-else :column="table.preview" :item="item" />
+            <TableCell v-else :column="table.preview" :item="item" set-max-width />
           </div>
         </template>
       </div>

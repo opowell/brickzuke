@@ -65,37 +65,39 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     const { filters, search, sorts } = storeToRefs(modelsStore)
     if (singleItem.value) {
       const catalogItemInvPage = useCatalogItemInvPageStore()
-      const invItems = catalogItemInvPage.items
+      const invItems = catalogItemInvPage.itemInventories
         .get(singleItem.value.itemType)
         ?.get(singleItem.value.itemNumber)
       if (invItems && items.value) {
         out = []
         const uniqueItems = invItems.filter((i, index: number) => {
           const firstIndex = invItems.findIndex(
-            (j) => j.itemType === i.itemType && j.itemId === i.itemId,
+            (j) =>
+              j.itemVariant.itemType === i.itemVariant.itemType &&
+              j.itemVariant.itemId === i.itemVariant.itemId,
           )
           return index === firstIndex
         })
         const filteredCategories = filters.value.filter((f) => f.key === 'category')
         const includedCategoryIds = filteredCategories.map((f) => f.value)
         uniqueItems.forEach((invItem) => {
-          const typeMap = items.value.get(invItem.itemType)
+          const typeMap = items.value.get(invItem.itemVariant.itemType)
           if (!typeMap) {
             return
           }
-          const item = typeMap.get(invItem.itemId)
+          const item = typeMap.get(invItem.itemVariant.itemId)
           if (!item) {
             return
           }
           if (includedCategoryIds.length > 0) {
-            if (!includedCategoryIds.includes(invItem.catString)) {
+            if (!includedCategoryIds.includes(invItem.itemVariant.catString)) {
               return
             }
           }
           const keys = Object.keys(item)
           const dupe = {}
           keys.forEach((key) => (dupe[key] = item[key]))
-          dupe.image = invItem.thumbnail
+          dupe.image = invItem.itemVariant.thumbnail
           out.push(dupe)
         })
       }

@@ -2,9 +2,14 @@
 import { formatInteger } from '@/assets/js/utils.ts'
 import type { TableColumn } from './TableComponent.vue'
 import { computed } from 'vue'
-const { column, item } = defineProps<{
+const {
+  column,
+  item,
+  setMaxWidth = false,
+} = defineProps<{
   column: TableColumn
   item: any
+  setMaxWidth?: boolean
 }>()
 function handleClick() {
   if (!column.clickFn) {
@@ -13,9 +18,6 @@ function handleClick() {
   return column.clickFn(item)
 }
 const label = computed(() => {
-  if (column.type === 'image') {
-    return item[column.valueField || column.id]
-  }
   if (column.type === 'number') {
     return formatInteger(item[column.valueField || column.id])
   }
@@ -27,10 +29,20 @@ const label = computed(() => {
 const hasLabel = computed(() => {
   return !!label.value
 })
+const styles = computed(() => {
+  if (setMaxWidth) {
+    return {
+      'max-width': column.width || '100px',
+    }
+  }
+  return {
+    width: column.width || '100px',
+  }
+})
 </script>
 
 <template>
-  <div :style="{ width: column.width || '100px' }">
+  <div :style="styles">
     <template v-if="hasLabel">
       <button v-if="column.clickFn" @click="handleClick">
         <img

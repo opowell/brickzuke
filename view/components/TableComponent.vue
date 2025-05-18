@@ -15,6 +15,7 @@ export interface Table<T> {
   id: string
   label: string
   columns?: TableColumn<T>[]
+  description?: string
   items?: T[]
   idField?: string
   hidePriceModifier?: boolean
@@ -38,6 +39,7 @@ function sortBy(column: TableColumn) {
 
 <template>
   <div class="table">
+    <div v-if="table.description" class="description">{{ table.description }}</div>
     <div class="row">
       <div v-if="!table.hideSelect"><input type="checkbox" /></div>
       <div
@@ -58,6 +60,9 @@ function sortBy(column: TableColumn) {
 </template>
 
 <style scoped>
+.description {
+  margin-bottom: 1rem;
+}
 .table {
   display: flex;
   flex-direction: column;

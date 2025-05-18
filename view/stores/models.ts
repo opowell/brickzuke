@@ -10,7 +10,11 @@ import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 import { useRoute } from 'vue-router'
 import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
 import { processQueue } from '@/assets/js/make-call'
-import { useCatalogItemInvPageStore, type ItemVariant } from './bricklink/catalog-item-inv-page'
+import {
+  useCatalogItemInvPageStore,
+  type ItemInventory,
+  type ItemVariant,
+} from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore } from './bricklink/colors-page'
 import { useStoresPageStore, type Store } from './bricklink/stores-page'
@@ -96,6 +100,21 @@ export const useModelsStore = defineStore('models', () => {
     const storesPageStore = useStoresPageStore()
     return storesPageStore.filteredRegions
   })
+  const COLUMN_ITEM_INVENTORY_NAME = {
+    id: 'name',
+    label: 'Item',
+    width: '300px',
+    itemValue: (ii: ItemInventory) => ii.itemVariant.name,
+    clickFn: (item: ItemVariant) => {
+      selectedItem.value = undefined
+      filters.value.push({
+        key: 'item',
+        value: item.itemId,
+      })
+      filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
+      search.value = undefined
+    },
+  }
   const itemTypes = computed<Table<any>[]>(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
     const catalogItemInvPage = useCatalogItemInvPageStore()
@@ -153,51 +172,49 @@ export const useModelsStore = defineStore('models', () => {
       {
         id: 'itemInventories',
         label: 'Item inventories',
+        description: 'A quantity of an item variant.',
         items: catalogItemInvPage.filteredItemInventories,
-        preview: 'name',
+        preview: COLUMN_ITEM_INVENTORY_NAME,
+        hidePriceModifier: true,
         columns: [
           {
             id: 'image',
             width: '100px',
             label: 'Variant',
             type: 'image',
-            valueField: 'thumbnail',
+            itemValue: (ii: ItemInventory) => ii.itemVariant.thumbnail,
+            clickFn: (item: ItemInventory) => {
+              filters.value.push({
+                key: 'variant',
+                value: item.itemVariant.colorId + '-' + item.itemVariant.itemId,
+              })
+              search.value = undefined
+            },
           },
           {
             id: 'itemType',
             label: 'Type',
             width: '60px',
-            clickFn: (item: ItemVariant) => {
+            itemValue: (ii: ItemInventory) => ii.itemVariant.itemType,
+            clickFn: (item: ItemInventory) => {
               filters.value.push({
                 key: 'itemType',
-                value: item.itemType,
+                value: item.itemVariant?.itemType,
               })
               search.value = undefined
             },
           },
-          {
-            id: 'name',
-            label: 'Item',
-            width: '300px',
-            clickFn: (item: ItemVariant) => {
-              selectedItem.value = undefined
-              filters.value.push({
-                key: 'item',
-                value: item.itemId,
-              })
-              filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
-              search.value = undefined
-            },
-          },
+          COLUMN_ITEM_INVENTORY_NAME,
           {
             id: 'categoryName',
             label: 'Category',
             width: '100px',
-            clickFn: (item: ItemVariant) => {
+            itemValue: (ii: ItemInventory) => ii.itemVariant.categoryName,
+            clickFn: (item: ItemInventory) => {
               selectedItem.value = undefined
               filters.value.push({
                 key: 'category',
-                value: item.catString,
+                value: item.itemVariant?.catString,
               })
               // filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
               search.value = undefined
@@ -207,14 +224,15 @@ export const useModelsStore = defineStore('models', () => {
             id: 'colorId',
             label: 'Color',
             valueField: 'colorName',
+            itemValue: (ii: ItemInventory) => ii.itemVariant.colorName,
             width: '70px',
-            clickFn: (item: ItemVariant) => {
-              if (!item.colorId) {
+            clickFn: (item: ItemInventory) => {
+              if (!item.itemVariant.colorId) {
                 return
               }
               filters.value.push({
                 key: 'color',
-                value: item.colorId,
+                value: item.itemVariant.colorId,
               })
               search.value = undefined
             },
@@ -229,6 +247,7 @@ export const useModelsStore = defineStore('models', () => {
       {
         id: 'itemVariants',
         label: 'Item variants',
+        description: 'An item in a particular color.',
         items: catalogItemInvPage.filteredItemVariants,
         columns: [
           {

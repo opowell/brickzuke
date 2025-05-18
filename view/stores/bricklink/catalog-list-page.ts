@@ -1,5 +1,5 @@
 import { useCatalogItemInvPageStore } from '@/stores/bricklink/catalog-item-inv-page'
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import {
   Call,
@@ -159,7 +159,7 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
       const catalogItemPage = useCatalogItemPageStore()
       if (catalogItemPage.singleItem) {
         const catalogInvItemPage = useCatalogItemInvPageStore()
-        const typeMap = catalogInvItemPage.items.get(catalogItemPage.singleItem.itemType)
+        const typeMap = catalogInvItemPage.itemVariants.get(catalogItemPage.singleItem.itemType)
         if (typeMap) {
           const invItems = typeMap.get(catalogItemPage.singleItem.itemNumber)
           if (invItems) {

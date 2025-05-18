@@ -6,12 +6,16 @@ import { useCatalogItemPageStore } from './catalog-item-page'
 import { ONE_DAY } from '@/assets/js/timesToMs'
 import { useModelsStore } from '../models'
 
+export interface ItemInventory {
+  quantity: number
+  itemVariant: ItemVariant
+}
+
 export interface ItemVariant {
   itemType: string
   itemId: string
   name: string
   thumbnail: string
-  quantity: number
   colorId?: string
   colorName?: string
   catType: string
@@ -19,7 +23,8 @@ export interface ItemVariant {
 }
 
 export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore', () => {
-  const items = ref(new Map<string, Map<string, ItemVariant[]>>())
+  const itemVariants = ref(new Map<string, Map<string, ItemVariant[]>>())
+  const itemInventories = ref(new Map<string, Map<string, ItemInventory[]>>())
   async function fetchItemPage(type: string, itemId: string) {
     return await makeTextCall(
       Call.GET_CATALOG_ITEM_INV_PAGE,
@@ -50,14 +55,14 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       ONE_DAY,
     )
   }
-  const filteredItemVariants = computed(() => {
+  const filteredItemVariants = computed<ItemVariant[] | undefined>(() => {
     const catalogItemPage = useCatalogItemPageStore()
     const catalogItemPageRefs = storeToRefs(catalogItemPage)
     const singleItem = catalogItemPageRefs.singleItem
     if (!singleItem.value) {
       return
     }
-    const itemVariants = items.value
+    let variants = itemVariants.value
       .get(singleItem.value.itemType)
       ?.get(singleItem.value.itemNumber)
       ?.map((invItem) => {
@@ -66,26 +71,57 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
           quantity: undefined,
         }
       })
-    return itemVariants
+    const modelsStore = useModelsStore()
+    const { filters, sorts } = storeToRefs(modelsStore)
+    const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
+    const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
+    variants = variants?.filter((variant) => {
+      if (colorFilters.length > 0) {
+        if (!variant.colorId) {
+          return false
+        }
+        if (!colorFilters.includes(variant.colorId)) {
+          return false
+        }
+      }
+      if (categoryFilters.length > 0) {
+        if (!categoryFilters.includes(variant.catString)) {
+          return false
+        }
+      }
+      return true
+    })
+    if (!!variants) {
+      sortItems(variants, sorts.value)
+    }
+    return variants
   })
-  const filteredItemInventories = computed<ItemVariant[] | undefined>(() => {
+  const filteredItemInventories = computed<ItemInventory[] | undefined>(() => {
     const catalogItemPage = useCatalogItemPageStore()
     const catalogItemPageRefs = storeToRefs(catalogItemPage)
     const singleItem = catalogItemPageRefs.singleItem
     if (!singleItem.value) {
       return
     }
-    let invItems = items.value.get(singleItem.value.itemType)?.get(singleItem.value.itemNumber)
+    let invItems = itemInventories.value
+      .get(singleItem.value.itemType)
+      ?.get(singleItem.value.itemNumber)
     const modelsStore = useModelsStore()
     const { filters, sorts } = storeToRefs(modelsStore)
+    const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
+    const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
     invItems = invItems?.filter((invItem) => {
-      console.log(invItem, filters)
-      const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
+      const variant = invItem.itemVariant
       if (colorFilters.length > 0) {
-        if (!invItem.colorId) {
+        if (!variant.colorId) {
           return false
         }
-        if (!colorFilters.includes(invItem.colorId)) {
+        if (!colorFilters.includes(variant.colorId)) {
+          return false
+        }
+      }
+      if (categoryFilters.length > 0) {
+        if (!categoryFilters.includes(variant.catString)) {
           return false
         }
       }
@@ -106,7 +142,7 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       '<!-- Classic Contents End-->',
     )[0]
     const rowsHtml = extractValueFromHtml(listHtml, 'class="IV_', '</TR>')
-    const parsedInvItems = rowsHtml.map((row: string) => {
+    const parsedInvItems: ItemInventory[] = rowsHtml.map((row: string) => {
       const params = extractValuesFromHtml(
         row,
         [
@@ -141,29 +177,41 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       }
 
       return {
-        itemType: params[4],
-        itemId: params[0],
-        name,
-        thumbnail: params[2],
         quantity: Number.parseInt(params[3]),
-        colorId,
-        colorName,
-        catType: params[5],
-        catString: params[6],
-        categoryName: params[7],
+        itemVariant: {
+          itemType: params[4],
+          itemId: params[0],
+          name,
+          thumbnail: params[2],
+          colorId,
+          colorName,
+          catType: params[5],
+          catString: params[6],
+          categoryName: params[7],
+        },
       }
     })
-    let typeMap = items.value.get(itemType)
-    if (!typeMap) {
-      typeMap = new Map<string, ItemVariant[]>()
-      items.value.set(itemType, typeMap)
+    let variantMap = itemVariants.value.get(itemType)
+    if (!variantMap) {
+      variantMap = new Map<string, ItemVariant[]>()
+      itemVariants.value.set(itemType, variantMap)
     }
-    typeMap.set(urlParams[1], parsedInvItems)
+    variantMap.set(
+      urlParams[1],
+      parsedInvItems.map((ii) => ii.itemVariant),
+    )
+    let invMap = itemInventories.value.get(itemType)
+    if (!invMap) {
+      invMap = new Map<string, ItemInventory[]>()
+      itemInventories.value.set(itemType, invMap)
+    }
+    invMap.set(urlParams[1], parsedInvItems)
   }
   return {
     fetchItemPage,
     handlePageResponse,
-    items,
+    itemInventories,
+    itemVariants,
     filteredItemVariants,
     filteredItemInventories,
   }

@@ -190,7 +190,6 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       )
     },
     async handleInventoriesResponse(detail: InventoriesResponse) {
-      console.log('handleInventoriesResponse', detail)
       const itemNumber = detail.request.extraParams?.itemNumber
       const itemType = detail.request.extraParams?.itemType
       if (!detail.response.list) {

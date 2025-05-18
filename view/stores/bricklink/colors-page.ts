@@ -4,7 +4,7 @@ import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useCatalogItemPageStore } from './catalog-item-page'
 import { useModelsStore } from '../models'
-import { ONE_MONTH, ONE_YEAR } from '@/assets/js/timesToMs'
+import { ONE_YEAR } from '@/assets/js/timesToMs'
 
 interface BrickLinkColor {
   cssCode: string
@@ -32,12 +32,15 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
       if (singleItem.value) {
         const out: BrickLinkColor[] = []
         const catalogItemInvPage = useCatalogItemInvPageStore()
-        const invItems: { colorId: string }[] =
-          catalogItemInvPage.items
+        const invItems =
+          catalogItemInvPage.itemVariants
             .get(singleItem.value.itemType)
             ?.get(singleItem.value.itemNumber) || []
         const activeColors = new Map<string, boolean>()
         invItems.forEach((ii) => {
+          if (!ii.colorId) {
+            return
+          }
           activeColors.set(ii.colorId, true)
         })
         const itemVariants = catalogItemPage.itemVariants.get(
