@@ -1,9 +1,10 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
+import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
 import { useCatalogItemPageStore } from './catalog-item-page'
 import { ONE_DAY } from '@/assets/js/timesToMs'
+import { useModelsStore } from '../models'
 
 export interface ItemVariant {
   itemType: string
@@ -74,7 +75,25 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
     if (!singleItem.value) {
       return
     }
-    const invItems = items.value.get(singleItem.value.itemType)?.get(singleItem.value.itemNumber)
+    let invItems = items.value.get(singleItem.value.itemType)?.get(singleItem.value.itemNumber)
+    const modelsStore = useModelsStore()
+    const { filters, sorts } = storeToRefs(modelsStore)
+    invItems = invItems?.filter((invItem) => {
+      console.log(invItem, filters)
+      const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
+      if (colorFilters.length > 0) {
+        if (!invItem.colorId) {
+          return false
+        }
+        if (!colorFilters.includes(invItem.colorId)) {
+          return false
+        }
+      }
+      return true
+    })
+    if (!!invItems) {
+      sortItems(invItems, sorts.value)
+    }
     return invItems
   })
   async function handlePageResponse(detail: EventDetail) {
@@ -116,11 +135,8 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
           '</A></TD><TD><B>', // variantName
           '</B>',
         )[0]
-        if (!variantName) {
-          console.log('no variant', row)
-        } else {
+        if (!!variantName) {
           colorName = variantName.replace(name, '').trim()
-          console.log(colorName, variantName)
         }
       }
 

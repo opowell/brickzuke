@@ -207,12 +207,11 @@ export const useModelsStore = defineStore('models', () => {
             id: 'colorId',
             label: 'Color',
             valueField: 'colorName',
-            width: '60px',
+            width: '70px',
             clickFn: (item: ItemVariant) => {
               if (!item.colorId) {
                 return
               }
-              selectedItem.value = undefined
               filters.value.push({
                 key: 'color',
                 value: item.colorId,
