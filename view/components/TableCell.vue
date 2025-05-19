@@ -2,6 +2,8 @@
 import { formatInteger } from '@/assets/js/utils.ts'
 import type { TableColumn } from './TableComponent.vue'
 import { computed } from 'vue'
+import { useModelsStore } from '@/stores/models'
+import { storeToRefs } from 'pinia'
 const {
   column,
   item,
@@ -11,11 +13,24 @@ const {
   item: any
   setMaxWidth?: boolean
 }>()
+const modelsStore = useModelsStore()
+
 function handleClick() {
-  if (!column.clickFn) {
-    return
+  const modelsStoreRefs = storeToRefs(modelsStore)
+  const { filters, search, selectedItem } = modelsStoreRefs
+  if (column.clickKey && column.clickValue) {
+    const key = typeof column.clickKey === 'string' ? column.clickKey : column.clickKey(item)
+    selectedItem.value = undefined
+    // filters.value = filters.value.filter((filter) => filter.key !== key)
+    filters.value.push({
+      key,
+      value: column.clickValue(item),
+    })
+    search.value = undefined
   }
-  return column.clickFn(item)
+  if (column.clickFn) {
+    return column.clickFn(item)
+  }
 }
 const label = computed(() => {
   if (column.type === 'number') {
@@ -44,7 +59,7 @@ const styles = computed(() => {
 <template>
   <div :style="styles">
     <template v-if="hasLabel">
-      <button v-if="column.clickFn" @click="handleClick">
+      <button v-if="column.clickFn || (column.clickKey && column.clickValue)" @click="handleClick">
         <img
           v-if="column.type === 'image'"
           :src="label"

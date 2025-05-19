@@ -19,7 +19,12 @@ import TableCell from './TableCell.vue'
           >:
           <div v-for="item in table.items?.slice(0, 10)" :key="item.id">
             <template v-if="typeof table.preview === 'string'">
-              <button v-html="item[table.preview]"></button>
+              <button
+                v-if="!!table.previewClickFn"
+                v-html="item[table.preview]"
+                @click="table.previewClickFn(item)"
+              ></button>
+              <div v-else v-html="item[table.preview]" />
             </template>
             <TableCell v-else :column="table.preview" :item="item" set-max-width />
           </div>

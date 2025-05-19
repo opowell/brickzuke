@@ -1,12 +1,12 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
+import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
 import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useCatalogItemPageStore } from './catalog-item-page'
 import { useModelsStore } from '../models'
 import { ONE_YEAR } from '@/assets/js/timesToMs'
 
-interface BrickLinkColor {
+export interface BrickLinkColor {
   cssCode: string
   colorID: string
   colorName: string
@@ -25,7 +25,7 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
     },
     filteredColors(state): BrickLinkColor[] {
       const modelsStore = useModelsStore()
-      const { search } = storeToRefs(modelsStore)
+      const { search, sorts } = storeToRefs(modelsStore)
       const catalogItemPage = useCatalogItemPageStore()
       const catalogItemPageRefs = storeToRefs(catalogItemPage)
       const singleItem = catalogItemPageRefs.singleItem
@@ -57,6 +57,7 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
           }
           out.push(color)
         })
+        sortItems(out, sorts.value)
         return out
       }
       if (!search.value || search.value === '') {
@@ -64,12 +65,14 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
       }
       const lowerCaseSearch = search.value.toString().toLowerCase()
       const caseMatch = search.value !== lowerCaseSearch
-      return this.colorsArray.filter((color: BrickLinkColor) => {
+      const out = this.colorsArray.filter((color: BrickLinkColor) => {
         if (caseMatch && search.value) {
           return color.colorName.includes(search.value?.toString())
         }
         return color.colorName.toLowerCase().includes(lowerCaseSearch)
       })
+      sortItems(out, sorts.value)
+      return out
     },
   },
   actions: {

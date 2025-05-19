@@ -109,65 +109,41 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
     const caseMatch = search.value !== lowerCaseSearch
     const filteredCategories = filters.value.filter((f) => f.key === 'category')
-    const includedCategoryIds = filteredCategories
-      // .filter((f) => f.action === 'include')
-      .map((f) => f.value)
-    // const excludedCategoryIds = filteredCategories
-    //   .filter((f) => f.action === 'exclude')
-    //   .map((f) => f.item)
+    const includedCategoryIds = filteredCategories.map((f) => f.value)
     const filteredItemTypes = filters.value.filter((f) => f.key === 'itemType')
-    const includedItemTypeIds = filteredItemTypes
-      // .filter((f) => f.action === 'include')
-      .map((f) => f.value)
-    // const excludedItemTypeIds = filteredItemTypes
-    //   .filter((f) => f.action === 'exclude')
-    //   .map((f) => f.item)
+    const includedItemTypeIds = filteredItemTypes.map((f) => f.value)
     out = out.filter((item) => {
       if (search.value) {
+        if (includedCategoryIds.length > 0) {
+          if (!includedCategoryIds.includes(item['Category ID'])) {
+            return false
+          }
+        }
         if (caseMatch) {
           if (item.Name.includes(search.value)) {
             return true
           }
-          if (item['Category Name'].includes(search.value)) {
-            return true
-          }
-          // if (!singleItem.value) {
-          if (includedCategoryIds.length > 0) {
-            return includedCategoryIds.includes(item['Category ID'])
-            //   } else if (excludedCategoryIds.length > 0) {
-            //     return !excludedCategoryIds.includes(item['Category ID'])
-            //   }
-          }
-          return false
         } else {
           if (item.Name.toLowerCase().includes(lowerCaseSearch)) {
             return true
           }
-          if (item['Category Name'].toLowerCase().includes(lowerCaseSearch)) {
-            return true
-          }
-          return false
         }
+        if (item['Category Name'].includes(search.value)) {
+          return true
+        }
+        return false
       }
       if (!singleItem.value) {
         if (includedCategoryIds.length > 0) {
           if (!includedCategoryIds.includes(item['Category ID'])) {
             return false
           }
-          // } else if (excludedCategoryIds.length > 0) {
-          //   if (excludedCategoryIds.includes(item['Category ID'])) {
-          //     return false
-          //   }
         }
       }
       if (includedItemTypeIds.length > 0) {
         if (!includedItemTypeIds.includes(item.itemType)) {
           return false
         }
-        // } else if (excludedItemTypeIds.length > 0) {
-        //   if (excludedItemTypeIds.includes(itemType)) {
-        //     return false
-        //   }
       }
       return true
     })

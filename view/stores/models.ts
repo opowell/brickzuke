@@ -16,7 +16,7 @@ import {
   type ItemVariant,
 } from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
-import { useColorsPageStore } from './bricklink/colors-page'
+import { useColorsPageStore, type BrickLinkColor } from './bricklink/colors-page'
 import { useStoresPageStore, type Store } from './bricklink/stores-page'
 import type { Table } from '@/components/TableComponent.vue'
 const IMAGES_PREVIEW_COLUMN = {
@@ -115,6 +115,14 @@ export const useModelsStore = defineStore('models', () => {
       search.value = undefined
     },
   }
+  const clickCategoryFn = (category: BrickLinkCategory) => {
+    selectedItem.value = 'items'
+    filters.value.push({
+      key: 'category',
+      value: category.catID,
+    })
+    search.value = undefined
+  }
   const itemTypes = computed<Table<any>[]>(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
     const catalogItemInvPage = useCatalogItemInvPageStore()
@@ -126,6 +134,7 @@ export const useModelsStore = defineStore('models', () => {
         items: catalogListPage.filteredCategories,
         idField: 'catID',
         preview: 'name',
+        previewClickFn: clickCategoryFn,
         columns: [
           {
             id: 'image',
@@ -138,34 +147,23 @@ export const useModelsStore = defineStore('models', () => {
             label: 'Type',
             valueField: 'catType',
             width: '60px',
+            clickKey: 'catType',
+            clickValue: (category: BrickLinkCategory) => category.catType,
           },
           {
             id: 'items',
             label: 'Items',
             width: '60px',
             type: 'number',
-            clickFn: (category: BrickLinkCategory) => {
-              selectedItem.value = 'items'
-              filters.value.push({
-                key: 'category',
-                value: category.catID,
-              })
-              search.value = undefined
-            },
+            clickFn: clickCategoryFn,
           },
           {
             id: 'name',
             label: 'Name',
             itemValue: (category: BrickLinkCategory) => category.name + ' (' + category.catID + ')',
             width: '300px',
-            clickFn: (category: BrickLinkCategory) => {
-              selectedItem.value = undefined
-              filters.value.push({
-                key: 'category',
-                value: category.catID,
-              })
-              search.value = undefined
-            },
+            clickKey: 'category',
+            clickValue: (category: BrickLinkCategory) => category.catID,
           },
         ],
       },
@@ -183,42 +181,26 @@ export const useModelsStore = defineStore('models', () => {
             label: 'Variant',
             type: 'image',
             itemValue: (ii: ItemInventory) => ii.itemVariant.thumbnail,
-            clickFn: (item: ItemInventory) => {
-              filters.value.push({
-                key: 'variant',
-                value: item.itemVariant.colorId + '-' + item.itemVariant.itemId,
-              })
-              search.value = undefined
-            },
+            clickKey: 'variant',
+            clickValue: (item: ItemInventory) =>
+              item.itemVariant.colorId + '-' + item.itemVariant.itemId,
           },
           {
             id: 'itemType',
             label: 'Type',
             width: '60px',
             itemValue: (ii: ItemInventory) => ii.itemVariant.itemType,
-            clickFn: (item: ItemInventory) => {
-              filters.value.push({
-                key: 'itemType',
-                value: item.itemVariant?.itemType,
-              })
-              search.value = undefined
-            },
+            clickKey: 'itemType',
+            clickValue: (item: ItemInventory) => item.itemVariant?.itemType,
           },
           COLUMN_ITEM_INVENTORY_NAME,
           {
             id: 'categoryName',
             label: 'Category',
             width: '100px',
-            itemValue: (ii: ItemInventory) => ii.itemVariant.categoryName,
-            clickFn: (item: ItemInventory) => {
-              selectedItem.value = undefined
-              filters.value.push({
-                key: 'category',
-                value: item.itemVariant?.catString,
-              })
-              // filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
-              search.value = undefined
-            },
+            itemValue: (ii: ItemInventory) => ii.itemVariant.catString,
+            clickKey: 'category',
+            clickFn: (item: ItemInventory) => item.itemVariant?.catString,
           },
           {
             id: 'colorId',
@@ -226,16 +208,8 @@ export const useModelsStore = defineStore('models', () => {
             valueField: 'colorName',
             itemValue: (ii: ItemInventory) => ii.itemVariant.colorName,
             width: '70px',
-            clickFn: (item: ItemInventory) => {
-              if (!item.itemVariant.colorId) {
-                return
-              }
-              filters.value.push({
-                key: 'color',
-                value: item.itemVariant.colorId,
-              })
-              search.value = undefined
-            },
+            clickKey: 'color',
+            clickValue: (item: ItemInventory) => item.itemVariant?.colorId,
           },
           {
             id: 'quantity',
@@ -261,37 +235,29 @@ export const useModelsStore = defineStore('models', () => {
             id: 'itemType',
             label: 'Type',
             width: '60px',
-            clickFn: (item: BrickLinkItem) => {
-              filters.value.push({
-                key: 'itemType',
-                value: item.itemType,
-              })
-              search.value = undefined
-            },
+            clickKey: 'itemType',
+            clickValue: (item: ItemVariant) => item.itemType,
           },
           {
             id: 'name',
             label: 'Name',
             width: '300px',
-            clickFn: (item: BrickLinkItem) => {
-              selectedItem.value = undefined
-              filters.value.push({
-                key: 'item',
-                value: item.id,
-              })
-              filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
-              search.value = undefined
-            },
+            clickKey: 'itemVariant',
+            clickValue: (item: ItemVariant) => item.variantId,
           },
           {
             id: 'categoryName',
             label: 'Category',
             width: '100px',
+            clickKey: 'category',
+            clickValue: (item: ItemVariant) => item.catString,
           },
           {
             id: 'colorId',
             label: 'Color',
             width: '60px',
+            clickKey: 'color',
+            clickValue: (item: ItemVariant) => item.colorId,
           },
         ],
       },
@@ -311,13 +277,8 @@ export const useModelsStore = defineStore('models', () => {
             id: 'itemType',
             label: 'Type',
             width: '60px',
-            clickFn: (item: BrickLinkItem) => {
-              filters.value.push({
-                key: 'itemType',
-                value: item.itemType,
-              })
-              search.value = undefined
-            },
+            clickKey: 'itemType',
+            clickValue: (item: BrickLinkItem) => item.itemType,
           },
           {
             id: 'name',
@@ -325,29 +286,16 @@ export const useModelsStore = defineStore('models', () => {
             width: '300px',
             valueField: 'Name',
             itemValue: (item: BrickLinkItem) => item.Name + ' (' + item.Number + ')',
-            clickFn: (item: BrickLinkItem) => {
-              selectedItem.value = undefined
-              filters.value.push({
-                key: 'item',
-                value: item.id,
-              })
-              filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
-              search.value = undefined
-            },
+            clickKey: 'item',
+            clickValue: (item: BrickLinkItem) => item.id,
           },
           {
             id: 'category',
             label: 'Category',
             width: '200px',
             valueField: 'Category Name',
-            clickFn: (item: BrickLinkItem) => {
-              selectedItem.value = undefined
-              filters.value.push({
-                key: 'category',
-                value: item['Category ID'],
-              })
-              search.value = undefined
-            },
+            clickKey: 'category',
+            clickValue: (item: BrickLinkItem) => item['Category ID'],
           },
           {
             id: 'Year Released',
@@ -357,7 +305,7 @@ export const useModelsStore = defineStore('models', () => {
           {
             id: 'weight',
             label: 'Weight',
-            width: '70px',
+            width: '75px',
             itemValue: (item: BrickLinkItem) =>
               formatInteger(Number.parseFloat(item.weight) * 100, [
                 {
@@ -390,7 +338,7 @@ export const useModelsStore = defineStore('models', () => {
           {
             id: 'dimensions',
             label: 'Dimensions',
-            width: '110px',
+            width: '115px',
             valueField: 'Dimensions',
           },
         ],
@@ -448,6 +396,7 @@ export const useModelsStore = defineStore('models', () => {
         label: 'Store inventories',
         items: inventories.value,
         idField: 'invId',
+        hidePriceModifier: true,
         columns: [
           {
             id: 'image',
@@ -470,9 +419,7 @@ export const useModelsStore = defineStore('models', () => {
             label: 'Country',
             width: '100px',
             clickFn: (storeInvItem) => {
-              console.log(storeInvItem)
               selectedItem.value = undefined
-              filters.value = []
               filters.value.push({
                 key: 'country',
                 value: storeInvItem.sellerCountryCode,
@@ -514,21 +461,66 @@ export const useModelsStore = defineStore('models', () => {
             id: 'name',
             label: 'Name',
             itemValue: (color) => color.colorName + ' (' + color.colorID + ')',
+            clickFn: (color: BrickLinkColor) => {
+              selectedItem.value = undefined
+              filters.value = []
+              filters.value.push({
+                key: 'color',
+                value: color.colorID,
+              })
+              search.value = undefined
+            },
           },
           {
             id: 'countItems',
             label: 'Items',
             type: 'number',
+            clickFn: (color: BrickLinkColor) => {
+              selectedItem.value = undefined
+              filters.value.push({
+                key: 'color',
+                value: color.colorID,
+              })
+              search.value = undefined
+            },
           },
           {
             id: 'countParts',
             label: 'Parts',
             type: 'number',
+            clickFn: (color: BrickLinkColor) => {
+              selectedItem.value = 'items'
+              filters.value.push(
+                {
+                  key: 'color',
+                  value: color.colorID,
+                },
+                {
+                  key: 'itemType',
+                  value: 'P',
+                },
+              )
+              search.value = undefined
+            },
           },
           {
             id: 'countSets',
             label: 'Sets',
             type: 'number',
+            clickFn: (color: BrickLinkColor) => {
+              selectedItem.value = 'items'
+              filters.value.push(
+                {
+                  key: 'color',
+                  value: color.colorID,
+                },
+                {
+                  key: 'itemType',
+                  value: 'S',
+                },
+              )
+              search.value = undefined
+            },
           },
         ],
       },

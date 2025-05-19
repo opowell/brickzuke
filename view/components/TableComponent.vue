@@ -10,6 +10,8 @@ export interface TableColumn<T> {
   type?: string
   itemValue?: (item: T) => string | number | undefined
   clickFn?: (item: T) => void
+  clickKey?: (item: T) => string
+  clickValue?: (item: T) => string
 }
 export interface Table<T> {
   id: string
@@ -21,6 +23,7 @@ export interface Table<T> {
   hidePriceModifier?: boolean
   hideSelect?: boolean
   preview?: string | ((item: T) => string)
+  previewClickFn?: (item: T) => void
 }
 const modelsStore = useModelsStore()
 const { table } = defineProps<{

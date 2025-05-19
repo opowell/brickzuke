@@ -20,6 +20,7 @@ export interface ItemVariant {
   colorName?: string
   catType: string
   catString: string
+  variantId: string
 }
 
 export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore', () => {
@@ -176,11 +177,12 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
         }
       }
 
+      const itemId = params[0]
       return {
         quantity: Number.parseInt(params[3]),
         itemVariant: {
           itemType: params[4],
-          itemId: params[0],
+          itemId,
           name,
           thumbnail: params[2],
           colorId,
@@ -188,6 +190,7 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
           catType: params[5],
           catString: params[6],
           categoryName: params[7],
+          variantId: itemId + '-' + colorId,
         },
       }
     })
