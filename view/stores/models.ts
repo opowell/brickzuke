@@ -499,7 +499,7 @@ export const useModelsStore = defineStore('models', () => {
             id: 'countSets',
             label: 'Sets',
             type: 'number',
-            clickFn: (color: BrickLinkColor) => {
+            click: (color: BrickLinkColor) => {
               selectedItem.value = 'items'
               filters.value.push(
                 {
@@ -513,6 +513,24 @@ export const useModelsStore = defineStore('models', () => {
               )
               search.value = undefined
             },
+          },
+          {
+            id: 'countWanted',
+            label: 'Wanted',
+            type: 'number',
+          },
+          {
+            id: 'countForSale',
+            label: 'For sale',
+            type: 'number',
+          },
+          {
+            id: 'yearStart',
+            label: 'Year start',
+          },
+          {
+            id: 'yearEnd',
+            label: 'Year end',
           },
         ],
       },

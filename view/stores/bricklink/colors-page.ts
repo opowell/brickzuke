@@ -13,6 +13,9 @@ export interface BrickLinkColor {
   countParts: number
   countSets: number
   countItems: number
+  countForSale: number
+  yearStart?: number
+  yearEnd?: number
 }
 export const useColorsPageStore = defineStore('colorsPageStore', {
   state: () => ({
@@ -127,15 +130,61 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
           ],
           ['">', '">', '&nbsp;</TD>', '"', '</A>', '"', '</A>'],
         )
-        return {
-          cssCode: params[0],
-          colorID: params[1],
-          colorName: params[2],
-          countParts: params.length === 7 ? Number.parseInt(params[4]) : 0,
-          countSets: params.length === 7 ? Number.parseInt(params[6]) : 0,
-          countItems:
-            params.length === 7 ? Number.parseInt(params[4]) + Number.parseInt(params[6]) : 0,
+
+        const secondParamsStarts = []
+        const secondParamsEnds = []
+        const countWantedSkip = '<A HREF="/catalogList.asp?catType=P&viewWanted=Y&colorWanted='
+        const hasWantedCount = row.includes(countWantedSkip)
+        if (hasWantedCount) {
+          secondParamsStarts.push(countWantedSkip, '>')
+          secondParamsEnds.push('"', '</A>')
         }
+        const countForSaleSkip = '<A HREF="/browseList.asp?colorID='
+        const hasForSaleCount = row.includes(countForSaleSkip)
+        if (hasForSaleCount) {
+          secondParamsStarts.push(countForSaleSkip, '>')
+          secondParamsEnds.push('"', '</A>')
+        }
+        const secondParams = extractValuesFromHtml(
+          row,
+          [...secondParamsStarts, '<FONT FACE="Tahoma,Arial" SIZE="2">&nbsp;'],
+          [...secondParamsEnds, '&nbsp;</TD>'],
+        )
+        let secondParamsIndex = 0
+        let countWanted = 0
+        if (hasWantedCount) {
+          secondParamsIndex++
+          countWanted = Number.parseInt(secondParams[secondParamsIndex])
+          secondParamsIndex++
+        }
+        let countForSale = 0
+        if (hasForSaleCount) {
+          secondParamsIndex++
+          countForSale = Number.parseInt(secondParams[secondParamsIndex])
+          secondParamsIndex++
+        }
+        const yearText = secondParams[secondParamsIndex]
+        let yearStart = undefined
+        let yearEnd = undefined
+        if (!yearText.includes('?')) {
+          const parts = yearText.replaceAll('&nbsp;', '').split('-')
+          yearStart = parts[0]
+          yearEnd = parts[1]
+        }
+        if (secondParams)
+          return {
+            cssCode: params[0],
+            colorID: params[1],
+            colorName: params[2],
+            countParts: params.length === 7 ? Number.parseInt(params[4]) : 0,
+            countSets: params.length === 7 ? Number.parseInt(params[6]) : 0,
+            countItems:
+              params.length === 7 ? Number.parseInt(params[4]) + Number.parseInt(params[6]) : 0,
+            countWanted,
+            countForSale,
+            yearStart,
+            yearEnd,
+          }
       })
       values.forEach((value) => {
         this.colors.set(value.colorID, value)
