@@ -15,7 +15,7 @@ import TableCell from './TableCell.vue'
     <div v-else class="buttons">
       <div v-for="table in itemTypes" :key="table.id" class="itemType">
         <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />
-        <template v-if="table.preview"
+        <template v-if="table.preview && table.items?.length"
           >:
           <div v-for="item in table.items?.slice(0, 10)" :key="item.id">
             <template v-if="typeof table.preview === 'string'">

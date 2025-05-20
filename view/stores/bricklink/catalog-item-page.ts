@@ -1,4 +1,4 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import {
   Call,
   makeJsonCall,
@@ -46,6 +46,7 @@ interface InventoriesResponse extends EventDetail {
       strDesc: string
       mDisplaySalePrice: string
       strStorename: string
+      strSellerUsername: string
       strSellerCountryCode: string
       strSellerCountryName: string
       codeNew: string
@@ -98,6 +99,20 @@ export interface ItemInfo {
   instructions?: string
 }
 
+export interface StoreInventory {
+  invId: string
+  description: string
+  price: string
+  sellerCountryCode: string
+  sellerCountryName: string
+  sellerStoreName: string
+  strSellerUsername: string
+  condition: string
+  quantity: number
+  sellerFeedbackScore: number
+  image: string
+}
+
 interface Item {
   itemType: string
   itemName: string
@@ -120,7 +135,7 @@ interface Color {
 export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
   state: () => ({
     imagesMap: new Map<string, any>(),
-    inventoriesMap: new Map<string, any[]>(),
+    inventoriesMap: new Map<string, StoreInventory[]>(),
     itemsMap: new Map<string, Item>(),
     itemVariants: new Map<string, Map<string, Color>>(),
   }),
@@ -195,7 +210,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       if (!detail.response.list) {
         return
       }
-      let storeInventories = detail.response.list.map((i) => {
+      const storeInventories: StoreInventory[] = detail.response.list.map((i) => {
         let image =
           'https://img.bricklink.com/ItemImage/' +
           itemType +
@@ -214,38 +229,13 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           sellerCountryCode: i.strSellerCountryCode,
           sellerCountryName: i.strSellerCountryName,
           sellerStoreName: i.strStorename,
+          strSellerUsername: i.strSellerUsername,
           condition: i.codeNew,
           quantity: i.n4Qty,
           sellerFeedbackScore: i.n4SellerFeedbackScore,
           image,
         }
       })
-      const modelsStore = useModelsStore()
-      const { sorts } = storeToRefs(modelsStore)
-      if (sorts.value.length > 0) {
-        console.log('sort')
-        storeInventories = storeInventories.sort((a, b) => {
-          for (let i = 0; i < sorts.value.length; i++) {
-            const sort = sorts.value[i]
-            if (a[sort.key] === b[sort.key]) {
-              continue
-            }
-            if (sort.dir === 'a') {
-              if (a[sort.key] > b[sort.key]) {
-                return 1
-              } else {
-                return -1
-              }
-            } else if (sort.dir === 'd') {
-              if (a[sort.key] < b[sort.key]) {
-                return 1
-              } else {
-                return -1
-              }
-            }
-          }
-        })
-      }
       this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
     },
     async handleImagesResponse(detail: ImagesResponse) {

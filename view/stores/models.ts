@@ -80,13 +80,8 @@ export const useModelsStore = defineStore('models', () => {
   })
   const inventories = computed(() => {
     const catalogItemPageStore = useCatalogItemPageStore()
-    const { singleItem } = storeToRefs(catalogItemPageStore)
-    if (!singleItem.value) {
-      return []
-    }
-    return catalogItemPageStore.inventoriesMap.get(
-      singleItem.value.itemType + '-' + singleItem.value.itemNumber,
-    )
+    const { filteredInventories } = storeToRefs(catalogItemPageStore)
+    return filteredInventories.value
   })
   const countries = computed(() => {
     const storesPageStore = useStoresPageStore()
@@ -269,9 +264,12 @@ export const useModelsStore = defineStore('models', () => {
         columns: [
           {
             id: 'image',
-            width: '100px',
+            width: '180px',
             type: 'image',
             hideLabel: true,
+            clickKey: 'item',
+            clickValue: (item: BrickLinkItem) => item.id,
+            clickSelection: 'images',
           },
           {
             id: 'itemType',
@@ -397,6 +395,7 @@ export const useModelsStore = defineStore('models', () => {
         items: inventories.value,
         idField: 'invId',
         hidePriceModifier: true,
+        preview: 'price',
         columns: [
           {
             id: 'image',
@@ -852,6 +851,7 @@ export const useModelsStore = defineStore('models', () => {
     addSort,
     colors,
     filters,
+    pauseRedirect,
     sorts,
     search,
     selectedItem,
@@ -861,6 +861,7 @@ export const useModelsStore = defineStore('models', () => {
     currentQuery,
     itemIds,
     images,
+    inventories,
     catTypes,
   }
 })

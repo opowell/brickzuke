@@ -3,6 +3,7 @@ import { defineStore, storeToRefs } from 'pinia'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
+import { useCatalogItemPageStore } from './catalog-item-page'
 
 const INSTANT_CHECKOUT_HTML =
   '<a href="https://www.bricklink.com/help.asp?helpID=2466"><I class="fas fa-bolt icon-instant-checkout"></I></a>'
@@ -23,7 +24,7 @@ export interface Region {
 export interface Store {
   name: string
   id: string
-  lots: number
+  lots?: number
   stateName?: string
   instantCheckout?: boolean
   countryID: string
@@ -65,37 +66,57 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     },
     filteredCountries(): Country[] {
       const queryStore = useModelsStore()
-      const { search, filters } = storeToRefs(queryStore)
-      if ((!search.value || search.value === '') && filters.value.length === 0) {
-        return this.countriesArray
+      const { search, filters, sorts } = storeToRefs(queryStore)
+      let out = [...this.countriesArray]
+      const catalogItemPageStore = useCatalogItemPageStore()
+      const { filteredInventories } = storeToRefs(catalogItemPageStore)
+      if (filteredInventories.value && filteredInventories.value.length > 0) {
+        const inventoryCountries = filteredInventories.value.map((i) => i.sellerCountryCode)
+        out = out.filter((c) => inventoryCountries.includes(c.countryCode))
       }
-      const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
-      const caseMatch = search.value !== lowerCaseSearch
-      const filteredRegions = filters.value.filter((f) => f.key === 'region')
-      const includedRegionIds = filteredRegions.map((f) => f.value)
-      return this.countriesArray.filter((item) => {
-        if (search.value && caseMatch) {
-          if (!item.countryName.includes(search.value)) {
+      if ((search.value && search.value !== '') || filters.value.length) {
+        const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
+        const caseMatch = search.value !== lowerCaseSearch
+        const filteredRegions = filters.value.filter((f) => f.key === 'region')
+        const includedRegionIds = filteredRegions.map((f) => f.value)
+        out = out.filter((item) => {
+          if (search.value && caseMatch) {
+            if (!item.countryName.includes(search.value)) {
+              return false
+            }
+            if (includedRegionIds.length > 0) {
+              return includedRegionIds.includes(item.regionId)
+            }
+            return true
+          }
+          if (lowerCaseSearch && !item.countryName.toLowerCase().includes(lowerCaseSearch)) {
             return false
           }
           if (includedRegionIds.length > 0) {
             return includedRegionIds.includes(item.regionId)
           }
           return true
-        }
-        if (lowerCaseSearch && !item.countryName.toLowerCase().includes(lowerCaseSearch)) {
-          return false
-        }
-        if (includedRegionIds.length > 0) {
-          return includedRegionIds.includes(item.regionId)
-        }
-        return true
-      })
+        })
+      }
+      sortItems(out, sorts.value)
+      return out
     },
     filteredStores(): Store[] {
       const queryStore = useModelsStore()
       const { search, filters, sorts } = storeToRefs(queryStore)
       let out = [...this.storesArray]
+      const catalogItemPageStore = useCatalogItemPageStore()
+      const { filteredInventories } = storeToRefs(catalogItemPageStore)
+
+      if (filteredInventories.value) {
+        out = filteredInventories.value?.map((inventory) => {
+          return {
+            name: inventory.sellerStoreName,
+            id: inventory.strSellerUsername,
+            countryID: inventory.sellerCountryCode,
+          }
+        })
+      }
       const filteredCountries = filters.value.filter((f) => f.key === 'country')
       const includedCountryIds = filteredCountries.map((f) => f.value)
       if (includedCountryIds.length > 0) {
@@ -108,8 +129,7 @@ export const useStoresPageStore = defineStore('storesPageStore', {
           out.push(...stores)
         })
       }
-      if ((!search.value || search.value === '') && filters.value.length === 0) {
-      } else {
+      if ((search.value && search.value !== '') || filters.value.length > 0) {
         const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
         const caseMatch = search.value !== lowerCaseSearch
         const filteredRegions = filters.value.filter((f) => f.key === 'region')
