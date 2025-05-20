@@ -100,15 +100,8 @@ export const useModelsStore = defineStore('models', () => {
     label: 'Item',
     width: '300px',
     itemValue: (ii: ItemInventory) => ii.itemVariant.name,
-    clickFn: (item: ItemVariant) => {
-      selectedItem.value = undefined
-      filters.value.push({
-        key: 'item',
-        value: item.itemId,
-      })
-      filters.value = filters.value.filter((filter) => filter.key !== 'itemType')
-      search.value = undefined
-    },
+    clickKey: 'item',
+    clickValue: (item: ItemInventory) => item.itemVariant.itemId,
   }
   const clickCategoryFn = (category: BrickLinkCategory) => {
     selectedItem.value = 'items'
@@ -195,7 +188,7 @@ export const useModelsStore = defineStore('models', () => {
             width: '100px',
             itemValue: (ii: ItemInventory) => ii.itemVariant.catString,
             clickKey: 'category',
-            clickFn: (item: ItemInventory) => item.itemVariant?.catString,
+            clickValue: (item: ItemInventory) => item.itemVariant?.catString,
           },
           {
             id: 'colorId',
