@@ -1,7 +1,7 @@
 self.onmessage = (e) => {
-  if (e.data === "start") {
+  if (e.data === 'start') {
     setInterval(() => {
-      self.postMessage("ping");
-    }, 20000);
+      self.postMessage('ping')
+    }, 10000)
   }
-};
+}

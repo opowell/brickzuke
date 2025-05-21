@@ -301,7 +301,7 @@ export async function makeCall(
     })
     return true
   }
-  console.log('dispatch call', url)
+  console.log('dispatch', url)
   document.dispatchEvent(
     new CustomEvent('bzClientToServer', {
       detail: {

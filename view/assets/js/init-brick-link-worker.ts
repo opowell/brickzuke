@@ -3,10 +3,10 @@ import BrickLinkWorker from '@/assets/workers/brickLink?worker'
 import { put } from '../../../idb/db'
 import { getDbConnection } from '../../../idb/idb'
 import stores from '../../../idb/stores'
+import { ONE_WEEK } from './timesToMs'
 
 export function initBrickLinkWorker() {
-  const STORAGE_TIME = 1000 * 60 * 60 * 24 * 7 // 7 days
-  // @ts-expect-error
+  // @ts-expect-error addEventListener
   document.addEventListener('bzServerToClient', async function (e: CustomEvent) {
     const db = await getDbConnection()
     const request = e.detail.request
@@ -14,7 +14,7 @@ export function initBrickLinkWorker() {
       url: callKey(request.url, request.options),
       options: request.options,
       response: e.detail.response,
-      expiryTime: Date.now() + (e.detail.request.storageTime || STORAGE_TIME),
+      expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
     })
     handleEvent(e.detail)
   })

@@ -354,6 +354,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         categories,
       })
       this.fetchImages(itemNumber, itemId, itemType)
+      console.log('fetch inventory', itemNumber, itemId, itemType)
       this.fetchInventories(itemNumber, itemId, itemType)
       processQueue(2)
     },

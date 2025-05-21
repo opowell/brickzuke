@@ -21,6 +21,7 @@ export interface ItemVariant {
   catType: string
   catString: string
   variantId: string
+  categoryName: string
 }
 
 export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore', () => {
@@ -66,14 +67,10 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
     let variants = itemVariants.value
       .get(singleItem.value.itemType)
       ?.get(singleItem.value.itemNumber)
-      ?.map((invItem) => {
-        return {
-          ...invItem,
-          quantity: undefined,
-        }
-      })
+    console.log('filteredItemVariants', singleItem.value?.itemType, singleItem.value?.itemNumber)
     const modelsStore = useModelsStore()
     const { filters, sorts } = storeToRefs(modelsStore)
+    console.log('filteredItemVariants', itemVariants.value, variants, filters)
     const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
     const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
     variants = variants?.filter((variant) => {
@@ -142,6 +139,10 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       '<TABLE BORDER="0" CELLPADDING="3" CELLSPACING="0" WIDTH="100%" CLASS="ta">',
       '<!-- Classic Contents End-->',
     )[0]
+    console.log(listHtml, detail)
+    if (!listHtml) {
+      return
+    }
     const rowsHtml = extractValueFromHtml(listHtml, 'class="IV_', '</TR>')
     const parsedInvItems: ItemInventory[] = rowsHtml.map((row: string) => {
       const params = extractValuesFromHtml(

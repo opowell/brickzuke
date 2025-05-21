@@ -186,7 +186,7 @@ export const useModelsStore = defineStore('models', () => {
             id: 'categoryName',
             label: 'Category',
             width: '100px',
-            itemValue: (ii: ItemInventory) => ii.itemVariant.catString,
+            itemValue: (ii: ItemInventory) => ii.itemVariant.categoryName,
             clickKey: 'category',
             clickValue: (item: ItemInventory) => item.itemVariant?.catString,
           },
@@ -826,7 +826,7 @@ export const useModelsStore = defineStore('models', () => {
             await catalogItemInvPage.fetchItemPage(type, itemId)
             break
           case 'P':
-            // await catalogItemInPage.fetchItemPage(type, itemId);
+            // await catalogItemInvPage.fetchItemPage(type, itemId)
             break
         }
         processQueue(2)
