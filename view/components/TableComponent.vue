@@ -33,7 +33,7 @@ const tableItems = computed(() => {
   if (!table.items) {
     return []
   }
-  return table.items.slice(0, 1000)
+  return table.items.slice(0, 100)
 })
 function sortBy(column: TableColumn) {
   modelsStore.addSort(column.id, 'a')
