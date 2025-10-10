@@ -499,7 +499,7 @@ export const useModelsStore = defineStore('models', () => {
             id: 'countSets',
             label: 'Sets',
             type: 'number',
-            click: (color: BrickLinkColor) => {
+            clickFn: (color: BrickLinkColor) => {
               selectedItem.value = 'items'
               filters.value.push(
                 {
