@@ -80,7 +80,7 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
   },
   actions: {
     async fetchColorsPage() {
-      makeTextCall(
+      await makeTextCall(
         Call.GET_COLORS_PAGE,
         'https://www.bricklink.com/catalogColors.asp',
         {

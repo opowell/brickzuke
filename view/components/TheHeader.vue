@@ -4,8 +4,13 @@ import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
 import { storeToRefs } from 'pinia'
 import { useModelsStore } from '../stores/models.ts'
+import { ref } from 'vue'
 const modelsStore = useModelsStore()
 const { search, selectedItem } = storeToRefs(modelsStore)
+const localSearch = ref(search.value)
+function doSearch() {
+  search.value = localSearch.value
+}
 </script>
 
 <template>
@@ -14,7 +19,8 @@ const { search, selectedItem } = storeToRefs(modelsStore)
     <TheFilters />
     <TheSorts />
     <TheViews v-if="selectedItem" />
-    <input v-model="search" placeholder="Search..." />
+    <input v-model="localSearch" placeholder="Search..." @keyup.enter="doSearch" />
+    <button @click="doSearch">Search</button>
   </header>
 </template>
 

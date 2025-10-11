@@ -305,7 +305,8 @@ export async function makeCall(
   document.dispatchEvent(
     new CustomEvent('bzClientToServer', {
       detail: {
-        type,
+        type: 'fetch',
+        fetchType: type,
         call,
         url,
         options,

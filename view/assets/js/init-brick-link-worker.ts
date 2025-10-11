@@ -8,15 +8,24 @@ import { ONE_WEEK } from './timesToMs'
 export function initBrickLinkWorker() {
   // @ts-expect-error addEventListener
   document.addEventListener('bzServerToClient', async function (e: CustomEvent) {
-    const db = await getDbConnection()
-    const request = e.detail.request
-    await put(db, stores.CALLS, {
-      url: callKey(request.url, request.options),
-      options: request.options,
-      response: e.detail.response,
-      expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
-    })
-    handleEvent(e.detail)
+    console.log('got response', e)
+    switch (e.detail.request.type) {
+      case 'fetch': {
+        const db = await getDbConnection()
+        const request = e.detail.request
+        await put(db, stores.CALLS, {
+          url: callKey(request.url, request.options),
+          options: request.options,
+          response: e.detail.response,
+          expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
+        })
+        handleEvent(e.detail)
+        break
+      }
+      case 'query': {
+        console.log('got a query response', e.detail.response.query)
+      }
+    }
   })
 
   const brickLinkWorker = new BrickLinkWorker()

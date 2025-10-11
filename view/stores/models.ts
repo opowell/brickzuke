@@ -8,7 +8,7 @@ import {
 import router from '@/router/index'
 import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 import { useRoute } from 'vue-router'
-import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
+import { useCatalogItemPageStore, type StoreInventory } from './bricklink/catalog-item-page'
 import { processQueue } from '@/assets/js/make-call'
 import {
   useCatalogItemInvPageStore,
@@ -217,7 +217,9 @@ export const useModelsStore = defineStore('models', () => {
             width: '100px',
             type: 'image',
             valueField: 'thumbnail',
-            hideLabel: true,
+            label: 'Variant',
+            clickKey: 'itemVariant',
+            clickValue: (iv: ItemVariant) => iv.variantId,
           },
           {
             id: 'itemType',
@@ -228,10 +230,10 @@ export const useModelsStore = defineStore('models', () => {
           },
           {
             id: 'name',
-            label: 'Name',
+            label: 'Item',
             width: '300px',
-            clickKey: 'itemVariant',
-            clickValue: (item: ItemVariant) => item.variantId,
+            clickKey: 'item',
+            clickValue: (item: ItemVariant) => item.itemId,
           },
           {
             id: 'categoryName',
@@ -243,7 +245,8 @@ export const useModelsStore = defineStore('models', () => {
           {
             id: 'colorId',
             label: 'Color',
-            width: '60px',
+            width: '75px',
+            itemValue: (iv: ItemVariant) => iv.colorName,
             clickKey: 'color',
             clickValue: (item: ItemVariant) => item.colorId,
           },
@@ -395,6 +398,8 @@ export const useModelsStore = defineStore('models', () => {
             width: '70px',
             type: 'image',
             hideLabel: true,
+            clickKey: 'itemVariant',
+            clickValue: (storeInventory: StoreInventory) => storeInventory.itemVariantId,
           },
           {
             id: 'price',
@@ -794,6 +799,20 @@ export const useModelsStore = defineStore('models', () => {
     },
   )
   watch(
+    () => route.query,
+    () => {
+      // console.log('new query, dispatch')
+      document.dispatchEvent(
+        new CustomEvent('bzClientToServer', {
+          detail: {
+            type: 'query',
+            query: route.query,
+          },
+        }),
+      )
+    },
+  )
+  watch(
     () => catTypes.value,
     async () => {
       const catalogDownloadPage = useCatalogDownloadPageStore()
@@ -816,17 +835,18 @@ export const useModelsStore = defineStore('models', () => {
         if (!itemKey) {
           continue
         }
+        console.log(itemKey)
         const type = itemKey[0]
         const itemId = itemKey.substring(2)
         const catalogItemPage = useCatalogItemPageStore()
         await catalogItemPage.fetchItemPage(type, itemId)
+        const catalogItemInvPage = useCatalogItemInvPageStore()
         switch (type) {
           case 'S':
-            const catalogItemInvPage = useCatalogItemInvPageStore()
             await catalogItemInvPage.fetchItemPage(type, itemId)
             break
           case 'P':
-            // await catalogItemInvPage.fetchItemPage(type, itemId)
+            await catalogItemInvPage.fetchItemPage(type, itemId)
             break
         }
         processQueue(2)

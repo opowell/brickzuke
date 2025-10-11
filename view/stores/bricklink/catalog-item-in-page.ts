@@ -57,16 +57,8 @@ interface InventoriesResponse extends EventDetail {
   }
 }
 
-function getInventoriesUrl(itemId: string) {
-  return `https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=${itemId}&ss=AT&rpp=500&iconly=0`
-}
-
-function getImagesUrl(itemId: string) {
-  return `https://www.bricklink.com/ajax/renovate/catalog/getItemImageList.ajax?idItem=${itemId}&idColor=-1&bIncludeAssoc=1`
-}
 function getPageUrl(type: string, itemNumber: string) {
-  return `https://www.bricklink.com/v2/catalog/catalogitem.page?${type}=${itemNumber}#T=${type}&O={%22ss%22:%22AT%22,%22rpp%22:%22500%22,%22iconly%22:0}`
-  // return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${catItemId}#T=S&O={%22iconly%22:0}`
+  return `https://www.bricklink.com/catalogItemIn.asp?${type}=${itemNumber}&in=A`
 }
 
 function getOptions(itemType: string, itemId: string) {
@@ -111,10 +103,6 @@ export interface StoreInventory {
   quantity: number
   sellerFeedbackScore: number
   image: string
-  itemType: string
-  itemNumber: string
-  colorId: string
-  itemVariantId: string
 }
 
 interface Item {
@@ -238,9 +226,6 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           quantity: i.n4Qty,
           sellerFeedbackScore: i.n4SellerFeedbackScore,
           image,
-          itemType,
-          itemNumber,
-          colorId: i.idColor,
         }
       })
       this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
@@ -263,7 +248,6 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       this.imagesMap.set(itemType + '-' + itemNumber, images)
     },
     async handlePageResponse(detail: EventDetail) {
-      console.log('handlePageResponse', detail)
       const categories = extractValueFromHtml(
         detail.response,
         ['<A href="//www.bricklink.com/catalogList.asp?catType=', 'catString='],
