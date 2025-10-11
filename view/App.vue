@@ -90,6 +90,7 @@ function fetchBrickLink() {
   font-family: Arial, Helvetica, sans-serif;
   line-height: 18px;
 }
+
 #app {
   display: flex;
   flex-direction: column;
