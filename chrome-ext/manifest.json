@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "BrickZuke",
+  "version": "1.0",
+  "icons": {
+    "32": "images/32x32.png"
+  },
+  "content_scripts": [
+    {
+      "js": ["scripts/content.js"],
+      "matches": [
+        "http://localhost:5173/*",
+        "https://localhost:5173/*",
+        "https://www.brickzuke.com/*",
+        "https://developer.chrome.com/docs/extensions/*",
+        "https://developer.chrome.com/docs/webstore/*"
+      ]
+    }
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "description": "Add the reading time to Chrome Extension documentation articles"
+}
