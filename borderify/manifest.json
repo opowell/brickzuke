@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "name": "Borderify",
+  "version": "1.0",
+
+  "description": "Adds a red border to all webpages matching mozilla.org.",
+
+  "icons": {
+    "32": "icons/32x32.png"
+  },
+
+  "content_scripts": [
+    {
+      "js": ["borderify.js"],
+      "matches": [
+        "*://localhost:5173/*",
+        "*://www.brickzuke.com/*",
+        "*://*.mozilla.org/*"
+      ]
+    }
+  ],
+    "background": {
+    "scripts": ["background.js"]
+  }
+}
