@@ -1,10 +1,15 @@
 {
   "manifest_version": 3,
   "name": "BrickZuke",
-  "version": "1.0",
+  "version": "1.1",
   "icons": {
     "32": "images/32x32.png"
   },
+  "host_permissions": [
+    "https://www.bricklink.com/*",
+    "https://store.bricklink.com/*",
+    "https://www.lego.com/api/"
+  ],
   "content_scripts": [
     {
       "js": ["scripts/content.js"],
