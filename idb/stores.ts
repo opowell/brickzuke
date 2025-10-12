@@ -8,6 +8,12 @@ const stores: {
   SEARCHES: StoreDefinition
   SEARCH_FILTERS: StoreDefinition
   QUEUED_CALLS: StoreDefinition
+  ITEM_TYPES: StoreDefinition
+  BRICK_LINK_ITEM_TYPES: StoreDefinition
+  ITEMS: StoreDefinition
+  BRICK_LINK_ITEMS: StoreDefinition
+  COLORS: StoreDefinition
+  BRICK_LINK_COLORS: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -26,6 +32,33 @@ const stores: {
     name: 'queuedCalls',
     keyPath: 'id',
     autoIncrement: true
+  },
+  ITEMS: {
+    name: 'items',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  BRICK_LINK_ITEMS: {
+    name: 'brickLinkItems',
+    keyPath: 'id'
+  },
+  ITEM_TYPES: {
+    name: 'itemTypes',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  BRICK_LINK_ITEM_TYPES: {
+    name: 'brickLinkItemTypes',
+    keyPath: 'itemTypeId'
+  },
+  COLORS: {
+    name: 'colors',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  BRICK_LINK_COLORS: {
+    name: 'brickLinkColors',
+    keyPath: 'colorId'
   }
 }
 

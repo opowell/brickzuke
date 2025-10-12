@@ -6,12 +6,36 @@ import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
 import { useModelsStore } from '../models'
 import { computed, ref } from 'vue'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
+import { getDbConnection } from '../../../idb/idb'
+import stores from '../../../idb/stores';
+import { put } from '../../../idb/db';
 
 interface BrickLinkItem {
   Number: string
+  itemId: number
 }
 
-function getOptions(type: string) {
+interface Item {
+  id: number
+}
+
+interface ItemType {
+  id: number
+}
+
+interface Color {
+  id: number
+}
+
+interface BrickLinkItemType {
+  'Item Type ID': string
+  'Item Type Name': string
+}
+interface BrickLinkColor {
+  'colorId': string
+  'bzColorId': string
+}
+function getOptions(itemType: string, viewType: number = 0) {
   return {
     headers: {
       accept:
@@ -31,7 +55,7 @@ function getOptions(type: string) {
     },
     referrer: 'https://www.bricklink.com/catalogDownload.asp',
     referrerPolicy: 'no-referrer-when-downgrade',
-    body: `viewType=0&itemType=${type}&selYear=Y&selWeight=Y&selDim=Y&itemTypeInv=S&itemNo=&downloadType=T`,
+    body: `viewType=${viewType}&itemType=${itemType}&selYear=Y&selWeight=Y&selDim=Y&itemTypeInv=S&itemNo=&downloadType=T`,
     method: 'POST',
     mode: 'cors',
     credentials: 'include',
@@ -150,16 +174,97 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     sortItems(out, sorts.value)
     return out
   })
-  async function fetchItemPage(type: string) {
+  async function fetchItemPage(itemType: string) {
     return await makeTextCall(
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
-      getOptions(type),
-      undefined,
+      getOptions(itemType),
+      { itemType },
+      ONE_MONTH,
+    )
+  }
+  async function fetchViewType(viewType: number) {
+    return await makeTextCall(
+      Call.GET_CATALOG_DOWNLOAD_PAGE,
+      'https://www.bricklink.com/catalogDownload.asp?a=a',
+      getOptions('S', viewType),
+      {
+        viewType
+      },
       ONE_MONTH,
     )
   }
   async function handlePageResponse(detail: EventDetail) {
+    console.log('handlePageResponse', detail, detail.request)
+    switch (detail.request.extraParams?.viewType) {
+      case 1:
+        await handleItemTypes(detail)
+        break
+      case 3:
+        await handleColors(detail)
+        break
+      default:
+        await handleCatalogItems(detail)
+        break
+    }
+  }
+  async function handleItemTypes(detail: EventDetail) {
+    const response = detail.response
+    const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
+    const headers = rows.splice(0, 1)[0]
+    const itemTypes = rows
+      .filter((row) => row.length === headers.length)
+      .map((row) => {
+        const out = {}
+        headers.forEach((header, index) => {
+          out[header] = row[index]
+        })
+        return out
+      })
+    const db = await getDbConnection()
+    for (let i = 0; i < itemTypes.length; i++) {
+      const brickLinkItemType = itemTypes[i]
+      console.log(brickLinkItemType)
+      const id = await put<ItemType>(db, stores.ITEM_TYPES, { })
+      if (!id || typeof id !== 'number') {
+        console.log('not number, stop')
+        return
+      }
+      brickLinkItemType.bzItemTypeId = id
+      brickLinkItemType.itemTypeId = brickLinkItemType['Item Type ID']
+      delete brickLinkItemType['Item Type ID']
+      await put<BrickLinkItemType>(db, stores.BRICK_LINK_ITEM_TYPES, brickLinkItemType)
+    }
+  }
+  async function handleColors(detail: EventDetail) {
+    const response = detail.response
+    const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
+    const headers = rows.splice(0, 1)[0]
+    const items = rows
+      .filter((row) => row.length === headers.length)
+      .map((row) => {
+        const out = {}
+        headers.forEach((header, index) => {
+          out[header] = row[index]
+        })
+        return out
+      })
+    const db = await getDbConnection()
+    for (let i = 0; i < items.length; i++) {
+      const brickLinkItem = items[i]
+      console.log(brickLinkItem)
+      const id = await put<Color>(db, stores.COLORS, { })
+      if (!id || typeof id !== 'number') {
+        console.log('not number, stop')
+        return
+      }
+      brickLinkItem.bzColorId = id
+      brickLinkItem.colorId = brickLinkItem['Color ID']
+      delete brickLinkItem['Color ID']
+      await put<BrickLinkColor>(db, stores.BRICK_LINK_COLORS, brickLinkItem)
+    }
+  }
+  async function handleCatalogItems(detail: EventDetail) {
     const response = detail.response
     const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
     const headers = rows.splice(0, 1)[0]
@@ -183,15 +288,27 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
         return out
       })
     const map = new Map<string, any>()
-    localItems.forEach((item) => {
-      map.set(item.Number, item)
-    })
+    const db = await getDbConnection()
+    for (let i = 0; i < localItems.length; i++) {
+      const brickLinkItem = localItems[i]
+      // map.set(brickLinkItem.Number, brickLinkItem)
+      console.log(brickLinkItem.Number, brickLinkItem)
+      const itemId = await put<Item>(db, stores.ITEMS, { })
+      if (!itemId || typeof itemId !== 'number') {
+        console.log('not number, stop')
+        return
+      }
+      brickLinkItem.bzItemId = itemId
+      await put<BrickLinkItem>(db, stores.BRICK_LINK_ITEMS, brickLinkItem)
+    }
+
     items.value.set(itemType, map)
   }
 
   // return
   return {
     fetchItemPage,
+    fetchViewType,
     filteredItems,
     items,
     itemTypeMap,

@@ -12,12 +12,14 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
   if (dbConnection) {
     return dbConnection
   }
-  const db = await openDB(DB_NAME, 4, {
+  const db = await openDB(DB_NAME, 6, {
     async upgrade(db, oldVersion, newVersion, transaction) {
       Object.values(STORES).forEach((store) => {
         try {
           createStore(db, store)
-        } catch {}
+        } catch (e) {
+          console.log('Error creating store', store, e)
+        }
       })
       Object.values(INDICES).forEach((index) => {
         try {

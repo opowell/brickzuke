@@ -68,6 +68,7 @@ export async function makeJsonCall(
 }
 export interface EventDetail {
   request: {
+    responseType: string
     call: Call
     url: string
     options: { body?: string }
@@ -77,6 +78,7 @@ export interface EventDetail {
   response: any
 }
 export function handleEvent(detail: EventDetail) {
+  console.log('handleEvent', detail)
   document.dispatchEvent(new CustomEvent('pulse'))
   try {
     switch (detail.request.call) {
@@ -245,6 +247,16 @@ export function callKey(url: string, options: { body?: string }, extraParams?: o
   return out
 }
 
+/**
+ * @param callType - the type of call to be made, either json or text.
+ * @param call - which call is being made
+ * @param url - the url to call
+ * @param options - extra options to pass to the fetch request
+ * @param extraParams - extra params to associate with this call
+ * @param storageTime - how long to store the response of this call
+ * @returns
+ *
+ */
 export async function queueCall(
   callType: CallType,
   call: Call,
@@ -255,9 +267,11 @@ export async function queueCall(
 ) {
   const db = await getDbConnection()
   const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
+  // If the call is already stored, return the stored response.
   if (value) {
     handleEvent({
       request: {
+        responseType: callType,
         call,
         url,
         options,
@@ -267,6 +281,7 @@ export async function queueCall(
     })
     return true
   }
+  // Otherwise put the call in the queue.
   await put(db, STORES.QUEUED_CALLS, {
     callType,
     call,
@@ -289,6 +304,7 @@ export async function makeCall(
 ): Promise<boolean> {
   const db = await getDbConnection()
   const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
+  // If the call is already stored, return the stored response.
   if (value) {
     handleEvent({
       request: {
@@ -301,12 +317,13 @@ export async function makeCall(
     })
     return true
   }
+  // Otherwise dispatch the call to the server.
   console.log('dispatch', url)
   document.dispatchEvent(
     new CustomEvent('bzClientToServer', {
       detail: {
-        type: 'fetch',
-        fetchType: type,
+        callType: 'fetch',
+        responseType: type,
         call,
         url,
         options,

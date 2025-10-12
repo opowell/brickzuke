@@ -1,9 +1,12 @@
-console.log('background')
+console.log('Starting...')
 
+/**
+ * Make fetch calls for the client that bypass CORS restrictions.
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('got message', message, sender, sendResponse)
   fetch(message.url, message.options).then(async (response) => {
-    console.log('response', response)
+    console.log('response', message, response)
     switch (message.responseType) {
       case 'json':
         const json = await response.json()
@@ -19,3 +22,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   })
   return true
 })
+console.log('Starting... DONE')
