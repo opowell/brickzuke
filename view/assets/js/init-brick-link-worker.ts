@@ -9,7 +9,7 @@ export function initBrickLinkWorker() {
   // @ts-expect-error addEventListener
   document.addEventListener('bzServerToClient', async function (e: CustomEvent) {
     console.log('got response', e)
-    switch (e.detail.request.type) {
+    switch (e.detail.request.callType) {
       case 'fetch': {
         const db = await getDbConnection()
         const request = e.detail.request

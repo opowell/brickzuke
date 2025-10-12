@@ -15,7 +15,7 @@ const colorsPage = useColorsPageStore()
 const storesPage = useStoresPageStore()
 onMounted(async () => {
   initStorageUsageFunction()
-  // initBrickLinkWorker()
+  initBrickLinkWorker()
   // await catalogListFetchAll()
   // await colorsPage.fetchColorsPage()
   // await storesPage.fetchStoresPage()
@@ -71,7 +71,8 @@ function fetchBrickLink() {
           "mode": "cors",
           "credentials": "include"
         },
-        type: 'text'
+        responseType: 'text',
+        callType: 'fetch'
       },
     }),
   )
