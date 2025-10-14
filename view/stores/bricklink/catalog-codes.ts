@@ -1,0 +1,6 @@
+export const BRICK_LINK_CATALOG = {
+  ITEM_TYPES: 1,
+  CATEGORIES: 2,
+  COLORS: 3,
+  PART_AND_COLOR_CODES: 5
+}

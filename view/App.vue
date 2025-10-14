@@ -12,6 +12,7 @@ import { useStoresPageStore } from './stores/bricklink/stores-page'
 import { useModelsStore } from './stores/models'
 import { storeToRefs } from 'pinia'
 import { useCatalogDownloadPageStore } from './stores/bricklink/catalog-download-page'
+import { BRICK_LINK_CATALOG } from './stores/bricklink/catalog-codes'
 const colorsPage = useColorsPageStore()
 const storesPage = useStoresPageStore()
 onMounted(async () => {
@@ -39,13 +40,16 @@ watch(
     immediate: true,
   },
 )
+
 function fetchBrickLink() {
   console.log('bl')
   const catalogDownloadPage = useCatalogDownloadPageStore()
-  // catalogDownloadPage.fetchViewType(0)
-  catalogDownloadPage.fetchViewType(1)
-  // catalogDownloadPage.fetchViewType(2)
-  catalogDownloadPage.fetchViewType(3)
+  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.ITEM_TYPES)
+  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.CATEGORIES)
+  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.COLORS)
+  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.PART_AND_COLOR_CODES)
+  catalogDownloadPage.fetchItemPage('S')
+  catalogDownloadPage.fetchItemPage('P')
 }
 </script>
 <template>

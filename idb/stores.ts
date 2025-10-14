@@ -14,6 +14,10 @@ const stores: {
   BRICK_LINK_ITEMS: StoreDefinition
   COLORS: StoreDefinition
   BRICK_LINK_COLORS: StoreDefinition
+  CATEGORIES: StoreDefinition
+  BRICK_LINK_CATEGORIES: StoreDefinition
+  PART_AND_COLOR_CODES: StoreDefinition
+  BRICK_LINK_PART_AND_COLOR_CODES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -59,6 +63,24 @@ const stores: {
   BRICK_LINK_COLORS: {
     name: 'brickLinkColors',
     keyPath: 'colorId'
+  },
+  CATEGORIES: {
+    name: 'categories',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  BRICK_LINK_CATEGORIES: {
+    name: 'brickLinkCategories',
+    keyPath: 'categoryId'
+  },
+  PART_AND_COLOR_CODES: {
+    name: 'partAndColorCodes',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  BRICK_LINK_PART_AND_COLOR_CODES: {
+    name: 'brickLinkPartAndColorCodes',
+    keyPath: 'partAndColorCodeId'
   }
 }
 

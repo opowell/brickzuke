@@ -7,8 +7,9 @@ import { useModelsStore } from '../models'
 import { computed, ref } from 'vue'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
 import { getDbConnection } from '../../../idb/idb'
-import stores from '../../../idb/stores';
+import stores, { type StoreDefinition } from '../../../idb/stores';
 import { put } from '../../../idb/db';
+import { BRICK_LINK_CATALOG } from './catalog-codes'
 
 interface BrickLinkItem {
   Number: string
@@ -27,6 +28,10 @@ interface Color {
   id: number
 }
 
+interface Category {
+  id: number
+}
+
 interface BrickLinkItemType {
   'Item Type ID': string
   'Item Type Name': string
@@ -34,6 +39,10 @@ interface BrickLinkItemType {
 interface BrickLinkColor {
   'colorId': string
   'bzColorId': string
+}
+interface BrickLinkCategory {
+  'categoryId': string
+  'bzCategoryId': string
 }
 function getOptions(itemType: string, viewType: number = 0) {
   return {
@@ -197,72 +206,97 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
   async function handlePageResponse(detail: EventDetail) {
     console.log('handlePageResponse', detail, detail.request)
     switch (detail.request.extraParams?.viewType) {
-      case 1:
+      case BRICK_LINK_CATALOG.ITEM_TYPES:
         await handleItemTypes(detail)
         break
-      case 3:
+      case BRICK_LINK_CATALOG.COLORS:
         await handleColors(detail)
+        break
+      case BRICK_LINK_CATALOG.CATEGORIES:
+        await handleCategories(detail)
+        break
+      case BRICK_LINK_CATALOG.PART_AND_COLOR_CODES:
+        await handlePartAndColorCodes(detail)
         break
       default:
         await handleCatalogItems(detail)
         break
     }
   }
-  async function handleItemTypes(detail: EventDetail) {
+  async function handleDownload<S, T>(
+    detail: EventDetail,
+    store: StoreDefinition,
+    brickLinkStore: StoreDefinition,
+    idField: string,
+    bzIdField: string,
+    brickLinkObjectIdField: string
+  ) {
     const response = detail.response
     const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
     const headers = rows.splice(0, 1)[0]
-    const itemTypes = rows
-      .filter((row) => row.length === headers.length)
-      .map((row) => {
-        const out = {}
-        headers.forEach((header, index) => {
+    const objects = rows
+      .filter((row: string[]) => row.length === headers.length)
+      .map((row: string[]) => {
+        const out: { [key: string]: string } = {}
+        headers.forEach((header: string, index: number) => {
           out[header] = row[index]
         })
         return out
       })
     const db = await getDbConnection()
-    for (let i = 0; i < itemTypes.length; i++) {
-      const brickLinkItemType = itemTypes[i]
-      console.log(brickLinkItemType)
-      const id = await put<ItemType>(db, stores.ITEM_TYPES, { })
+    for (let i = 0; i < objects.length; i++) {
+      const brickLinkObject = objects[i]
+      console.log(brickLinkObject)
+      const id = await put<S>(db, store, { })
       if (!id || typeof id !== 'number') {
         console.log('not number, stop')
         return
       }
-      brickLinkItemType.bzItemTypeId = id
-      brickLinkItemType.itemTypeId = brickLinkItemType['Item Type ID']
-      delete brickLinkItemType['Item Type ID']
-      await put<BrickLinkItemType>(db, stores.BRICK_LINK_ITEM_TYPES, brickLinkItemType)
+      brickLinkObject[bzIdField] = id
+      brickLinkObject[idField] = brickLinkObject[brickLinkObjectIdField]
+      delete brickLinkObject[brickLinkObjectIdField]
+      await put<T>(db, brickLinkStore, brickLinkObject)
     }
   }
+  async function handleItemTypes(detail: EventDetail) {
+    return await handleDownload<ItemType, BrickLinkItemType>(
+      detail,
+      stores.ITEM_TYPES,
+      stores.BRICK_LINK_ITEM_TYPES,
+      'itemTypeId',
+      'bzItemTypeId',
+      'Item Type ID'
+    )
+  }
   async function handleColors(detail: EventDetail) {
-    const response = detail.response
-    const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
-    const headers = rows.splice(0, 1)[0]
-    const items = rows
-      .filter((row) => row.length === headers.length)
-      .map((row) => {
-        const out = {}
-        headers.forEach((header, index) => {
-          out[header] = row[index]
-        })
-        return out
-      })
-    const db = await getDbConnection()
-    for (let i = 0; i < items.length; i++) {
-      const brickLinkItem = items[i]
-      console.log(brickLinkItem)
-      const id = await put<Color>(db, stores.COLORS, { })
-      if (!id || typeof id !== 'number') {
-        console.log('not number, stop')
-        return
-      }
-      brickLinkItem.bzColorId = id
-      brickLinkItem.colorId = brickLinkItem['Color ID']
-      delete brickLinkItem['Color ID']
-      await put<BrickLinkColor>(db, stores.BRICK_LINK_COLORS, brickLinkItem)
-    }
+    return await handleDownload<Color, BrickLinkColor>(
+      detail,
+      stores.COLORS,
+      stores.BRICK_LINK_COLORS,
+      'colorId',
+      'bzColorId',
+      'Color ID'
+    )
+  }
+  async function handleCategories(detail: EventDetail) {
+    return await handleDownload<Category, BrickLinkCategory>(
+      detail,
+      stores.CATEGORIES,
+      stores.BRICK_LINK_CATEGORIES,
+      'categoryId',
+      'bzCategoryId',
+      'Category ID'
+    )
+  }
+  async function handlePartAndColorCodes(detail: EventDetail) {
+    return await handleDownload<PartAndColorCode, BrickLinkPartAndColorCode>(
+      detail,
+      stores.PART_AND_COLOR_CODES,
+      stores.BRICK_LINK_PART_AND_COLOR_CODES,
+      'partAndColorCodeId',
+      'bzPartAndColorCodeId',
+      'Code'
+    )
   }
   async function handleCatalogItems(detail: EventDetail) {
     const response = detail.response

@@ -72,7 +72,7 @@ export interface EventDetail {
     call: Call
     url: string
     options: { body?: string }
-    extraParams?: object
+    extraParams?: { [key: string]: string | number }
     storageTime?: number
   }
   response: any
