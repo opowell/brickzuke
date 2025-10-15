@@ -8,7 +8,7 @@ import { computed, ref } from 'vue'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
 import { getDbConnection } from '../../../idb/idb'
 import stores, { type StoreDefinition } from '../../../idb/stores';
-import { put } from '../../../idb/db';
+import { get, getAll, put } from '../../../idb/db';
 import { BRICK_LINK_CATALOG } from './catalog-codes'
 
 interface BrickLinkItem {
@@ -32,9 +32,18 @@ interface Category {
   id: number
 }
 
-interface BrickLinkItemType {
+interface PartAndColorCode {
+  id: number
+}
+
+interface BrickLinkPartAndColorCode {
+  id: number
+}
+
+export interface BrickLinkItemType {
   'Item Type ID': string
   'Item Type Name': string
+  itemTypeId: string
 }
 interface BrickLinkColor {
   'colorId': string
@@ -184,6 +193,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     return out
   })
   async function fetchItemPage(itemType: string) {
+    console.log('fetchItemPage', itemType)
     return await makeTextCall(
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
@@ -193,6 +203,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     )
   }
   async function fetchViewType(viewType: number) {
+    console.log('fetchViewType', viewType)
     return await makeTextCall(
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
@@ -231,6 +242,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     bzIdField: string,
     brickLinkObjectIdField: string
   ) {
+    console.log('handleDownload', detail, store)
     const response = detail.response
     const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
     const headers = rows.splice(0, 1)[0]
@@ -246,20 +258,26 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     const db = await getDbConnection()
     for (let i = 0; i < objects.length; i++) {
       const brickLinkObject = objects[i]
-      console.log(brickLinkObject)
-      const id = await put<S>(db, store, { })
-      if (!id || typeof id !== 'number') {
+      const id = brickLinkObject[brickLinkObjectIdField]
+      const existingBzObject = await get<S>(db, store, id)
+      let bzId
+      if (existingBzObject) {
+        bzId = existingBzObject[bzIdField]
+      } else {
+        bzId = await put<S>(db, store, {})
+      }
+      if (!bzId || typeof bzId !== 'number') {
         console.log('not number, stop')
         return
       }
-      brickLinkObject[bzIdField] = id
-      brickLinkObject[idField] = brickLinkObject[brickLinkObjectIdField]
+      brickLinkObject[bzIdField] = bzId
+      brickLinkObject[idField] = id
       delete brickLinkObject[brickLinkObjectIdField]
       await put<T>(db, brickLinkStore, brickLinkObject)
     }
   }
   async function handleItemTypes(detail: EventDetail) {
-    return await handleDownload<ItemType, BrickLinkItemType>(
+    const response = await handleDownload<ItemType, BrickLinkItemType>(
       detail,
       stores.ITEM_TYPES,
       stores.BRICK_LINK_ITEM_TYPES,
@@ -267,6 +285,15 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       'bzItemTypeId',
       'Item Type ID'
     )
+    const brickLinkItemTypes = await getAll<BrickLinkItemType>(await getDbConnection(), stores.BRICK_LINK_ITEM_TYPES)
+    console.log(brickLinkItemTypes)
+    if (brickLinkItemTypes) {
+      for (let i = 0; i < brickLinkItemTypes?.length; i++) {
+        const type = brickLinkItemTypes[i].itemTypeId
+        await fetchItemPage(type)
+      }
+    }
+    return response
   }
   async function handleColors(detail: EventDetail) {
     return await handleDownload<Color, BrickLinkColor>(

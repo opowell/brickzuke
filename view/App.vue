@@ -5,7 +5,6 @@ import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
-import { fetchAll as catalogListFetchAll } from '~/stores/bricklink/catalog-list-page'
 import { processQueue } from '@/assets/js/make-call'
 import { useColorsPageStore } from './stores/bricklink/colors-page'
 import { useStoresPageStore } from './stores/bricklink/stores-page'
@@ -41,15 +40,12 @@ watch(
   },
 )
 
-function fetchBrickLink() {
-  console.log('bl')
+async function fetchBrickLink() {
   const catalogDownloadPage = useCatalogDownloadPageStore()
-  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.ITEM_TYPES)
-  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.CATEGORIES)
-  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.COLORS)
-  // catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.PART_AND_COLOR_CODES)
-  catalogDownloadPage.fetchItemPage('S')
-  catalogDownloadPage.fetchItemPage('P')
+  await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.ITEM_TYPES)
+  await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.CATEGORIES)
+  await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.COLORS)
+  await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.PART_AND_COLOR_CODES)
 }
 </script>
 <template>

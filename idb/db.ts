@@ -3,6 +3,7 @@ import type { StoreDefinition } from './stores'
 import type { IndexDefinition } from './indices'
 import STORES from '../idb/stores'
 import { isProxy, toRaw } from 'vue'
+
 export async function getAll<T>(
   db: IDBPDatabase,
   storeDefinition: StoreDefinition,
@@ -13,6 +14,7 @@ export async function getAll<T>(
 export async function count(db: IDBPDatabase, storeDefinition: StoreDefinition) {
   return await db.count(storeDefinition.name)
 }
+
 export async function get<T>(
   db: IDBPDatabase,
   store: StoreDefinition,
@@ -20,6 +22,7 @@ export async function get<T>(
 ): Promise<T | undefined> {
   return await db.get(store.name, query)
 }
+
 export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value: T) {
   if (isProxy(value)) {
     value = toRaw(value)
@@ -30,6 +33,7 @@ export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value:
     console.log(value, e)
   }
 }
+
 export async function dbDelete(db: IDBPDatabase, storeDef: StoreDefinition, keyPath: IDBValidKey) {
   try {
     return await db.delete(storeDef.name, keyPath)
@@ -58,6 +62,7 @@ export function createIndex(
   const store = transaction.objectStore(index.store.name)
   store.createIndex(index.name, index.keyPath)
 }
+
 export function createStore(db: IDBPDatabase, storeDefinition: StoreDefinition) {
   db.createObjectStore(storeDefinition.name, {
     keyPath: storeDefinition.keyPath,
