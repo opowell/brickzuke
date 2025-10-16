@@ -2,8 +2,8 @@ import type { Table } from '@/components/TableComponent.vue'
 import { formatInteger } from './utils'
 
 export function getTableLabel(table: Table) {
-  if (!table.items) {
+  if (!table.count) {
     return table.label
   }
-  return table.label + ':&nbsp;' + formatInteger(table.items.length)
+  return table.label + ':&nbsp;' + formatInteger(table.count)
 }

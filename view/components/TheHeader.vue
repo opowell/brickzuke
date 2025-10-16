@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import TheViews from './header/TheViews.vue'
+import TheViews, { type SelectOption } from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
 import { storeToRefs } from 'pinia'
 import { useModelsStore } from '../stores/models.ts'
 import { ref } from 'vue'
 const modelsStore = useModelsStore()
-const { search, selectedItem } = storeToRefs(modelsStore)
+const { search } = storeToRefs(modelsStore)
 const localSearch = ref(search.value)
 function doSearch() {
   search.value = localSearch.value
 }
+defineProps<{
+  itemTypes: SelectOption<any>[]
+}>()
 </script>
 
 <template>
@@ -18,7 +21,7 @@ function doSearch() {
     <a href="/" class="home-link"><img class="home-icon" src="/favicon-32x32.png" /></a>
     <TheFilters />
     <TheSorts />
-    <TheViews v-if="selectedItem" />
+    <TheViews :item-types="itemTypes" />
     <input v-model="localSearch" placeholder="Search..." @keyup.enter="doSearch" />
     <button @click="doSearch">Search</button>
   </header>
@@ -28,9 +31,11 @@ function doSearch() {
 .home-link {
   align-self: center;
 }
+
 .home-icon {
   cursor: pointer;
 }
+
 header {
   display: flex;
   flex-wrap: wrap;

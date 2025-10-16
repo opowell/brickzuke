@@ -193,7 +193,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     return out
   })
   async function fetchItemPage(itemType: string) {
-    console.log('fetchItemPage', itemType)
     return await makeTextCall(
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
@@ -203,7 +202,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     )
   }
   async function fetchViewType(viewType: number) {
-    console.log('fetchViewType', viewType)
     return await makeTextCall(
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
@@ -215,7 +213,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     )
   }
   async function handlePageResponse(detail: EventDetail) {
-    console.log('handlePageResponse', detail, detail.request)
     switch (detail.request.extraParams?.viewType) {
       case BRICK_LINK_CATALOG.ITEM_TYPES:
         await handleItemTypes(detail)
@@ -242,7 +239,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     bzIdField: string,
     brickLinkObjectIdField: string
   ) {
-    console.log('handleDownload', detail, store)
     const response = detail.response
     const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
     const headers = rows.splice(0, 1)[0]
@@ -286,7 +282,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       'Item Type ID'
     )
     const brickLinkItemTypes = await getAll<BrickLinkItemType>(await getDbConnection(), stores.BRICK_LINK_ITEM_TYPES)
-    console.log(brickLinkItemTypes)
     if (brickLinkItemTypes) {
       for (let i = 0; i < brickLinkItemTypes?.length; i++) {
         const type = brickLinkItemTypes[i].itemTypeId

@@ -3,32 +3,32 @@ import TableComponent from './TableComponent.vue'
 import { useModelsStore } from '../stores/models.ts'
 import { storeToRefs } from 'pinia'
 const modelsStore = useModelsStore()
-const { itemTypes, selectedItemType } = storeToRefs(modelsStore)
+const { selectedItemType } = storeToRefs(modelsStore)
 const setSelectedItem = modelsStore.setSelectedItem
 import { getTableLabel } from '@/assets/js/getTableLabel.ts'
 import TableCell from './TableCell.vue'
+import type { SelectOption } from './header/TheViews.vue'
+defineProps<{
+  itemTypes: SelectOption<any>[]
+}>()
 </script>
 
 <template>
   <section>
-    <TableComponent v-if="selectedItemType" :table="selectedItemType" />
-    <div v-else class="buttons">
+    <!-- <TableComponent v-if="selectedItemType" :table="selectedItemType" /> -->
+    <div class="buttons">
       <div v-for="table in itemTypes" :key="table.id" class="itemType">
         <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />
-        <!-- <template v-if="table.preview && table.items?.length"
-          >:
+        <template v-if="table.preview && table.items?.length">:
           <div v-for="item in table.items?.slice(0, 10)" :key="item.id">
             <template v-if="typeof table.preview === 'string'">
-              <button
-                v-if="!!table.previewClickFn"
-                v-html="item[table.preview]"
-                @click="table.previewClickFn(item)"
-              ></button>
+              <button v-if="!!table.previewClickFn" v-html="item[table.preview]"
+                @click="table.previewClickFn(item)"></button>
               <div v-else v-html="item[table.preview]" />
             </template>
             <TableCell v-else :column="table.preview" :item="item" set-max-width />
           </div>
-        </template> -->
+        </template>
       </div>
     </div>
   </section>
@@ -40,11 +40,13 @@ import TableCell from './TableCell.vue'
   flex-direction: column;
   gap: 0.5rem;
 }
+
 section {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
+
 .itemType {
   display: flex;
   gap: 0.3rem;
