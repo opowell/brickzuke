@@ -21,7 +21,7 @@ import { useColorsPageStore } from '@/stores/bricklink/colors-page'
 import { useHomePageStore } from '@/stores/bricklink/home-page'
 import { useSearchAdvancedPageStore } from '@/stores/bricklink/search-advanced-page'
 import { useStoresPageStore } from '@/stores/bricklink/stores-page'
-
+import catalogTreePage from '@/stores/bricklink/catalog-tree-page'
 export enum Call {
   GET_PRICES = 0,
   GET_HOME_PAGE = 1,
@@ -30,6 +30,7 @@ export enum Call {
   GET_COLORS_PAGE = 'https://www.bricklink.com/catalogColors.asp',
   GET_CATALOG_PAGE = 'https://www.bricklink.com/catalog.asp',
   GET_CATALOG_DOWNLOAD_PAGE = 'https://www.bricklink.com/catalogDownload.asp',
+  GET_CATALOG_TREE_PAGE = 'https://www.bricklink.com/catalogTree.asp',
   GET_CATALOG_ITEM_PAGE = 'https://www.bricklink.com/catalogitem.page',
   GET_CATALOG_ITEM_IMAGES = 'https://www.bricklink.com/ajax/renovate/catalog/getItemImageList.ajax',
   GET_CATALOG_ITEM_INV_PAGE = 'https://www.bricklink.com/catalogItemInv.asp',
@@ -105,6 +106,10 @@ export function handleEvent(detail: EventDetail) {
       case Call.GET_CATALOG_PAGE: {
         const catalogPage = useCatalogPageStore()
         catalogPage.handleFetchResponse(detail.response)
+        return
+      }
+      case Call.GET_CATALOG_TREE_PAGE: {
+        catalogTreePage.handlePageResponse(detail)
         return
       }
       case Call.GET_CATALOG_DOWNLOAD_PAGE: {

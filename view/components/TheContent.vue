@@ -1,13 +1,36 @@
 <script setup lang="ts">
 import TableComponent from './TableComponent.vue'
-import { useModelsStore } from '../stores/models.ts'
-import { storeToRefs } from 'pinia'
-const modelsStore = useModelsStore()
-const { selectedItemType } = storeToRefs(modelsStore)
-const setSelectedItem = modelsStore.setSelectedItem
 import { getTableLabel } from '@/assets/js/getTableLabel.ts'
 import TableCell from './TableCell.vue'
 import type { SelectOption } from './header/TheViews.vue'
+import { ref } from 'vue'
+import { getDbConnection } from '../../idb/idb'
+import stores from '../../idb/stores'
+import { sum } from '../../idb/utils'
+import { getAll, getAllFromIndex } from '../../idb/db'
+import type { BrickLinkCategory, Category } from '@/stores/bricklink/catalog-download-page'
+import indices from '../../idb/indices'
+const selectedItemType = ref()
+const setSelectedItem = async function (x: SelectOption<any>) {
+  selectedItemType.value = x
+  const db = await getDbConnection()
+  switch (x.id) {
+    case 'categories':
+      const categories = await getAll<Category>(db, stores.CATEGORIES)
+      if (!categories) {
+        return
+      }
+      for (let i = 0; i < categories.length; i++) {
+        const category = categories[i]
+        category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
+        category.items = sum(category.brickLinkCategories, (c: BrickLinkCategory) => c.items)
+        category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
+      }
+      tableItems.value = categories
+      break
+  }
+}
+const tableItems = ref<any[]>([])
 defineProps<{
   itemTypes: SelectOption<any>[]
 }>()
@@ -15,8 +38,8 @@ defineProps<{
 
 <template>
   <section>
-    <!-- <TableComponent v-if="selectedItemType" :table="selectedItemType" /> -->
-    <div class="buttons">
+    <TableComponent v-if="selectedItemType" :table="selectedItemType" :items="tableItems" />
+    <div v-else class="buttons">
       <div v-for="table in itemTypes" :key="table.id" class="itemType">
         <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />
         <template v-if="table.preview && table.items?.length">:

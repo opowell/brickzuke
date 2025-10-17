@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { formatInteger } from '@/assets/js/utils';
+import type { TableColumn } from '../TableComponent.vue';
 export interface SelectOption<T> {
   id: string | number
   label: string
   items?: T[]
-  count?: number | string
+  count?: number
   preview?: string | ((item: T) => string)
   previewClickFn?: (item: T) => void
+  columns?: TableColumn<T>[]
 }
 defineProps<{
   itemTypes: SelectOption<any>[]

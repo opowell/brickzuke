@@ -18,7 +18,6 @@ export interface Table<T> {
   label: string
   columns?: TableColumn<T>[]
   description?: string
-  items?: T[]
   idField?: string
   hidePriceModifier?: boolean
   hideSelect?: boolean
@@ -26,14 +25,15 @@ export interface Table<T> {
   previewClickFn?: (item: T) => void
 }
 const modelsStore = useModelsStore()
-const { table } = defineProps<{
+const { items, table } = defineProps<{
   table: Table
+  items: any[]
 }>()
 const tableItems = computed(() => {
-  if (!table.items) {
+  if (!items) {
     return []
   }
-  return table.items.slice(0, 100)
+  return items.slice(0, 1000)
 })
 function sortBy(column: TableColumn) {
   modelsStore.addSort(column.id, 'a')
@@ -45,11 +45,7 @@ function sortBy(column: TableColumn) {
     <div v-if="table.description" class="description">{{ table.description }}</div>
     <div class="row">
       <div v-if="!table.hideSelect"><input type="checkbox" /></div>
-      <div
-        v-for="column in table.columns"
-        :key="column.id"
-        :style="{ width: column.width || '100px' }"
-      >
+      <div v-for="column in table.columns" :key="column.id" :style="{ width: column.width || '100px' }">
         <button v-if="column.label" @click="sortBy(column)">{{ column.label }}</button>
       </div>
       <div v-if="!table.hidePriceModifier">Price mod.</div>
@@ -66,17 +62,20 @@ function sortBy(column: TableColumn) {
 .description {
   margin-bottom: 1rem;
 }
+
 .table {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
+
 .row {
   display: flex;
   gap: 0.5rem;
   word-break: break-word;
 }
-.row > * {
+
+.row>* {
   flex: 0 0 auto;
 }
 </style>

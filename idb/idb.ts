@@ -12,7 +12,7 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
   if (dbConnection) {
     return dbConnection
   }
-  const db = await openDB(DB_NAME, 6, {
+  const db = await openDB(DB_NAME, 8, {
     async upgrade(db, oldVersion, newVersion, transaction) {
       Object.values(STORES).forEach((store) => {
         try {

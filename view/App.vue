@@ -1,3 +1,13 @@
+<template>
+  <TheHeader :item-types="itemTypes" />
+  <div>
+    <button @click="fetchBrickLink">Update BrickLink</button>
+    <button @click="updateCatalogTree">Update BrickLink Categories</button>
+  </div>
+  <TheContent :item-types="itemTypes" />
+  <PulseMonitor />
+</template>
+
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import TheHeader from './components/TheHeader.vue'
@@ -5,17 +15,18 @@ import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
-import { useCatalogDownloadPageStore } from './stores/bricklink/catalog-download-page'
+import { useCatalogDownloadPageStore, type Category } from './stores/bricklink/catalog-download-page'
 import { BRICK_LINK_CATALOG } from './stores/bricklink/catalog-codes'
 import type { SelectOption } from './components/header/TheViews.vue'
 import { count } from '../idb/db'
 import { getDbConnection } from '../idb/idb'
 import stores from '../idb/stores'
-import { formatInteger } from './assets/js/utils'
 onMounted(async () => {
   initStorageUsageFunction()
   initBrickLinkWorker()
+  search()
 })
+
 async function fetchBrickLink() {
   const catalogDownloadPage = useCatalogDownloadPageStore()
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.ITEM_TYPES)
@@ -23,6 +34,11 @@ async function fetchBrickLink() {
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.COLORS)
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.PART_AND_COLOR_CODES)
 }
+function updateCatalogTree() {
+  const catalogDownloadPage = useCatalogDownloadPageStore()
+  catalogDownloadPage.updateCatalogTree()
+}
+
 async function search() {
   const db = await getDbConnection()
   itemTypes.value[0].count = await count(db, stores.BRICK_LINK_CATEGORIES)
@@ -32,11 +48,55 @@ async function search() {
   itemTypes.value[4].count = await count(db, stores.BRICK_LINK_PART_AND_COLOR_CODES)
 }
 
+const clickCategoryFn = (category: BrickLinkCategory) => {
+  // selectedItem.value = 'items'
+  // filters.value.push({
+  //   key: 'category',
+  //   value: category.catID,
+  // })
+  // search.value = undefined
+}
+
 const itemTypes = ref<SelectOption<any>[]>([
   {
     id: 'categories',
     label: 'Categories',
-    count: 0
+    description: 'A category of items.',
+    count: 0,
+    columns: [
+      // {
+      //   id: 'image',
+      //   width: '100px',
+      //   type: 'image',
+      //   hideLabel: true,
+      // },
+      // {
+      //   id: 'type',
+      //   label: 'Type',
+      //   valueField: 'catType',
+      //   width: '60px',
+      //   clickKey: 'catType',
+      //   clickValue: (category: BrickLinkCategory) => category.catType,
+      // },
+      {
+        id: 'items',
+        label: 'Items',
+        width: '60px',
+        type: 'number',
+        clickFn: clickCategoryFn,
+      },
+      {
+        id: 'name',
+        label: 'Name',
+        itemValue: (category: Category) => {
+          console.log(category.name, category.id, category)
+          return category.name + ' (' + category.id + ')'
+        },
+        width: '300px',
+        clickKey: 'category',
+        clickValue: (category: Category) => category.id,
+      },
+    ],
   },
   {
     id: 'colors',
@@ -60,13 +120,6 @@ const itemTypes = ref<SelectOption<any>[]>([
   }
 ])
 </script>
-<template>
-  <TheHeader :item-types="itemTypes" />
-  <button @click="fetchBrickLink">BrickLink</button>
-  <button @click="search">Search</button>
-  <TheContent :item-types="itemTypes" />
-  <PulseMonitor />
-</template>
 
 <style>
 * {

@@ -28,8 +28,11 @@ interface Color {
   id: number
 }
 
-interface Category {
+export interface Category {
+  name?: string
+  brickLinkCategories?: BrickLinkCategory[] | undefined
   id: number
+  items?: number
 }
 
 interface PartAndColorCode {
@@ -49,9 +52,12 @@ interface BrickLinkColor {
   'colorId': string
   'bzColorId': string
 }
-interface BrickLinkCategory {
-  'categoryId': string
-  'bzCategoryId': string
+export interface BrickLinkCategory {
+  items?: number
+  categoryId: string
+  catType?: string
+  bzCategoryId: number
+  'Category Name': string
 }
 function getOptions(itemType: string, viewType: number = 0) {
   return {
@@ -201,6 +207,15 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       ONE_MONTH,
     )
   }
+  async function fetchCatalogTree(itemType: string) {
+    return await makeTextCall(
+      Call.GET_CATALOG_TREE_PAGE,
+      'https://www.bricklink.com/catalogTree.asp?itemType=' + itemType,
+      getOptions(itemType),
+      { itemType },
+      ONE_MONTH,
+    )
+  }
   async function fetchViewType(viewType: number) {
     return await makeTextCall(
       Call.GET_CATALOG_DOWNLOAD_PAGE,
@@ -290,6 +305,19 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     }
     return response
   }
+  async function updateCatalogTree() {
+    const brickLinkItemTypes = await getAll<BrickLinkItemType>(await getDbConnection(), stores.BRICK_LINK_ITEM_TYPES)
+    if (!brickLinkItemTypes) {
+      return
+    }
+    // await fetchCatalogTree('S')
+    // await fetchCatalogTree('P')
+    // await fetchCatalogTree('M')
+    for (let i = 0; i < brickLinkItemTypes?.length; i++) {
+      const type = brickLinkItemTypes[i].itemTypeId
+      await fetchCatalogTree(type)
+    }
+  }
   async function handleColors(detail: EventDetail) {
     return await handleDownload<Color, BrickLinkColor>(
       detail,
@@ -370,5 +398,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     itemTypeMap,
     itemsArray,
     handlePageResponse,
+    updateCatalogTree
   }
 })
