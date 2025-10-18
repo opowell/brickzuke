@@ -24,7 +24,12 @@ interface ItemType {
   id: number
 }
 
-interface Color {
+export interface Color {
+  brickLinkColors?: BrickLinkColor[]
+  name?: string
+  countParts?: number
+  countSets?: number
+  countItems?: number
   id: number
 }
 
@@ -48,9 +53,12 @@ export interface BrickLinkItemType {
   'Item Type Name': string
   itemTypeId: string
 }
-interface BrickLinkColor {
+export interface BrickLinkColor {
+  Parts: string
+  'In Sets': string
   'colorId': string
   'bzColorId': string
+  'Color Name': string
 }
 export interface BrickLinkCategory {
   items?: number

@@ -12,7 +12,7 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
   if (dbConnection) {
     return dbConnection
   }
-  const db = await openDB(DB_NAME, 8, {
+  const db = await openDB(DB_NAME, 9, {
     async upgrade(db, oldVersion, newVersion, transaction) {
       Object.values(STORES).forEach((store) => {
         try {
@@ -24,7 +24,9 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
       Object.values(INDICES).forEach((index) => {
         try {
           createIndex(transaction, index)
-        } catch {}
+        } catch (e) {
+          console.log('Error creating index', index, e)
+        }
       })
     },
   })

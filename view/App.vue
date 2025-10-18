@@ -15,7 +15,7 @@ import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
-import { useCatalogDownloadPageStore, type Category } from './stores/bricklink/catalog-download-page'
+import { useCatalogDownloadPageStore, type BrickLinkColor, type Category } from './stores/bricklink/catalog-download-page'
 import { BRICK_LINK_CATALOG } from './stores/bricklink/catalog-codes'
 import type { SelectOption } from './components/header/TheViews.vue'
 import { count } from '../idb/db'
@@ -101,7 +101,92 @@ const itemTypes = ref<SelectOption<any>[]>([
   {
     id: 'colors',
     label: 'Colors',
-    count: 0
+    count: 0,
+    idField: 'colorID',
+    columns: [
+      {
+        id: 'name',
+        label: 'Name',
+        clickFn: (color: BrickLinkColor) => {
+          // selectedItem.value = undefined
+          // filters.value = []
+          // filters.value.push({
+          //   key: 'color',
+          //   value: color.colorID,
+          // })
+          // search.value = undefined
+        },
+      },
+      {
+        id: 'countItems',
+        label: 'Items',
+        type: 'number',
+        clickFn: (color: BrickLinkColor) => {
+          selectedItem.value = undefined
+          filters.value.push({
+            key: 'color',
+            value: color.colorID,
+          })
+          search.value = undefined
+        },
+      },
+      {
+        id: 'countParts',
+        label: 'Parts',
+        type: 'number',
+        clickFn: (color: BrickLinkColor) => {
+          selectedItem.value = 'items'
+          filters.value.push(
+            {
+              key: 'color',
+              value: color.colorID,
+            },
+            {
+              key: 'itemType',
+              value: 'P',
+            },
+          )
+          search.value = undefined
+        },
+      },
+      {
+        id: 'countSets',
+        label: 'Sets',
+        type: 'number',
+        clickFn: (color: BrickLinkColor) => {
+          selectedItem.value = 'items'
+          filters.value.push(
+            {
+              key: 'color',
+              value: color.colorID,
+            },
+            {
+              key: 'itemType',
+              value: 'S',
+            },
+          )
+          search.value = undefined
+        },
+      },
+      {
+        id: 'countWanted',
+        label: 'Wanted',
+        type: 'number',
+      },
+      {
+        id: 'countForSale',
+        label: 'For sale',
+        type: 'number',
+      },
+      {
+        id: 'yearStart',
+        label: 'Year start',
+      },
+      {
+        id: 'yearEnd',
+        label: 'Year end',
+      },
+    ],
   },
   {
     id: 'itemTypes',

@@ -8,13 +8,13 @@ import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import { sum } from '../../idb/utils'
 import { getAll, getAllFromIndex } from '../../idb/db'
-import type { BrickLinkCategory, Category } from '@/stores/bricklink/catalog-download-page'
+import type { BrickLinkCategory, BrickLinkColor, Category, Color } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
 const selectedItemType = ref()
-const setSelectedItem = async function (x: SelectOption<any>) {
-  selectedItemType.value = x
+const setSelectedItem = async function (option: SelectOption<any>) {
+  selectedItemType.value = option
   const db = await getDbConnection()
-  switch (x.id) {
+  switch (option.id) {
     case 'categories':
       const categories = await getAll<Category>(db, stores.CATEGORIES)
       if (!categories) {
@@ -23,11 +23,25 @@ const setSelectedItem = async function (x: SelectOption<any>) {
       for (let i = 0; i < categories.length; i++) {
         const category = categories[i]
         category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
-        category.items = sum(category.brickLinkCategories, (c: BrickLinkCategory) => c.items)
+        category.items = sum<BrickLinkCategory>(category.brickLinkCategories, c => c.items)
         category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
       }
       tableItems.value = categories
       break
+    case 'colors':
+      const colors = await getAll<Color>(db, stores.COLORS)
+      if (!colors) {
+        return
+      }
+      for (let i = 0; i < colors.length; i++) {
+        const color = colors[i]
+        color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id)
+        color.name = color.brickLinkColors?.map((c: BrickLinkColor) => c['Color Name']).join(', ')
+        color.countParts = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color.Parts))
+        color.countSets = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color['In Sets']))
+        color.countItems = color.countParts + color.countSets
+      }
+      tableItems.value = colors
   }
 }
 const tableItems = ref<any[]>([])
