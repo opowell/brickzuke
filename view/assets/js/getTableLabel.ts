@@ -1,7 +1,7 @@
 import type { Table } from '@/components/TableComponent.vue'
 import { formatInteger } from './utils'
 
-export function getTableLabel(table: Table) {
+export function getTableLabel<T>(table: Table<T>) {
   if (!table.count) {
     return table.label
   }

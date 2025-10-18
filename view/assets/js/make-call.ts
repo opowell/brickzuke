@@ -21,6 +21,7 @@ import { useColorsPageStore } from '@/stores/bricklink/colors-page'
 import { useHomePageStore } from '@/stores/bricklink/home-page'
 import { useSearchAdvancedPageStore } from '@/stores/bricklink/search-advanced-page'
 import { useStoresPageStore } from '@/stores/bricklink/stores-page'
+import { handleResponse as handleColorGuidePageResponse } from '../../../sources/bricklink/color-guide'
 import catalogTreePage from '@/stores/bricklink/catalog-tree-page'
 export enum Call {
   GET_PRICES = 0,
@@ -28,6 +29,7 @@ export enum Call {
   GET_STORES_PAGE = 2,
   GET_COUNTRY_STORES_PAGE = 'https://www.bricklink.com/browseStores.asp',
   GET_COLORS_PAGE = 'https://www.bricklink.com/catalogColors.asp',
+  GET_COLOR_GUIDE_PAGE = 'https://v2.bricklink.com/en-us/catalog/color-guide',
   GET_CATALOG_PAGE = 'https://www.bricklink.com/catalog.asp',
   GET_CATALOG_DOWNLOAD_PAGE = 'https://www.bricklink.com/catalogDownload.asp',
   GET_CATALOG_TREE_PAGE = 'https://www.bricklink.com/catalogTree.asp',
@@ -43,6 +45,7 @@ export enum Call {
 export enum CallType {
   JSON = 'json',
   TEXT = 'text',
+  SCRAPE = 'scrape'
 }
 export async function makeTextCall(
   call: Call,
@@ -52,6 +55,15 @@ export async function makeTextCall(
   storageTime?: number,
 ) {
   return await queueCall(CallType.TEXT, call, url, options, extraParams, storageTime)
+}
+export async function makeScrapeCall(
+  call: Call,
+  url: string,
+  options: object,
+  extraParams?: object,
+  storageTime?: number,
+) {
+  return await queueCall(CallType.SCRAPE, call, url, options, extraParams, storageTime)
 }
 export async function makeTextCalls(
   calls: { call: Call; url: string; options: object; extraParams?: object; storageTime?: number }[],
@@ -96,6 +108,10 @@ export function handleEvent(detail: EventDetail) {
       case Call.GET_COUNTRY_STORES_PAGE: {
         const storesPage = useStoresPageStore()
         storesPage.handleCountryStoresResponse(detail)
+        return
+      }
+      case Call.GET_COLOR_GUIDE_PAGE: {
+        handleColorGuidePageResponse(detail.response)
         return
       }
       case Call.GET_COLORS_PAGE: {

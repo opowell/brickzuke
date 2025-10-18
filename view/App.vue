@@ -3,6 +3,7 @@
   <div>
     <button @click="fetchBrickLink">Update BrickLink</button>
     <button @click="updateCatalogTree">Update BrickLink Categories</button>
+    <button @click="fetchColorGuide">Update BrickLink Colors</button>
   </div>
   <TheContent />
   <PulseMonitor />
@@ -10,6 +11,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { makeCall as fetchColorGuide } from '../sources/bricklink/color-guide'
 import TheHeader from './components/TheHeader.vue'
 import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
