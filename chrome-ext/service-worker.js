@@ -14,7 +14,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(json)
       })
       return true
-      break
     case 'text':
       fetch(message.url, message.options).then(async (response) => {
         console.log('response', message, response)
@@ -23,7 +22,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(text)
       })
       return true
-      break
     case 'scrape':
       console.log('SCRAPE', message.url)
       const url = message.url
@@ -44,17 +42,48 @@ async function getLocalStorage(key) {
   return await chrome.storage.local.get(key)[key]
 }
 
+function parseColorsPage() {
+  const elements = Array.from(document.querySelectorAll('.color-list-wide-viewport_hideMobileViewport__5OSVt tbody tr'))
+  const objects = elements.map(row => {
+    const child1 = row.children[1]
+    const timelineParts = child1.children[2].innerText.replace('Timeline: ', '').split('–')
+    return {
+      colorCode: window.getComputedStyle(row.children[0]).getPropertyValue('--bl-castor-table-swatch-with-image-background-color'),
+      colorName: child1.children[0].innerText,
+      legoColorName: child1.children[1].innerText.replace('LEGO Color: ', '').split(' - ')[0],
+      legoColorId: child1.children[1].innerText.split(' - ')[1],
+      timeLine: {
+        start: timelineParts[0],
+        end: timelineParts[1],
+      },
+      partsCount: Number.parseInt(row.children[2].innerText.replaceAll(',', '')),
+      setsCount: Number.parseInt(row.children[3].innerText.replaceAll(',', '')),
+      wantedCount: Number.parseInt(row.children[4].innerText.replaceAll(',', '')),
+      forSaleCount: Number.parseInt(row.children[5].innerText.replaceAll(',', '')),
+      colorId: row.children[7].innerText,
+    }
+  })
+  console.log(elements, objects)
+  return objects
+}
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
-  console.log('updated', tabId, tab.url, tab)
   if (changeInfo.status !== 'complete') return
   if (!tab.url) return
+  console.log('updated', tabId, tab.url, tab, await getLocalStorage('scraperTabId'))
 
   const isScraperPage = await getLocalStorage('scraperTabId') === tabId + ''
 
+  const execute = await chrome.scripting.executeScript(
+    {
+      target: { tabId },
+      func: parseColorsPage
+    }
+  )
+  console.log('execute', execute)
   if (!isScraperPage) {
     return
   }
-  console.log('updated', tab)
+  console.log('now, what to do?', tab)
   // chrome.tabs.sendMessage(tabId, messages)
 })
 
