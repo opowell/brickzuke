@@ -10,6 +10,7 @@ export interface SelectOption<T> {
   preview?: string | ((item: T) => string)
   previewClickFn?: (item: T) => void
   columns?: TableColumn<T>[]
+  idField?: string
 }
 defineProps<{
   itemTypes: SelectOption<any>[]

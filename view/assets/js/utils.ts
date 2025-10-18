@@ -110,7 +110,7 @@ export function extractValuesFromHtml(
   html: string,
   begin: string | string[],
   end: string | string[] = [],
-): any {
+): string[] {
   let index = 0
   if (!Array.isArray(begin)) {
     begin = [begin]
@@ -164,7 +164,7 @@ export async function getStorageUsage(): Promise<void> {
   console.log(`Usage %: ${percentageUsed}`)
   console.log(`Remaining: ${remaining} GB`)
 }
-export function sortItems(items: any[], sorts: Sort[]) {
+export function sortItems(items: { [key: string]: any }[], sorts: Sort[]) {
   if (sorts.length === 0) {
     return
   }
@@ -188,5 +188,6 @@ export function sortItems(items: any[], sorts: Sort[]) {
         }
       }
     }
+    return 1
   })
 }

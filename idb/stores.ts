@@ -5,8 +5,6 @@ export interface StoreDefinition {
 }
 const stores: {
   CALLS: StoreDefinition
-  SEARCHES: StoreDefinition
-  SEARCH_FILTERS: StoreDefinition
   QUEUED_CALLS: StoreDefinition
   ITEM_TYPES: StoreDefinition
   BRICK_LINK_ITEM_TYPES: StoreDefinition
@@ -22,15 +20,6 @@ const stores: {
   CALLS: {
     name: 'calls',
     keyPath: 'url',
-  },
-  SEARCHES: {
-    name: 'searches',
-    keyPath: 'id',
-    autoIncrement: true
-  },
-  SEARCH_FILTERS: {
-    name: 'searchFilters',
-    keyPath: ['searchId', 'objectType', 'objectKey']
   },
   QUEUED_CALLS: {
     name: 'queuedCalls',

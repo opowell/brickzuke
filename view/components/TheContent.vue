@@ -10,7 +10,6 @@ import { sum } from '../../idb/utils'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import type { BrickLinkCategory, BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
-import { i } from 'mathjs'
 const selectedItemType = ref()
 const setSelectedItem = async function (option: SelectOption<any>) {
   selectedItemType.value = option

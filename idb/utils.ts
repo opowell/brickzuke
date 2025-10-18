@@ -1,4 +1,4 @@
-export function onlyUnique(value: any, index: number, array: any[]) {
+export function onlyUnique<T>(value: T, index: number, array: T[]): boolean {
   return array.indexOf(value) === index
 }
 
