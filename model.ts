@@ -5,6 +5,8 @@ import { count } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 
+export const selectedItemType = ref()
+
 export async function setCounts() {
   const db = await getDbConnection()
   itemTypes.value[0].count = await count(db, stores.BRICK_LINK_CATEGORIES)
@@ -55,7 +57,6 @@ export const itemTypes = ref<SelectOption<any>[]>([
         id: 'name',
         label: 'Name',
         itemValue: (category: Category) => {
-          console.log(category.name, category.id, category)
           return category.name + ' (' + category.id + ')'
         },
         width: '300px',

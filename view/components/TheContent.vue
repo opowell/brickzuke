@@ -10,7 +10,8 @@ import { sum } from '../../idb/utils'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import type { BrickLinkCategory, BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
-const selectedItemType = ref()
+import { itemTypes, selectedItemType } from '../../model'
+
 const setSelectedItem = async function (option: SelectOption<any>) {
   selectedItemType.value = option
   const db = await getDbConnection()
@@ -60,9 +61,6 @@ const setSelectedItem = async function (option: SelectOption<any>) {
   }
 }
 const tableItems = ref<any[]>([])
-defineProps<{
-  itemTypes: SelectOption<any>[]
-}>()
 </script>
 
 <template>

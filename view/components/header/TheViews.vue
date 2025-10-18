@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { formatInteger } from '@/assets/js/utils';
 import type { TableColumn } from '../TableComponent.vue';
 export interface SelectOption<T> {
@@ -12,14 +12,18 @@ export interface SelectOption<T> {
   columns?: TableColumn<T>[]
   idField?: string
 }
-defineProps<{
-  itemTypes: SelectOption<any>[]
-}>()
-const selectedItemType = ref<SelectOption<any> | undefined>(undefined)
+import { selectedItemType, itemTypes } from '../../../model'
+const selectedItemTypeId = computed(() => {
+  return selectedItemType?.value?.id
+})
+function handleChange(event: Event) {
+  console.log('change', event.target?.value)
+  selectedItemType.value = itemTypes.value.find(type => type.id === event.target?.value)
+}
 </script>
 
 <template>
-  <select v-model="selectedItemType">
+  <select :value="selectedItemTypeId" @change="handleChange">
     <option value="">Everything</option>
     <option v-for="itemType in itemTypes" :key="itemType.id" :value="itemType.id">{{ itemType.label }}: {{
       formatInteger(itemType.count) }}</option>

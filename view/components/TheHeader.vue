@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import TheViews, { type SelectOption } from './header/TheViews.vue'
+import TheViews from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
 import { storeToRefs } from 'pinia'
@@ -11,9 +11,7 @@ const localSearch = ref(search.value)
 function doSearch() {
   search.value = localSearch.value
 }
-defineProps<{
-  itemTypes: SelectOption<any>[]
-}>()
+import { itemTypes } from '../../model'
 </script>
 
 <template>
