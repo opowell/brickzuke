@@ -191,7 +191,50 @@ const itemTypes = ref<SelectOption<any>[]>([
   {
     id: 'itemTypes',
     label: 'Item types',
-    count: 0
+    count: 0,
+    columns: [
+      {
+        id: 'name',
+        label: 'Name',
+        width: '105px',
+        clickFn: (type: ItemType) => {
+          selectedItem.value = undefined
+          filters.value.push({
+            key: 'itemType',
+            value: type.catType,
+          })
+          search.value = undefined
+        },
+      },
+      {
+        id: 'count',
+        label: 'Items',
+        width: '100px',
+        type: 'number',
+        clickFn: (type: ItemType) => {
+          selectedItem.value = 'items'
+          filters.value.push({
+            key: 'itemType',
+            value: type.catType,
+          })
+          search.value = undefined
+        },
+      },
+      {
+        id: 'categories',
+        label: 'Categories',
+        width: '105px',
+        type: 'number',
+        clickFn: (type) => {
+          selectedItem.value = 'categories'
+          filters.value.push({
+            key: 'itemType',
+            value: type.catType,
+          })
+          search.value = undefined
+        },
+      },
+    ],
   },
   {
     id: 'items',

@@ -20,7 +20,11 @@ interface Item {
   id: number
 }
 
-interface ItemType {
+export interface ItemType {
+  brickLinkItemTypes?: BrickLinkItemType[]
+  name?: string
+  items?: number
+  categories?: number
   id: number
 }
 

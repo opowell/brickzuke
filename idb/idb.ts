@@ -7,12 +7,13 @@ import { createIndex, createStore } from './db'
 let dbConnection: IDBPDatabase | undefined
 
 const DB_NAME = 'brickzuke'
+const DB_VERSION = 10
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   if (dbConnection) {
     return dbConnection
   }
-  const db = await openDB(DB_NAME, 9, {
+  const db = await openDB(DB_NAME, DB_VERSION, {
     async upgrade(db, oldVersion, newVersion, transaction) {
       Object.values(STORES).forEach((store) => {
         try {
