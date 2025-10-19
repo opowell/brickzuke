@@ -10,6 +10,7 @@ const indices: {
   BRICK_LINK_CATEGORIES_BY_CATEGORY_ID: IndexDefinition
   BRICK_LINK_COLORS_BY_COLOR_ID: IndexDefinition
   BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID: IndexDefinition
+  BRICK_LINK_ITEMS_BY_ITEM_ID: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -30,6 +31,11 @@ const indices: {
     store: stores.BRICK_LINK_ITEM_TYPES,
     name: 'bzItemTypeId',
     keyPath: 'bzItemTypeId'
+  },
+  BRICK_LINK_ITEMS_BY_ITEM_ID: {
+    store: stores.BRICK_LINK_ITEMS,
+    name: 'bzItemId',
+    keyPath: 'bzItemId'
   }
 }
 

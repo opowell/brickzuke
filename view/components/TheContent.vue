@@ -8,62 +8,78 @@ import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import { sum } from '../../idb/utils'
 import { getAll, getAllFromIndex } from '../../idb/db'
-import type { BrickLinkCategory, BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
+import type { BrickLinkCategory, BrickLinkColor, BrickLinkItem, BrickLinkItemType, Category, Color, Item, ItemType } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
 import { itemTypes, selectedItemType } from '../../model'
+import type { IDBPDatabase } from 'idb'
+
+async function setCategories(db: IDBPDatabase) {
+  const categories = await getAll<Category>(db, stores.CATEGORIES)
+  if (!categories) {
+    return
+  }
+  for (let i = 0; i < categories.length; i++) {
+    const category = categories[i]
+    category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
+    category.items = sum<BrickLinkCategory>(category.brickLinkCategories, c => c.items)
+    category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
+    category.type = category.brickLinkCategories?.map((c: BrickLinkCategory) => c.type).join(', ')
+  }
+  tableItems.value = categories
+}
+async function setColors(db: IDBPDatabase) {
+  const colors = await getAll<Color>(db, stores.COLORS)
+  if (!colors) {
+    return
+  }
+  for (let i = 0; i < colors.length; i++) {
+    const color = colors[i]
+    color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id)
+    color.countItems = sum<BrickLinkColor>(color.brickLinkColors, c => Number.parseInt(c.Parts))
+    color.image = color.brickLinkColors?.find((c: BrickLinkColor) => c.image)?.image
+  }
+  tableItems.value = colors
+}
+async function setItemTypes(db: IDBPDatabase) {
+  const itemTypesData = await getAll<ItemType>(db, stores.ITEM_TYPES)
+  if (!itemTypesData) {
+    return
+  }
+  for (let i = 0; i < itemTypesData.length; i++) {
+    const itemType = itemTypesData[i]
+    itemType.brickLinkItemTypes = await getAllFromIndex<BrickLinkItemType>(db, indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID, itemType.id)
+    itemType.countItems = sum<BrickLinkItemType>(itemType.brickLinkItemTypes, it => Number.parseInt(it.Items))
+  }
+  tableItems.value = itemTypesData
+}
+async function setItems(db: IDBPDatabase) {
+  const items = await getAll<Item>(db, stores.ITEMS)
+  if (!items) {
+    return
+  }
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    item.brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, item.id)
+  }
+  tableItems.value = items || []
+}
 
 const setSelectedItem = async function (option: SelectOption<any>) {
   selectedItemType.value = option
   const db = await getDbConnection()
   switch (option.id) {
     case 'categories':
-      const categories = await getAll<Category>(db, stores.CATEGORIES)
-      if (!categories) {
-        return
-      }
-      for (let i = 0; i < categories.length; i++) {
-        const category = categories[i]
-        category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
-        category.items = sum<BrickLinkCategory>(category.brickLinkCategories, c => c.items)
-        category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
-        category.type = category.brickLinkCategories?.map((c: BrickLinkCategory) => c.type).join(', ')
-      }
-      tableItems.value = categories
-      break
+      await setCategories(db)
+      return
     case 'colors':
-      const colors = await getAll<Color>(db, stores.COLORS)
-      if (!colors) {
-        return
-      }
-      for (let i = 0; i < colors.length; i++) {
-        const color = colors[i]
-        color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id) || []
-        color.name = color.brickLinkColors?.map((c: BrickLinkColor) => c['Color Name']).join(', ')
-        color.countWanted = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color.Wanted))
-        color.countForSale = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color['For Sale']))
-        color.yearFrom = Math.min(...color.brickLinkColors.map(c => Number.parseInt(c['Year From'])))
-        color.yearTo = Math.max(...color.brickLinkColors.map(c => Number.parseInt(c['Year To'])))
-        color.countParts = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color.Parts))
-        color.countSets = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color['In Sets']))
-        color.countItems = color.countParts + color.countSets
-        color.image = color.brickLinkColors[0]?.image
-      }
-      tableItems.value = colors
-      break
+      await setColors(db)
+      return
     case 'itemTypes':
-      const itemTypes = await getAll<ItemType>(db, stores.ITEM_TYPES)
-      if (!itemTypes) {
-        return
-      }
-      for (let i = 0; i < itemTypes.length; i++) {
-        const itemType = itemTypes[i]
-        itemType.brickLinkItemTypes = await getAllFromIndex<BrickLinkItemType>(db, indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID, itemType.id)
-        itemType.name = itemType.brickLinkItemTypes?.map((t: BrickLinkItemType) => t['Item Type Name']).join(', ')
-        itemType.categories = sum<BrickLinkItemType>(itemType.brickLinkItemTypes, type => type.categories)
-        itemType.items = 5
-      }
-      tableItems.value = itemTypes
-      break
+      await setItemTypes(db)
+      return
+    case 'items':
+      await setItems(db)
+      return
   }
 }
 const tableItems = ref<any[]>([])

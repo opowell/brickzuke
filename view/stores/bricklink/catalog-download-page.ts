@@ -11,19 +11,20 @@ import stores, { type StoreDefinition } from '../../../idb/stores';
 import { get, getAll, put } from '../../../idb/db';
 import { BRICK_LINK_CATALOG } from './catalog-codes'
 
-interface BrickLinkItem {
+export interface BrickLinkItem {
   Number: string
   itemId: number
 }
 
-interface Item {
+export interface Item {
+  brickLinkItems?: BrickLinkItem[]
   id: number
 }
 
 export interface ItemType {
   brickLinkItemTypes?: BrickLinkItemType[]
   name?: string
-  items?: number
+  countItems?: number
   categories?: number
   id: number
 }

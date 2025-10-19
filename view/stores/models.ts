@@ -104,12 +104,12 @@ export const useModelsStore = defineStore('models', () => {
     clickValue: (item: ItemInventory) => item.itemVariant.itemId,
   }
   const clickCategoryFn = (category: BrickLinkCategory) => {
-    selectedItem.value = 'items'
-    filters.value.push({
-      key: 'category',
-      value: category.catID,
-    })
-    search.value = undefined
+    // selectedItem.value = 'items'
+    // filters.value.push({
+    //   key: 'category',
+    //   value: category.catID,
+    // })
+    // search.value = undefined
   }
   const itemTypes = computed<Table<any>[]>(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()

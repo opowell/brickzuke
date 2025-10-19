@@ -1,12 +1,13 @@
 import { ref } from 'vue'
-import { type BrickLinkColor, type Category } from './view/stores/bricklink/catalog-download-page'
+import { type BrickLinkCategory, type BrickLinkColor, type Category } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 
 export const selectedItemType = ref()
-
+const filters = ref<{ key: string; value: string | number }[]>([])
+const search = ref<string | undefined>(undefined)
 export async function setCounts() {
   const db = await getDbConnection()
   itemTypes.value[0].count = await count(db, stores.BRICK_LINK_CATEGORIES)
@@ -16,13 +17,13 @@ export async function setCounts() {
   itemTypes.value[4].count = await count(db, stores.BRICK_LINK_PART_AND_COLOR_CODES)
 }
 
-const clickCategoryFn = (category: BrickLinkCategory) => {
-  // selectedItem.value = 'items'
-  // filters.value.push({
-  //   key: 'category',
-  //   value: category.catID,
-  // })
-  // search.value = undefined
+const clickCategoryFn = (category: Category) => {
+  selectedItemType.value = 'items'
+  filters.value.push({
+    key: 'category',
+    value: category.id,
+  })
+  search.value = undefined
 }
 
 export const itemTypes = ref<SelectOption<any>[]>([
@@ -181,12 +182,12 @@ export const itemTypes = ref<SelectOption<any>[]>([
         },
       },
       {
-        id: 'count',
+        id: 'countItems',
         label: 'Items',
         width: '100px',
         type: 'number',
         clickFn: (type: ItemType) => {
-          selectedItem.value = 'items'
+          selectedItemType.value = 'items'
           filters.value.push({
             key: 'itemType',
             value: type.catType,
