@@ -17,13 +17,13 @@ export interface QueuedCall {
 import indices from '../../../idb/indices'
 import { useCatalogDownloadPageStore } from '@/stores/bricklink/catalog-download-page'
 import { useCatalogItemInvPageStore } from '@/stores/bricklink/catalog-item-inv-page'
-import { useCatalogPageStore } from '@/stores/bricklink/catalog-page'
 import { useColorsPageStore } from '@/stores/bricklink/colors-page'
 import { useHomePageStore } from '@/stores/bricklink/home-page'
 import { useSearchAdvancedPageStore } from '@/stores/bricklink/search-advanced-page'
 import { useStoresPageStore } from '@/stores/bricklink/stores-page'
 import { handleResponse as handleColorGuidePageResponse } from '../../../sources/bricklink/color-guide'
 import catalogTreePage from '@/stores/bricklink/catalog-tree-page'
+import catalogPage from './../../../sources/bricklink/catalog-page'
 export enum Call {
   GET_PRICES = 0,
   GET_HOME_PAGE = 1,
@@ -92,7 +92,6 @@ export interface EventDetail {
   response: any
 }
 export function handleEvent(detail: EventDetail) {
-  console.log('handleEvent', detail)
   document.dispatchEvent(new CustomEvent('pulse'))
   try {
     switch (detail.request.call) {
@@ -121,7 +120,6 @@ export function handleEvent(detail: EventDetail) {
         return
       }
       case Call.GET_CATALOG_PAGE: {
-        const catalogPage = useCatalogPageStore()
         catalogPage.handleFetchResponse(detail.response)
         return
       }
@@ -130,8 +128,8 @@ export function handleEvent(detail: EventDetail) {
         return
       }
       case Call.GET_CATALOG_DOWNLOAD_PAGE: {
-        const catalogPage = useCatalogDownloadPageStore()
-        catalogPage.handlePageResponse(detail)
+        const catalogDownloadPage = useCatalogDownloadPageStore()
+        catalogDownloadPage.handlePageResponse(detail)
         return
       }
       case Call.GET_CATALOG_ITEM_PAGE: {

@@ -1,8 +1,9 @@
 <template>
   <TheHeader />
-  <div>
+  <div v-if="!selectedItemType">
     <button @click="fetchBrickLink">Update BrickLink</button>
     <button @click="updateCatalogTree">Update BrickLink Categories</button>
+    <button @click="fetchCatalogPage">Update BrickLink Item Types</button>
   </div>
   <TheContent />
   <PulseMonitor />
@@ -15,8 +16,8 @@ import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
-import { fetchBrickLink, updateCatalogTree } from '../sources/bricklink'
-import { setCounts } from '../model'
+import { fetchCatalogPage, fetchBrickLink, updateCatalogTree } from '../sources/bricklink'
+import { selectedItemType, setCounts } from '../model'
 onMounted(async () => {
   initStorageUsageFunction()
   initBrickLinkWorker()
