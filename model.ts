@@ -1,9 +1,10 @@
 import { ref } from 'vue'
-import { type BrickLinkCategory, type BrickLinkColor, type Category } from './view/stores/bricklink/catalog-download-page'
+import { type BrickLinkCategory, type BrickLinkColor, type Category, type Item } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
+import { formatInteger } from '@/assets/js/utils'
 
 export const selectedItemType = ref()
 const filters = ref<{ key: string; value: string | number }[]>([])
@@ -214,7 +215,83 @@ export const itemTypes = ref<SelectOption<any>[]>([
   {
     id: 'items',
     label: 'Items',
-    count: 0
+    count: 0,
+    columns: [
+      {
+        id: 'image',
+        width: '180px',
+        type: 'image',
+        hideLabel: true,
+        clickKey: 'item',
+        clickValue: (item: Item) => item.id,
+        clickSelection: 'images',
+      },
+      {
+        id: 'itemType',
+        label: 'Type',
+        width: '60px',
+        clickKey: 'itemType',
+        clickValue: (item: Item) => item.itemType,
+      },
+      {
+        id: 'name',
+        label: 'Name',
+        width: '300px',
+        clickKey: 'item',
+        clickValue: (item: Item) => item.id,
+      },
+      {
+        id: 'category',
+        label: 'Category',
+        width: '200px',
+        clickKey: 'category',
+        clickValue: (item: BrickLinkItem) => item['Category ID'],
+      },
+      {
+        id: 'Year Released',
+        label: 'Year',
+        width: '70px',
+      },
+      {
+        id: 'weight',
+        label: 'Weight',
+        width: '75px',
+        itemValue: (item: BrickLinkItem) =>
+          formatInteger(Number.parseFloat(item.weight) * 100, [
+            {
+              start: 0,
+              end: 100,
+              suffix: 'cg',
+            },
+            {
+              start: 100,
+              end: 10000,
+              modifier: 0.01,
+              decimalPlaces: 1,
+              suffix: 'g',
+            },
+            {
+              start: 10000,
+              end: 100000,
+              modifier: 0.01,
+              decimalPlaces: 0,
+              suffix: 'g',
+            },
+            {
+              start: 100000,
+              modifier: 0.00001,
+              decimalPlaces: 1,
+              suffix: 'kg',
+            },
+          ]),
+      },
+      {
+        id: 'dimensions',
+        label: 'Dimensions',
+        width: '115px',
+        valueField: 'Dimensions',
+      },
+    ],
   },
   {
     id: 'partAndColorCodes',

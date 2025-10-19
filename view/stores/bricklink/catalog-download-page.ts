@@ -12,8 +12,13 @@ import { get, getAll, put } from '../../../idb/db';
 import { BRICK_LINK_CATALOG } from './catalog-codes'
 
 export interface BrickLinkItem {
+  image: string
+  itemType: string
+  id: string
+  Name: string
   Number: string
   itemId: number
+  'Category Name': string
 }
 
 export interface Item {

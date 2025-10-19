@@ -4,6 +4,13 @@ import type { IndexDefinition } from './indices'
 import STORES from '../idb/stores'
 import { isProxy, toRaw } from 'vue'
 
+export async function openCursor(
+  db: IDBPDatabase,
+  store: StoreDefinition,
+): Promise<IDBCursor | undefined> {
+  return await db.transaction(store.name).store.openCursor()
+}
+
 export async function getAll<T>(
   db: IDBPDatabase,
   storeDefinition: StoreDefinition,

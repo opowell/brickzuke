@@ -53,13 +53,24 @@ async function setItemTypes(db: IDBPDatabase) {
   tableItems.value = itemTypesData
 }
 async function setItems(db: IDBPDatabase) {
-  const items = await getAll<Item>(db, stores.ITEMS)
-  if (!items) {
-    return
-  }
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    item.brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, item.id)
+  const items = []
+  const tx = db.transaction(stores.ITEMS.name, 'readonly');
+  let count = 0
+  for await (const cursor of tx.store) {
+    count++
+    if (count > 100) {
+      break
+    }
+    console.log(cursor)
+    const item = cursor.value
+    getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, item.id).then(brickLinkItems => {
+      item.brickLinkItems = brickLinkItems
+      item.name = brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', ')
+      item.itemType = brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', ')
+      item.category = brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', ')
+      item.image = brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
+    })
+    items.push(item)
   }
   tableItems.value = items || []
 }
