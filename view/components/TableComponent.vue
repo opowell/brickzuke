@@ -54,7 +54,8 @@ function sortBy(column: TableColumn) {
     </div>
     <div v-for="item in tableItems" :key="item[table.idField]" class="row">
       <div v-if="!table.hideSelect"><input type="checkbox" /></div>
-      <TableCell v-for="column in table.columns" :key="column.id" :column="column" :item="item" />
+      <TableCell v-for="column in table.columns" :key="column.id + '-' + item[table.idField]" :column="column"
+        :item="item" />
       <div v-if="!table.hidePriceModifier"><input style="width: 75px" /></div>
     </div>
   </div>

@@ -214,6 +214,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
   },
   {
     id: 'items',
+    idField: 'id',
     label: 'Items',
     count: 0,
     columns: [
