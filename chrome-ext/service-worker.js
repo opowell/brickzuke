@@ -1,11 +1,13 @@
 console.log('Starting...')
 
+const sendResponses = {}
+
 /**
  * Make fetch calls for the client that bypass CORS restrictions.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('got message', message, sender, sendResponse)
-  switch (message.responseType) {
+  switch (message.type) {
     case 'json':
       fetch(message.url, message.options).then(async (response) => {
         console.log('response', message, response)
@@ -23,23 +25,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
       return true
     case 'scrape':
-      console.log('SCRAPE', message.url)
-      const url = message.url
-      chrome.tabs.create(
-        {
-          url,
-          active: false
-        },
-        async tab => {
-          await chrome.storage.local.set({ key: 'scraperTabId', value: tab.id })
-          await chrome.storage.local.set({ key: 'scraperTabOriginalUrl', value: url })
-        }
-      )
+      handleScrapeRequest(message, sendResponse)
+      return true
+    default:
+      console.warn('Unknown message type', message, message.type)
+      return false
   }
 })
 
+async function handleScrapeRequest(message, sendResponse) {
+  const url = message.url
+  const tab = await chrome.tabs.create(
+    {
+      url,
+      active: false
+    }
+  )
+  sendResponses[tab.id] = sendResponse
+  console.log('SCRAPE', message.url, tab, tab.id)
+  await chrome.storage.local.set({ scraperTabId: tab.id })
+  await chrome.storage.local.set({ scraperTabOriginalUrl: url })
+  console.log('set tab id', tab.id, await chrome.storage.local.get())
+}
+
 async function getLocalStorage(key) {
-  return await chrome.storage.local.get(key)[key]
+  return (await chrome.storage.local.get(key))[key]
 }
 
 function parseColorsPage() {
@@ -71,20 +81,24 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   if (!tab.url) return
   console.log('updated', tabId, tab.url, tab, await getLocalStorage('scraperTabId'))
 
-  const isScraperPage = await getLocalStorage('scraperTabId') === tabId + ''
+  const isScraperPage = (await getLocalStorage('scraperTabId')) === tabId
 
+  console.log(await getLocalStorage('scraperTabId'), tabId, isScraperPage)
+  if (!isScraperPage) {
+    return
+  }
   const execute = await chrome.scripting.executeScript(
     {
       target: { tabId },
       func: parseColorsPage
     }
   )
-  console.log('execute', execute)
-  if (!isScraperPage) {
-    return
-  }
-  console.log('now, what to do?', tab)
-  // chrome.tabs.sendMessage(tabId, messages)
+  console.log('execute', execute[0].result, tabId, sendResponses[tabId])
+  sendResponses[tabId](execute[0].result)
+  delete sendResponses[tabId]
+  await chrome.storage.local.remove('scraperTabId')
+  await chrome.storage.local.remove('scraperTabOriginalUrl')
+  console.log('sent response and cleaned up')
 })
 
 console.log('Starting... DONE')

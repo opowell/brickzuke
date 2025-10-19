@@ -5,13 +5,14 @@ import { useCatalogListPageStore } from '@/stores/bricklink/catalog-list-page'
 import STORES from '../../../idb/stores'
 import { get, put, getAllFromIndex, deleteQueuedCall } from '../../../idb/db'
 export interface QueuedCall {
-  id: number
-  callType: CallType
+  id?: number
+  type: CallType
   call: Call
   url: string
   options: object
-  extraParams?: object
+  extraParams?: { [key: string]: string | number }
   storageTime?: number
+  date?: Date
 }
 import indices from '../../../idb/indices'
 import { useCatalogDownloadPageStore } from '@/stores/bricklink/catalog-download-page'
@@ -51,7 +52,7 @@ export async function makeTextCall(
   call: Call,
   url: string,
   options: object,
-  extraParams?: object,
+  extraParams?: { [key: string]: string | number },
   storageTime?: number,
 ) {
   return await queueCall(CallType.TEXT, call, url, options, extraParams, storageTime)
@@ -60,7 +61,7 @@ export async function makeScrapeCall(
   call: Call,
   url: string,
   options: object,
-  extraParams?: object,
+  extraParams?: { [key: string]: string | number },
   storageTime?: number,
 ) {
   return await queueCall(CallType.SCRAPE, call, url, options, extraParams, storageTime)
@@ -81,7 +82,7 @@ export async function makeJsonCall(
 }
 export interface EventDetail {
   request: {
-    responseType: string
+    type: CallType
     call: Call
     url: string
     options: { body?: string }
@@ -190,7 +191,7 @@ export async function processQueue(reps = 1) {
   for (let i = 0; i < queuedCalls.length; i++) {
     const queuedCall = queuedCalls[i]
     const cached = await makeCall(
-      queuedCall.callType,
+      queuedCall.type,
       queuedCall.call,
       queuedCall.url,
       queuedCall.options,
@@ -228,6 +229,7 @@ export async function queueCalls(
       const call = callObject.call
       handleEvent({
         request: {
+          type: callType,
           call,
           url,
           options,
@@ -246,7 +248,7 @@ export async function queueCalls(
     const extraParams = callObject.extraParams
     const storageTime = callObject.storageTime
     await put(db, STORES.QUEUED_CALLS, {
-      callType,
+      type: callType,
       call,
       url,
       options,
@@ -283,7 +285,7 @@ export async function queueCall(
   call: Call,
   url: string,
   options: object,
-  extraParams?: object,
+  extraParams?: { [key: string]: string | number } ,
   storageTime?: number,
 ) {
   const db = await getDbConnection()
@@ -292,7 +294,7 @@ export async function queueCall(
   if (value) {
     handleEvent({
       request: {
-        responseType: callType,
+        type: callType,
         call,
         url,
         options,
@@ -303,8 +305,8 @@ export async function queueCall(
     return true
   }
   // Otherwise put the call in the queue.
-  await put(db, STORES.QUEUED_CALLS, {
-    callType,
+  await put<QueuedCall>(db, STORES.QUEUED_CALLS, {
+    type: callType,
     call,
     url,
     options,
@@ -320,7 +322,7 @@ export async function makeCall(
   call: Call,
   url: string,
   options: object,
-  extraParams?: object,
+  extraParams?: { [key: string]: string | number; },
   storageTime?: number,
 ): Promise<boolean> {
   const db = await getDbConnection()
@@ -329,6 +331,7 @@ export async function makeCall(
   if (value) {
     handleEvent({
       request: {
+        type,
         call,
         url,
         options,
@@ -339,12 +342,11 @@ export async function makeCall(
     return true
   }
   // Otherwise dispatch the call to the server.
-  console.log('dispatch', url)
+  console.log('dispatch', url, type)
   document.dispatchEvent(
     new CustomEvent('bzClientToServer', {
       detail: {
-        callType: 'fetch',
-        responseType: type,
+        type,
         call,
         url,
         options,
