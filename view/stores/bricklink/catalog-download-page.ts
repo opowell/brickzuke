@@ -29,11 +29,15 @@ export interface ItemType {
 }
 
 export interface Color {
+  yearTo?: number
+  yearFrom?: number
+  countForSale?: number
   brickLinkColors?: BrickLinkColor[]
   name?: string
   countParts?: number
   countSets?: number
   countItems?: number
+  countWanted?: number
   id: number
 }
 
@@ -59,10 +63,14 @@ export interface BrickLinkItemType {
 }
 export interface BrickLinkColor {
   Parts: string
+  Wanted: string
+  'For Sale': string
   'In Sets': string
   'colorId': string
   'bzColorId': string
   'Color Name': string
+  'Year From': string
+  'Year To': string
 }
 export interface BrickLinkCategory {
   items?: number

@@ -5,13 +5,14 @@ import TheSorts from './header/TheSorts.vue'
 import { storeToRefs } from 'pinia'
 import { useModelsStore } from '../stores/models.ts'
 import { ref } from 'vue'
+import { selectedItemType, itemTypes } from '../../model'
+
 const modelsStore = useModelsStore()
 const { search } = storeToRefs(modelsStore)
 const localSearch = ref(search.value)
 function doSearch() {
   search.value = localSearch.value
 }
-import { itemTypes } from '../../model'
 </script>
 
 <template>
@@ -19,7 +20,7 @@ import { itemTypes } from '../../model'
     <a href="/" class="home-link"><img class="home-icon" src="/favicon-32x32.png" /></a>
     <TheFilters />
     <TheSorts />
-    <TheViews :item-types="itemTypes" />
+    <TheViews v-if="selectedItemType" :item-types="itemTypes" />
     <input v-model="localSearch" placeholder="Search..." @keyup.enter="doSearch" />
     <button @click="doSearch">Search</button>
   </header>

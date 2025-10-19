@@ -74,6 +74,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
       {
         id: 'name',
         label: 'Name',
+        width: '150px',
         clickFn: (color: BrickLinkColor) => {
           // selectedItem.value = undefined
           // filters.value = []
@@ -146,12 +147,12 @@ export const itemTypes = ref<SelectOption<any>[]>([
         type: 'number',
       },
       {
-        id: 'yearStart',
-        label: 'Year start',
+        id: 'yearFrom',
+        label: 'Year from',
       },
       {
-        id: 'yearEnd',
-        label: 'Year end',
+        id: 'yearTo',
+        label: 'Year to',
       },
     ],
   },

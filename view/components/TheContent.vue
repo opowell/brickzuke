@@ -36,8 +36,12 @@ const setSelectedItem = async function (option: SelectOption<any>) {
       }
       for (let i = 0; i < colors.length; i++) {
         const color = colors[i]
-        color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id)
+        color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id) || []
         color.name = color.brickLinkColors?.map((c: BrickLinkColor) => c['Color Name']).join(', ')
+        color.countWanted = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color.Wanted))
+        color.countForSale = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color['For Sale']))
+        color.yearFrom = Math.min(...color.brickLinkColors.map(c => Number.parseInt(c['Year From'])))
+        color.yearTo = Math.max(...color.brickLinkColors.map(c => Number.parseInt(c['Year To'])))
         color.countParts = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color.Parts))
         color.countSets = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color['In Sets']))
         color.countItems = color.countParts + color.countSets
