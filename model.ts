@@ -72,6 +72,12 @@ export const itemTypes = ref<SelectOption<any>[]>([
     idField: 'colorID',
     columns: [
       {
+        id: 'image',
+        width: '100px',
+        type: 'image',
+        hideLabel: true,
+      },
+      {
         id: 'name',
         label: 'Name',
         width: '150px',

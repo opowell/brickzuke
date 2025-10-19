@@ -16,6 +16,7 @@ export interface BrickLinkColor {
   countForSale: number
   yearStart?: number
   yearEnd?: number
+  image?: string
 }
 export const useColorsPageStore = defineStore('colorsPageStore', {
   state: () => ({

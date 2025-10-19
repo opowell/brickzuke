@@ -38,6 +38,7 @@ export interface Color {
   countSets?: number
   countItems?: number
   countWanted?: number
+  image?: string
   id: number
 }
 
@@ -65,6 +66,7 @@ export interface BrickLinkItemType {
   categories?: number
 }
 export interface BrickLinkColor {
+  image?: string
   Parts: string
   Wanted: string
   'For Sale': string

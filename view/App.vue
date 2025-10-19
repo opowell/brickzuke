@@ -3,6 +3,7 @@
   <div v-if="!selectedItemType">
     <button @click="fetchBrickLink">Update BrickLink</button>
     <button @click="updateCatalogTree">Update BrickLink Categories</button>
+    <button @click="fetchBrickLinkColorGuide">Update BrickLink Color Guide</button>
     <button @click="fetchCatalogPage">Update BrickLink Item Types</button>
   </div>
   <TheContent />
@@ -17,6 +18,7 @@ import PulseMonitor from './components/PulseMonitor.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
 import { fetchCatalogPage, fetchBrickLink, updateCatalogTree } from '../sources/bricklink'
+import { makeCall as fetchBrickLinkColorGuide } from '../sources/bricklink/color-guide'
 import { selectedItemType, setCounts } from '../model'
 onMounted(async () => {
   initStorageUsageFunction()

@@ -46,6 +46,7 @@ const setSelectedItem = async function (option: SelectOption<any>) {
         color.countParts = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color.Parts))
         color.countSets = sum<BrickLinkColor>(color.brickLinkColors, color => Number.parseInt(color['In Sets']))
         color.countItems = color.countParts + color.countSets
+        color.image = color.brickLinkColors[0]?.image
       }
       tableItems.value = colors
       break

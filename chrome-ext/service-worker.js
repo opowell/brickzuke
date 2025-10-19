@@ -70,6 +70,7 @@ function parseColorsPage() {
       setsCount: Number.parseInt(row.children[3].innerText.replaceAll(',', '')),
       wantedCount: Number.parseInt(row.children[4].innerText.replaceAll(',', '')),
       forSaleCount: Number.parseInt(row.children[5].innerText.replaceAll(',', '')),
+      image: row.querySelector('img')?.src,
       colorId: row.children[7].innerText,
     }
   })

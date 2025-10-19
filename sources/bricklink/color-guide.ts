@@ -1,6 +1,9 @@
 import { ONE_YEAR } from '@/assets/js/timesToMs'
 import type { BrickLinkColor } from '@/stores/bricklink/colors-page'
 import { Call, makeScrapeCall } from '~/assets/js/make-call'
+import { get, put } from '../../idb/db'
+import { getDbConnection } from '../../idb/idb'
+import stores from '../../idb/stores'
 
 export const makeCall = async function() {
   await makeScrapeCall(
@@ -30,10 +33,16 @@ export const makeCall = async function() {
   )
 }
 
-export const handleResponse = function(response: BrickLinkColor[]) {
-  console.log(response)
-  // values.forEach((value) => {
-    // this.colors.set(value.colorID, value)
-  // })
-  // this.loaded = true
+export const handleResponse = async function(response: any[]) {
+  const db = await getDbConnection()
+  for (let i = 0; i < response.length; i++) {
+    const color = response[i]
+    console.log(color)
+    const existingColor = await get<BrickLinkColor>(db, stores.BRICK_LINK_COLORS, color.colorId)
+    if (!existingColor) {
+      continue
+    }
+    existingColor.image = color.image
+    await put<BrickLinkColor>(db, stores.BRICK_LINK_COLORS, existingColor)
+  }
 }

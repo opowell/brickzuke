@@ -12,6 +12,7 @@ export interface TableColumn<T> {
   clickFn?: (item: T) => void
   clickKey?: string | ((item: T) => string)
   clickValue?: (item: T) => string
+  hideLabel?: boolean
 }
 export interface Table<T> {
   id: string
