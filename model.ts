@@ -38,14 +38,14 @@ export const itemTypes = ref<SelectOption<any>[]>([
       //   type: 'image',
       //   hideLabel: true,
       // },
-      // {
-      //   id: 'type',
-      //   label: 'Type',
-      //   valueField: 'catType',
-      //   width: '60px',
-      //   clickKey: 'catType',
-      //   clickValue: (category: BrickLinkCategory) => category.catType,
-      // },
+      {
+        id: 'type',
+        label: 'Type',
+        valueField: 'type',
+        width: '60px',
+        clickKey: 'catType',
+        clickValue: (category: BrickLinkCategory) => category.catType,
+      },
       {
         id: 'items',
         label: 'Items',

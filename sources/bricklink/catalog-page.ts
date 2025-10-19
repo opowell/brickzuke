@@ -1,6 +1,10 @@
 import { Call, makeTextCall } from '@/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '../../view/assets/js/utils'
 import { ONE_YEAR } from '@/assets/js/timesToMs'
+import { getDbConnection } from '../../idb/idb'
+import { get, put } from '../../idb/db'
+import stores from '../../idb/stores'
+import type { BrickLinkCategory, BrickLinkItemType } from '@/stores/bricklink/catalog-download-page'
 
 interface Category {
   id: string
@@ -43,27 +47,37 @@ async function handleFetchResponse(response: string) {
     'action="catalogList.asp">',
     '</select>',
   )
-  forms.forEach(form => {
+  const db = await getDbConnection()
+  for (let i = 0; i < forms.length; i++) {
+    const form = forms[i]
     const itemType = extractValueFromHtml(
       form,
       '<a href="/catalogTree.asp?itemType=',
       '">',
-    )
-    console.log(itemType)
+    )[0]
     const options: string[] = extractValueFromHtml(
       form,
       "<OPTION VALUE='",
       '</OPTION>',
     )
-    const splitOptions = options.map(option => {
+    for (let j = 0; j < options.length; j++) {
+      const option = options[j]
       const parts = option.split("'>")
-      return {
-        brickLinkCategoryId: parts[0],
-        brickLinkCategoryName: parts[1],
+      const id = parts[0]
+      const categoryObject = await get<BrickLinkCategory>(db, stores.BRICK_LINK_CATEGORIES, id)
+      if (!categoryObject) {
+        continue
       }
-    })
-    console.log(splitOptions)
-  })
+      categoryObject.type = itemType
+      await put(db, stores.BRICK_LINK_CATEGORIES, categoryObject!)
+    }
+    const itemTypeObject = await get<BrickLinkItemType>(db, stores.BRICK_LINK_ITEM_TYPES, itemType)
+    if (!itemTypeObject) {
+      continue
+    }
+    itemTypeObject.categories = options.length
+    await put(db, stores.BRICK_LINK_ITEM_TYPES, itemTypeObject)
+  }
   // numCategories = categories.flat().length
   // categories = categories.flat().map((c: string) => {
   //   const parts = c.replace("='", '').split("'>")

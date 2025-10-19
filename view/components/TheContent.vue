@@ -26,6 +26,7 @@ const setSelectedItem = async function (option: SelectOption<any>) {
         category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
         category.items = sum<BrickLinkCategory>(category.brickLinkCategories, c => c.items)
         category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
+        category.type = category.brickLinkCategories?.map((c: BrickLinkCategory) => c.type).join(', ')
       }
       tableItems.value = categories
       break
@@ -57,8 +58,8 @@ const setSelectedItem = async function (option: SelectOption<any>) {
         const itemType = itemTypes[i]
         itemType.brickLinkItemTypes = await getAllFromIndex<BrickLinkItemType>(db, indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID, itemType.id)
         itemType.name = itemType.brickLinkItemTypes?.map((t: BrickLinkItemType) => t['Item Type Name']).join(', ')
-        itemType.items = 4
-        itemType.categories = 5
+        itemType.categories = sum<BrickLinkItemType>(itemType.brickLinkItemTypes, type => type.categories)
+        itemType.items = 5
       }
       tableItems.value = itemTypes
       break

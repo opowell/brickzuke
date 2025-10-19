@@ -2,9 +2,13 @@ export function onlyUnique<T>(value: T, index: number, array: T[]): boolean {
   return array.indexOf(value) === index
 }
 
-export function sum<T>(array: T[] = [], getValue: (x: T) => number): number {
+export function sum<T>(array: T[] = [], getValue: (x: T) => number | undefined): number {
   return array.reduce((accumulator, currentValue) => {
-    return accumulator + getValue(currentValue)
+    const value = getValue(currentValue)
+    if (value === undefined) {
+      return accumulator
+    }
+    return accumulator + value
   }, 0)
 }
 

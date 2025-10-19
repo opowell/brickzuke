@@ -46,6 +46,7 @@ export interface Category {
   brickLinkCategories?: BrickLinkCategory[] | undefined
   id: number
   items?: number
+  type?: string
 }
 
 interface PartAndColorCode {
@@ -60,6 +61,8 @@ export interface BrickLinkItemType {
   'Item Type ID': string
   'Item Type Name': string
   itemTypeId: string
+  bzItemTypeId?: number
+  categories?: number
 }
 export interface BrickLinkColor {
   Parts: string
@@ -75,7 +78,7 @@ export interface BrickLinkColor {
 export interface BrickLinkCategory {
   items?: number
   categoryId: string
-  catType?: string
+  type?: string
   bzCategoryId: number
   'Category Name': string
 }

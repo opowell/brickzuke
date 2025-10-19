@@ -29,6 +29,7 @@ function doSearch() {
 <style scoped>
 .home-link {
   align-self: center;
+  display: flex;
 }
 
 .home-icon {

@@ -1,5 +1,4 @@
 import { ONE_YEAR } from '@/assets/js/timesToMs'
-import { extractValueFromHtml, extractValuesFromHtml } from '@/assets/js/utils'
 import type { BrickLinkColor } from '@/stores/bricklink/colors-page'
 import { Call, makeScrapeCall } from '~/assets/js/make-call'
 
