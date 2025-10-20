@@ -52,27 +52,52 @@ async function setItemTypes(db: IDBPDatabase) {
   }
   tableItems.value = itemTypesData
 }
+
+function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
+  let low = 0,
+    high = array.length;
+
+  while (low < high) {
+    const mid = low + high >>> 1
+    if (array[mid].score < itemToAdd.score) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
 async function setItems(db: IDBPDatabase) {
-  const items = []
-  const tx = db.transaction(stores.ITEMS.name, 'readonly');
+  const items: Item[] = []
   let count = 0
-  for await (const cursor of tx.store) {
-    count++
-    if (count > 100) {
+  tableItems.value = []
+  while (true) {
+    const cursor = await db.transaction(stores.ITEMS.name).store.openCursor()
+    if (!cursor) {
       break
     }
-    console.log(cursor)
+    if (count > 0) {
+      await cursor.advance(count)
+    }
+    count++
     const item = cursor.value
-    getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, item.id).then(brickLinkItems => {
-      item.brickLinkItems = brickLinkItems
-      item.name = brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', ')
-      item.itemType = brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', ')
-      item.category = brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', ')
-      item.image = brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
-    })
-    items.push(item)
+    if (!item) {
+      break
+    }
+    const brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, item.id)
+    item.brickLinkItems = brickLinkItems
+    item.name = brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', ')
+    item.itemType = brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', ')
+    item.category = brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', ')
+    item.image = brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
+    item.score = Math.random()
+    const index = findIndex(items, item)
+    items.splice(index, 0, item)
+    if (count % 1000 === 0) {
+      console.log('Processed items:', count)
+    }
+    if (index < 1000) {
+      tableRef.value?.addRow(item, index)
+    }
   }
-  tableItems.value = items || []
 }
 
 const setSelectedItem = async function (option: SelectOption<any>) {
@@ -94,11 +119,12 @@ const setSelectedItem = async function (option: SelectOption<any>) {
   }
 }
 const tableItems = ref<any[]>([])
+const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
 </script>
 
 <template>
   <section>
-    <TableComponent v-if="selectedItemType" :table="selectedItemType" :items="tableItems" />
+    <TableComponent v-if="selectedItemType" :table="selectedItemType" :items="tableItems" ref="tableRef" />
     <div v-else class="buttons">
       <div v-for="table in itemTypes" :key="table.id" class="itemType">
         <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useModelsStore } from '@/stores/models'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import TableCell from './TableCell.vue'
 export interface TableColumn<T> {
   width?: string
@@ -31,15 +31,24 @@ const { items, table } = defineProps<{
   table: Table
   items: any[]
 }>()
-const tableItems = computed(() => {
-  if (!items) {
-    return []
-  }
-  return items.slice(0, 1000)
-})
+const tableItems = ref(items)
+watch(
+  () => items,
+  (newItems) => {
+    tableItems.value = newItems
+  },
+  { deep: true }
+)
 function sortBy(column: TableColumn) {
   modelsStore.addSort(column.id, 'a')
 }
+function addRow(item: any, index: number) {
+  tableItems.value.splice(index, 0, item)
+  tableItems.value = tableItems.value.slice(0, 100)
+}
+defineExpose({
+  addRow,
+})
 </script>
 
 <template>
