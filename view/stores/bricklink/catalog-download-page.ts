@@ -18,6 +18,10 @@ export interface BrickLinkItem {
   Name: string
   Number: string
   itemId: number
+  'Category ID': string
+  categoryId?: string
+  weight: string
+  'Weight (in Grams)': string
   'Category Name': string
 }
 
@@ -51,7 +55,7 @@ export interface Color {
 export interface Category {
   name?: string
   brickLinkCategories?: BrickLinkCategory[] | undefined
-  id: number
+  id?: number
   items?: number
   type?: string
 }
@@ -259,6 +263,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     )
   }
   async function handlePageResponse(detail: EventDetail) {
+    console.log('Handling catalog download page response for view type:', detail.request.extraParams?.viewType)
     switch (detail.request.extraParams?.viewType) {
       case BRICK_LINK_CATALOG.ITEM_TYPES:
         await handleItemTypes(detail)
@@ -400,6 +405,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
           out.image = `https://img.bricklink.com/ItemImage/${itemType}L/${out.Number}.png`
         }
         out.weight = out['Weight (in Grams)']
+        out.categoryId = out['Category ID']
         return out
       })
     const map = new Map<string, any>()

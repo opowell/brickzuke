@@ -7,7 +7,7 @@ import { createIndex, createStore } from './db'
 let dbConnection: IDBPDatabase | undefined
 
 const DB_NAME = 'brickzuke'
-const DB_VERSION = 11
+const DB_VERSION = 16
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   if (dbConnection) {

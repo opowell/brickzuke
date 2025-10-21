@@ -7,7 +7,7 @@ import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
 
 export const selectedItemType = ref()
-const filters = ref<{ key: string; value: string | number }[]>([])
+export const filters = ref<{ key: string; value: string | number }[]>([])
 const search = ref<string | undefined>(undefined)
 export async function setCounts() {
   const db = await getDbConnection()
@@ -19,7 +19,7 @@ export async function setCounts() {
 }
 
 const clickCategoryFn = (category: Category) => {
-  selectedItemType.value = 'items'
+  selectedItemType.value = undefined
   filters.value.push({
     key: 'category',
     value: category.id,
