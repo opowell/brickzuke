@@ -12,21 +12,25 @@ export interface SelectOption<T> {
   columns?: TableColumn<T>[]
   idField?: string
 }
-import { selectedItemType, itemTypes } from '../../../model'
+import { selectedItemType, itemTypes, processingCounts } from '../../../model'
 const selectedItemTypeId = computed(() => {
   return selectedItemType?.value?.id
 })
 function handleChange(event: Event) {
-  console.log('change', event.target?.value)
   selectedItemType.value = itemTypes.value.find(type => type.id === event.target?.value)
+}
+function getLabel(itemType: SelectOption<any>) {
+  if (!itemType.count || processingCounts.value) {
+    return itemType.label
+  }
+  return itemType.label + ': ' + formatInteger(itemType.count)
 }
 </script>
 
 <template>
   <select :value="selectedItemTypeId" @change="handleChange">
     <option value="">Everything</option>
-    <option v-for="itemType in itemTypes" :key="itemType.id" :value="itemType.id">{{ itemType.label }}: {{
-      formatInteger(itemType.count) }}</option>
+    <option v-for="itemType in itemTypes" :key="itemType.id" :value="itemType.id">{{ getLabel(itemType) }}</option>
   </select>
 </template>
 

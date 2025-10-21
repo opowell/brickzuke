@@ -25,13 +25,17 @@ async function loadCategory(db: IDBPDatabase, id: number) {
 }
 
 async function setCategories(db: IDBPDatabase) {
+  console.log('setCategories')
   const categories = await getAll<Category>(db, stores.CATEGORIES)
   if (!categories) {
     return
   }
   tableItems.value = []
   for (let i = 0; i < categories.length; i++) {
-    console.log('Loading category', categories[i].id, i)
+    if (selectedItemType.value.id !== 'categories') {
+      break
+    }
+    console.log('Loading category', categories[i].id)
     tableItems.value.push(await loadCategory(db, categories[i].id!))
   }
 }
@@ -93,10 +97,7 @@ watch(() => selectedItemType.value, (value) => {
   <section>
     <TableComponent v-if="selectedItemType" :table="selectedItemType" :items="tableItems" ref="localTableRef" />
     <div v-else class="buttons">
-      <div v-if="processingCounts">
-        Processing counts, please wait...
-      </div>
-      <div v-else v-for="table in itemTypes" :key="table.id" class="itemType">
+      <div v-for="table in itemTypes" :key="table.id" class="itemType">
         <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />
         <template v-if="table.preview && table.items?.length">:
           <div v-for="item in table.items?.slice(0, 10)" :key="item.id">

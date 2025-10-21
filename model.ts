@@ -137,7 +137,6 @@ export async function setItems(db: IDBPDatabase) {
               console.log('Processed items:', count)
             }
             if (index < 200) {
-              console.log(tableRef.value)
               tableRef.value?.addRow(item, index)
             }
           }
@@ -192,14 +191,14 @@ const clickCategoryItemsFn = async (category: Category) => {
     return
   }
   selectedItemType.value = itemTypes.value.find(t => t.id === 'items')
-  // filters.value.push({
-  //   key: 'category',
-  //   value: category.id,
-  // })
-  // search.value = undefined
-  // const db = await getDbConnection()
-  // setItems(db)
-  // setCounts()
+  filters.value.push({
+    key: 'category',
+    value: category.id,
+  })
+  search.value = undefined
+  const db = await getDbConnection()
+  setItems(db)
+  setCounts()
 }
 
 export const itemTypes = ref<SelectOption<any>[]>([
