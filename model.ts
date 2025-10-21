@@ -1,30 +1,205 @@
 import { ref } from 'vue'
-import { type BrickLinkCategory, type BrickLinkColor, type Category, type Item } from './view/stores/bricklink/catalog-download-page'
+import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
-import { count } from './idb/db'
+import { count, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
+import type { IDBPDatabase } from 'idb'
+import indices from './idb/indices'
 
 export const selectedItemType = ref()
 export const filters = ref<{ key: string; value: string | number }[]>([])
+export const processingCounts = ref(false)
 const search = ref<string | undefined>(undefined)
 export async function setCounts() {
+  processingCounts.value = true
   const db = await getDbConnection()
-  itemTypes.value[0].count = await count(db, stores.BRICK_LINK_CATEGORIES)
-  itemTypes.value[1].count = await count(db, stores.BRICK_LINK_COLORS)
-  itemTypes.value[2].count = await count(db, stores.BRICK_LINK_ITEM_TYPES)
-  itemTypes.value[3].count = await count(db, stores.BRICK_LINK_ITEMS)
-  itemTypes.value[4].count = await count(db, stores.BRICK_LINK_PART_AND_COLOR_CODES)
+  itemTypes.value[0].count = await count(db, stores.CATEGORIES)
+  itemTypes.value[1].count = await count(db, stores.COLORS)
+  itemTypes.value[2].count = await count(db, stores.ITEM_TYPES)
+  itemTypes.value[3].count = await getItemsCount(db)
+  itemTypes.value[4].count = await count(db, stores.PART_AND_COLOR_CODES)
+  processingCounts.value = false
 }
 
-const clickCategoryFn = (category: Category) => {
-  selectedItemType.value = undefined
-  filters.value.push({
-    key: 'category',
-    value: category.id,
-  })
-  search.value = undefined
+async function getItemsCount(db: IDBPDatabase): Promise<number> {
+  console.log('Setting items with filters:', filters.value)
+  const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
+  if (filteredCategories.length === 0) {
+    return await count(db, stores.ITEMS)
+  }
+  let numItems = 0
+  for (let i = 0; i < filteredCategories.length; i++) {
+    const categoryId = filteredCategories[i]
+    try {
+      console.log('Loading category for ID:', categoryId)
+      let count = 0
+      const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
+      if (!brickLinkCategories) {
+        console.log('No BrickLink categories for category ID:', categoryId)
+        continue
+      }
+      for (let j = 0; j < brickLinkCategories.length; j++) {
+        const blCategory = brickLinkCategories[j]
+        console.log('BrickLink Category:', blCategory['Category Name'])
+        while (true) {
+          const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
+          const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
+          const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
+          const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
+          if (!cursor) {
+            console.log('No more items for BL category:', blCategory)
+            break
+          }
+          if (count > 0) {
+            await cursor.advance(count)
+          }
+          count++
+          const brickLinkItem = cursor.value
+          if (!brickLinkItem) {
+            break
+          }
+          numItems++
+        }
+      }
+      console.log('Loaded category:', categoryId)
+    } catch (e) {
+      console.error('Error loading category ID:', categoryId, e)
+    }
+  }
+  return numItems
+}
+
+function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
+  let low = 0,
+    high = array.length;
+
+  while (low < high) {
+    const mid = low + high >>> 1
+    if (array[mid].score < itemToAdd.score) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
+export const tableItems = ref<any[]>([])
+export const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
+
+export async function setItems(db: IDBPDatabase) {
+  console.log('Setting items with filters:', filters.value)
+  const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
+  if (filteredCategories.length > 0) {
+    const items: Item[] = []
+    tableItems.value = []
+    for (let i = 0; i < filteredCategories.length; i++) {
+      const categoryId = filteredCategories[i]
+      try {
+        console.log('Loading category for ID:', categoryId)
+        let count = 0
+        const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
+        if (!brickLinkCategories) {
+          console.log('No BrickLink categories for category ID:', categoryId)
+          continue
+        }
+        for (let j = 0; j < brickLinkCategories.length; j++) {
+          const blCategory = brickLinkCategories[j]
+          while (true) {
+            const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
+            const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
+            const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
+            const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
+            if (!cursor) {
+              console.log('No more items for BL category:', blCategory)
+              break
+            }
+            if (count > 0) {
+              await cursor.advance(count)
+            }
+            count++
+            const brickLinkItem = cursor.value
+            if (!brickLinkItem) {
+              break
+            }
+            const brickLinkItems = [brickLinkItem]
+            const item: Item = {
+              id: brickLinkItem.itemId,
+            }
+            item.brickLinkItems = brickLinkItems
+            item.name = brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', ')
+            item.itemType = brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', ')
+            item.category = brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', ')
+            item.image = brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
+            item.score = Math.random()
+            const index = findIndex(items, item)
+            items.splice(index, 0, item)
+            if (count % 1000 === 0) {
+              console.log('Processed items:', count)
+            }
+            if (index < 200) {
+              console.log(tableRef.value)
+              tableRef.value?.addRow(item, index)
+            }
+          }
+        }
+        console.log('Loaded category:', categoryId)
+      } catch (e) {
+        console.error('Error loading category ID:', categoryId, e)
+      }
+    }
+  } else {
+    const items: Item[] = []
+    let count = 0
+    tableItems.value = []
+    while (true) {
+      const cursor = await db.transaction(stores.ITEMS.name).store.openCursor()
+      if (!cursor) {
+        break
+      }
+      if (count > 0) {
+        await cursor.advance(count)
+      }
+      count++
+      const item = cursor.value
+      if (!item) {
+        break
+      }
+      const brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, item.id)
+      if (brickLinkItems?.length === 0) {
+        continue
+      }
+      item.brickLinkItems = brickLinkItems
+      item.name = brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', ')
+      item.itemType = brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', ')
+      item.category = brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', ')
+      item.image = brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
+      item.score = Math.random()
+      const index = findIndex(items, item)
+      items.splice(index, 0, item)
+      console.log('Processed items:', count)
+      if (count % 1000 === 0) {
+        console.log('Processed items:', count)
+      }
+      if (index < 1000) {
+        tableRef.value?.addRow(item, index)
+      }
+    }
+  }
+}
+
+const clickCategoryItemsFn = async (category: Category) => {
+  if (!category.id) {
+    return
+  }
+  selectedItemType.value = itemTypes.value.find(t => t.id === 'items')
+  // filters.value.push({
+  //   key: 'category',
+  //   value: category.id,
+  // })
+  // search.value = undefined
+  // const db = await getDbConnection()
+  // setItems(db)
+  // setCounts()
 }
 
 export const itemTypes = ref<SelectOption<any>[]>([
@@ -53,7 +228,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
         label: 'Items',
         width: '60px',
         type: 'number',
-        clickFn: clickCategoryFn,
+        clickFn: clickCategoryItemsFn,
       },
       {
         id: 'name',
@@ -221,6 +396,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
       {
         id: 'image',
         width: '180px',
+        height: '100px',
         type: 'image',
         hideLabel: true,
         clickKey: 'item',

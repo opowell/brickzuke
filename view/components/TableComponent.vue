@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useModelsStore } from '@/stores/models'
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import TableCell from './TableCell.vue'
 export interface TableColumn<T> {
   width?: string
@@ -13,6 +13,7 @@ export interface TableColumn<T> {
   clickKey?: string | ((item: T) => string)
   clickValue?: (item: T) => string
   hideLabel?: boolean
+  height?: string
 }
 export interface Table<T> {
   id: string

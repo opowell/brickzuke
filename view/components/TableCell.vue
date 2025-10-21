@@ -5,7 +5,7 @@ import { computed } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { storeToRefs } from 'pinia'
 import { processQueue } from '@/assets/js/make-call'
-import { selectedItemType, filters } from '../../model'
+import { selectedItemType, filters, setCounts, clearCounts } from '../../model'
 const {
   column,
   item,
@@ -33,6 +33,7 @@ function handleClick() {
     selectedItemType.value = column.clickSelection
     console.log('pushed filter')
     search.value = undefined
+    setCounts()
   }
   if (column.clickFn) {
     column.clickFn(item)
@@ -68,7 +69,7 @@ const styles = computed(() => {
   <div :style="styles">
     <template v-if="hasLabel">
       <button v-if="column.clickFn || (column.clickKey && column.clickValue)" @click="handleClick">
-        <img v-if="column.type === 'image'" :src="label" :style="{ 'max-width': column.width || '100px' }" />
+        <img v-if="column.type === 'image'" :src="label" :style="{ 'max-height': column.height || 'unset' }" />
         <div v-else-if="hasLabel" v-html="label" />
       </button>
       <template v-else>
@@ -79,3 +80,9 @@ const styles = computed(() => {
     </template>
   </div>
 </template>
+
+<style scoped>
+img {
+  max-width: 100%;
+}
+</style>
