@@ -8,8 +8,15 @@ import { formatInteger } from '@/assets/js/utils'
 import type { IDBPDatabase } from 'idb'
 import indices from './idb/indices'
 
+interface Filter {
+  key: string
+  label?: string
+  value: string | number
+  displayValue?: string | number
+}
+
 export const selectedItemType = ref()
-export const filters = ref<{ key: string; value: string | number }[]>([])
+export const filters = ref<Filter[]>([])
 export const processingCounts = ref(false)
 const search = ref<string | undefined>(undefined)
 export async function setCounts() {
@@ -33,7 +40,6 @@ async function getItemsCount(db: IDBPDatabase): Promise<number> {
   for (let i = 0; i < filteredCategories.length; i++) {
     const categoryId = filteredCategories[i]
     try {
-      console.log('Loading category for ID:', categoryId)
       let count = 0
       const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
       if (!brickLinkCategories) {
@@ -104,6 +110,7 @@ export async function setItems(db: IDBPDatabase) {
         }
         for (let j = 0; j < brickLinkCategories.length; j++) {
           const blCategory = brickLinkCategories[j]
+          console.log('BrickLink Category:', blCategory['Category Name'])
           while (true) {
             const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
             const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
@@ -121,6 +128,7 @@ export async function setItems(db: IDBPDatabase) {
             if (!brickLinkItem) {
               break
             }
+            console.log('Processing item:', brickLinkItem.id)
             const brickLinkItems = [brickLinkItem]
             const item: Item = {
               id: brickLinkItem.itemId,
@@ -193,7 +201,9 @@ const clickCategoryItemsFn = async (category: Category) => {
   selectedItemType.value = itemTypes.value.find(t => t.id === 'items')
   filters.value.push({
     key: 'category',
+    label: 'Category',
     value: category.id,
+    displayValue: category.name,
   })
   search.value = undefined
   const db = await getDbConnection()
@@ -236,8 +246,14 @@ export const itemTypes = ref<SelectOption<any>[]>([
           return category.name + ' (' + category.id + ')'
         },
         width: '300px',
-        clickKey: 'category',
-        clickValue: (category: Category) => category.id,
+        clickValue: (category: Category) => {
+          return {
+            key: 'category',
+            label: 'Category',
+            value: category.id,
+            displayValue: category.name,
+          }
+        },
       },
     ],
   },

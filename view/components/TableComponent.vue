@@ -2,6 +2,12 @@
 import { useModelsStore } from '@/stores/models'
 import { ref, watch } from 'vue'
 import TableCell from './TableCell.vue'
+interface ClickValue {
+  key: string
+  label?: string
+  value: string | number
+  displayValue?: string | number
+}
 export interface TableColumn<T> {
   width?: string
   id: string
@@ -11,7 +17,7 @@ export interface TableColumn<T> {
   itemValue?: (item: T) => string | number | undefined
   clickFn?: (item: T) => void
   clickKey?: string | ((item: T) => string)
-  clickValue?: (item: T) => string
+  clickValue?: (item: T) => ClickValue
   hideLabel?: boolean
   height?: string
 }

@@ -22,14 +22,10 @@ function handleClick() {
   // const { filters, search, selectedItem, pauseRedirect } = modelsStoreRefs
   const { search, pauseRedirect } = modelsStoreRefs
   pauseRedirect.value = true
-  if (column.clickKey && column.clickValue) {
-    const key = typeof column.clickKey === 'string' ? column.clickKey : column.clickKey(item)
+  if (column.clickValue) {
     // selectedItem.value = column.clickSelection
     // filters.value = filters.value.filter((filter) => filter.key !== key)
-    filters.value.push({
-      key,
-      value: column.clickValue(item),
-    })
+    filters.value.push(column.clickValue(item))
     selectedItemType.value = column.clickSelection
     console.log('pushed filter')
     search.value = undefined
@@ -68,7 +64,7 @@ const styles = computed(() => {
 <template>
   <div :style="styles">
     <template v-if="hasLabel">
-      <button v-if="column.clickFn || (column.clickKey && column.clickValue)" @click="handleClick">
+      <button v-if="column.clickFn || column.clickValue" @click="handleClick">
         <img v-if="column.type === 'image'" :src="label" :style="{ 'max-height': column.height || 'unset' }" />
         <div v-else-if="hasLabel" v-html="label" />
       </button>
