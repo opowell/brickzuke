@@ -20,7 +20,7 @@ async function loadCategory(db: IDBPDatabase, id: number) {
   category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
   category.items = sum<BrickLinkCategory>(category.brickLinkCategories, c => c.items)
   category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
-  category.type = category.brickLinkCategories?.map((c: BrickLinkCategory) => c.type).join(', ')
+  category.type = category.brickLinkCategories?.map((c: BrickLinkCategory) => c.catType).join(', ')
   return category
 }
 

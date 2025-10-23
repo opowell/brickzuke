@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item } from './view/stores/bricklink/catalog-download-page'
+import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
@@ -96,7 +96,7 @@ export async function setItems(db: IDBPDatabase) {
   console.log('Setting items with filters:', filters.value)
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
   if (filteredCategories.length > 0) {
-    const items: Item[] = []
+    const items: UiItem[] = []
     tableItems.value = []
     for (let i = 0; i < filteredCategories.length; i++) {
       const categoryId = filteredCategories[i]
@@ -130,15 +130,16 @@ export async function setItems(db: IDBPDatabase) {
             }
             console.log('Processing item:', brickLinkItem.id)
             const brickLinkItems = [brickLinkItem]
-            const item: Item = {
+            const item: UiItem = {
               id: brickLinkItem.itemId,
+              score: Math.random(),
+              brickLinkItems,
+              name: brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', '),
+              itemTypeId: brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', '),
+              itemTypeName: 'todo',
+              category: brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', '),
+              image: brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
             }
-            item.brickLinkItems = brickLinkItems
-            item.name = brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', ')
-            item.itemType = brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', ')
-            item.category = brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', ')
-            item.image = brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
-            item.score = Math.random()
             const index = findIndex(items, item)
             items.splice(index, 0, item)
             if (count % 1000 === 0) {
@@ -250,7 +251,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
           return {
             key: 'category',
             label: 'Category',
-            value: category.id,
+            value: category.id!,
             displayValue: category.name,
           }
         },
@@ -423,7 +424,14 @@ export const itemTypes = ref<SelectOption<any>[]>([
         label: 'Type',
         width: '60px',
         clickKey: 'itemType',
-        clickValue: (item: Item) => item.itemType,
+        clickValue: (item: Item) => {
+          return {
+            key: 'itemType',
+            label: 'Item type',
+            value: item.itemTypeId!,
+            displayValue: item.itemTypeName,
+          }
+        },
       },
       {
         id: 'name',

@@ -30,6 +30,15 @@ export interface Item {
   id: number
 }
 
+export interface UiItem extends Item {
+  score: number
+  image: any
+  category: string
+  name: string
+  itemTypeId: string
+  itemTypeName: string
+}
+
 export interface ItemType {
   brickLinkItemTypes?: BrickLinkItemType[]
   name?: string
