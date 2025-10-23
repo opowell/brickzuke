@@ -7,11 +7,11 @@ import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import { sum } from '../../idb/utils'
 import { getAll, getAllFromIndex } from '../../idb/db'
-import type { BrickLinkCategory, BrickLinkColor, BrickLinkItemType, Category, Color, Item, ItemType } from '@/stores/bricklink/catalog-download-page'
+import type { BrickLinkCategory, BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
-import { itemTypes, processingCounts, selectedItemType, setItems, tableItems, tableRef } from '../../model'
+import { itemTypes, selectedItemType, setItems, tableItems, tableRef } from '../../model'
 import type { IDBPDatabase } from 'idb'
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 
 async function loadCategory(db: IDBPDatabase, id: number) {
   const category: Category = {
@@ -32,10 +32,9 @@ async function setCategories(db: IDBPDatabase) {
   }
   tableItems.value = []
   for (let i = 0; i < categories.length; i++) {
-    if (selectedItemType.value.id !== 'categories') {
+    if (selectedItemType.value?.id !== 'categories') {
       break
     }
-    console.log('Loading category', categories[i].id)
     tableItems.value.push(await loadCategory(db, categories[i].id!))
   }
 }
@@ -89,7 +88,9 @@ watch(() => selectedItemType.value, (value) => {
   if (!value) {
     return
   }
-  tableRef.value = localTableRef.value
+  nextTick(() => {
+    tableRef.value = localTableRef.value
+  })
 })
 </script>
 

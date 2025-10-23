@@ -15,26 +15,19 @@ const {
   item: any
   setMaxWidth?: boolean
 }>()
-const modelsStore = useModelsStore()
 
 function handleClick() {
-  const modelsStoreRefs = storeToRefs(modelsStore)
-  // const { filters, search, selectedItem, pauseRedirect } = modelsStoreRefs
-  const { search, pauseRedirect } = modelsStoreRefs
-  pauseRedirect.value = true
   if (column.clickValue) {
     // selectedItem.value = column.clickSelection
     // filters.value = filters.value.filter((filter) => filter.key !== key)
     filters.value.push(column.clickValue(item))
     selectedItemType.value = column.clickSelection
     console.log('pushed filter')
-    search.value = undefined
     setCounts()
   }
   if (column.clickFn) {
     column.clickFn(item)
   }
-  pauseRedirect.value = false
   processQueue(column.processCount)
 }
 const label = computed(() => {

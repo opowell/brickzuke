@@ -346,9 +346,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     if (!brickLinkItemTypes) {
       return
     }
-    // await fetchCatalogTree('S')
-    // await fetchCatalogTree('P')
-    // await fetchCatalogTree('M')
     for (let i = 0; i < brickLinkItemTypes?.length; i++) {
       const type = brickLinkItemTypes[i].itemTypeId
       await fetchCatalogTree(type)
