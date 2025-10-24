@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, getAllFromIndex } from './idb/db'
@@ -7,6 +7,7 @@ import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
 import type { IDBPDatabase } from 'idb'
 import indices from './idb/indices'
+import router from '@/router/index'
 
 interface Filter {
   key: string
@@ -77,13 +78,13 @@ async function getItemsCount(db: IDBPDatabase): Promise<number> {
   return numItems
 }
 
-function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
+export function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
   let low = 0,
     high = array.length;
 
   while (low < high) {
     const mid = low + high >>> 1
-    if (array[mid].score < itemToAdd.score) low = mid + 1
+    if (array[mid].score > itemToAdd.score) low = mid + 1
     else high = mid
   }
   return low
@@ -207,9 +208,35 @@ const clickCategoryItemsFn = async (category: Category) => {
     displayValue: category.name,
   })
   search.value = undefined
+  updateWindowUrl()
   const db = await getDbConnection()
   setItems(db)
   setCounts()
+}
+
+const currentQueryString = computed(() => {
+  const parts = []
+  if (selectedItemType.value) {
+    parts.push('v=' + selectedItemType.value.id)
+  }
+  if (search.value) {
+    parts.push('s=' + search.value)
+  }
+  if (filters.value.length > 0) {
+    parts.push('f=' + filters.value.map((filter) => filter.key + '_' + filter.value).join(','))
+  }
+  // if (sorts.value.length > 0) {
+  //   parts.push('b=' + sorts.value.map((sort) => sort.key + '_' + sort.dir).join(','))
+  // }
+  if (parts.length === 0) {
+    return '/'
+  }
+  return '/?' + parts.join('&')
+})
+
+function updateWindowUrl() {
+  console.log(currentQueryString.value)
+  router.push(currentQueryString.value)
 }
 
 export const itemTypes = ref<SelectOption<any>[]>([
