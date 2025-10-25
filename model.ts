@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, getAllFromIndex } from './idb/db'
@@ -19,7 +19,7 @@ interface Filter {
 export const selectedItemType = ref()
 export const filters = ref<Filter[]>([])
 export const processingCounts = ref(false)
-const search = ref<string | undefined>(undefined)
+export const search = ref<string | undefined>(undefined)
 export async function setCounts() {
   processingCounts.value = true
   const db = await getDbConnection()
@@ -30,6 +30,9 @@ export async function setCounts() {
   itemTypes.value[4].count = await count(db, stores.PART_AND_COLOR_CODES)
   processingCounts.value = false
 }
+
+export const pauseRedirect = ref(false)
+export const selectedItemTypeId = ref<string | undefined>(undefined)
 
 async function getItemsCount(db: IDBPDatabase): Promise<number> {
   console.log('Setting items with filters:', filters.value)

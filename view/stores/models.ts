@@ -746,39 +746,6 @@ export const useModelsStore = defineStore('models', () => {
   })
   // watchers
   watch(
-    () => route.query,
-    () => {
-      pauseRedirect.value = true
-      search.value = route.query.s?.toString()
-      selectedItem.value = route.query.v?.toString()
-      const filtersString = route.query.f?.toString()
-      if (filtersString) {
-        filters.value = filtersString.split(',').map((fs) => {
-          const parts = fs.split('_')
-          return {
-            key: parts[0],
-            value: parts[1],
-          }
-        })
-      } else {
-        filters.value = []
-      }
-      const sortsString = route.query.b?.toString()
-      if (sortsString) {
-        sorts.value = sortsString.split(',').map((bs) => {
-          const parts = bs.split('_')
-          return {
-            key: parts[0],
-            dir: parts[1],
-          }
-        })
-      } else {
-        sorts.value = []
-      }
-      pauseRedirect.value = false
-    },
-  )
-  watch(
     () => {
       return {
         pauseRedirect: pauseRedirect,
@@ -798,20 +765,20 @@ export const useModelsStore = defineStore('models', () => {
       deep: true,
     },
   )
-  watch(
-    () => route.query,
-    () => {
-      // console.log('new query, dispatch')
-      document.dispatchEvent(
-        new CustomEvent('bzClientToServer', {
-          detail: {
-            type: 'query',
-            query: route.query,
-          },
-        }),
-      )
-    },
-  )
+  // watch(
+  //   () => route.query,
+  //   () => {
+  //     // console.log('new query, dispatch')
+  //     document.dispatchEvent(
+  //       new CustomEvent('bzClientToServer', {
+  //         detail: {
+  //           type: 'query',
+  //           query: route.query,
+  //         },
+  //       }),
+  //     )
+  //   },
+  // )
   watch(
     () => catTypes.value,
     async () => {

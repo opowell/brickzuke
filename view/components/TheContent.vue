@@ -7,23 +7,12 @@ import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import { sum } from '../../idb/utils'
 import { getAll, getAllFromIndex } from '../../idb/db'
-import type { BrickLinkCategory, BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
+import type { BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
+import { loadCategory } from '../../idb/category'
 import { findIndex, itemTypes, selectedItemType, setItems, tableItems, tableRef } from '../../model'
 import type { IDBPDatabase } from 'idb'
 import { nextTick, ref, watch } from 'vue'
-
-async function loadCategory(db: IDBPDatabase, id: number) {
-  const category: Category = {
-    id
-  }
-  category.brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, category.id)
-  category.items = sum<BrickLinkCategory>(category.brickLinkCategories, c => c.items)
-  category.score = category.items
-  category.name = category.brickLinkCategories?.map((c: BrickLinkCategory) => c['Category Name']).join(', ')
-  category.type = category.brickLinkCategories?.map((c: BrickLinkCategory) => c.catType).join(', ')
-  return category
-}
 
 async function setCategories(db: IDBPDatabase) {
   console.log('setCategories')
