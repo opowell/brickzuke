@@ -8,6 +8,7 @@ export interface SelectOption<T> {
   items?: T[]
   count?: number
   preview?: string | ((item: T) => string)
+  previewItems?: T[]
   previewClickFn?: (item: T) => void
   columns?: TableColumn<T>[]
   idField?: string
