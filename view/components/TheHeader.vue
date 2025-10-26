@@ -3,12 +3,13 @@ import TheViews from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
 import { ref } from 'vue'
-import { selectedItemType, itemTypes } from '../../model'
+import { selectedItemType, itemTypes, updateView } from '../../model'
 import { search } from '../../model'
 
 const localSearch = ref(search.value)
 function doSearch() {
   search.value = localSearch.value
+  updateView()
 }
 </script>
 

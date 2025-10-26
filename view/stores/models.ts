@@ -828,10 +828,6 @@ export const useModelsStore = defineStore('models', () => {
   })
 
   // methods
-  function setSelectedItem(table) {
-    selectedItem.value = table.id
-  }
-
   function addSort(key: string, dir: 'a' | 'd') {
     const existingSort = sorts.value.find((s) => s.key === key)
     if (existingSort) {
@@ -854,7 +850,6 @@ export const useModelsStore = defineStore('models', () => {
     search,
     selectedItem,
     selectedItemType,
-    setSelectedItem,
     itemTypes,
     currentQuery,
     itemIds,

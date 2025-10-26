@@ -2,83 +2,9 @@
 import TableComponent from './TableComponent.vue'
 import { getTableLabel } from '@/assets/js/getTableLabel.ts'
 import TableCell from './TableCell.vue'
-import type { SelectOption } from './header/TheViews.vue'
-import { getDbConnection } from '../../idb/idb'
-import stores from '../../idb/stores'
-import { sum } from '../../idb/utils'
-import { getAll, getAllFromIndex } from '../../idb/db'
-import type { BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
-import indices from '../../idb/indices'
-import { loadCategory } from '../../idb/category'
-import { findIndex, itemTypes, search, selectedItemType, setItems, tableItems, tableRef } from '../../model'
-import type { IDBPDatabase } from 'idb'
+import { itemTypes, selectedItemType, tableItems, tableRef } from '../../model'
 import { nextTick, ref, watch } from 'vue'
-
-async function setCategories(db: IDBPDatabase) {
-  console.log('setCategories')
-  const categories = await getAll<Category>(db, stores.CATEGORIES)
-  if (!categories) {
-    return
-  }
-  tableItems.value = []
-  const searchLower = search.value?.toLowerCase() || ''
-  for (let i = 0; i < categories.length; i++) {
-    if (selectedItemType.value?.id !== 'categories') {
-      break
-    }
-    const category = await loadCategory(db, categories[i].id!)
-    if (searchLower?.length && !category.name?.toLowerCase().includes(searchLower)) {
-      continue
-    }
-    const index = findIndex(tableItems.value, category)
-    tableItems.value.splice(index, 0, category)
-  }
-}
-async function setColors(db: IDBPDatabase) {
-  const colors = await getAll<Color>(db, stores.COLORS)
-  if (!colors) {
-    return
-  }
-  for (let i = 0; i < colors.length; i++) {
-    const color = colors[i]
-    color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id)
-    color.countItems = sum<BrickLinkColor>(color.brickLinkColors, c => Number.parseInt(c.Parts))
-    color.image = color.brickLinkColors?.find((c: BrickLinkColor) => c.image)?.image
-  }
-  tableItems.value = colors
-}
-async function setItemTypes(db: IDBPDatabase) {
-  const itemTypesData = await getAll<ItemType>(db, stores.ITEM_TYPES)
-  if (!itemTypesData) {
-    return
-  }
-  for (let i = 0; i < itemTypesData.length; i++) {
-    const itemType = itemTypesData[i]
-    itemType.brickLinkItemTypes = await getAllFromIndex<BrickLinkItemType>(db, indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID, itemType.id)
-    itemType.countItems = sum<BrickLinkItemType>(itemType.brickLinkItemTypes, it => Number.parseInt(it.Items))
-  }
-  tableItems.value = itemTypesData
-}
-
-const setSelectedItem = async function (option: SelectOption<any>) {
-  console.log('setSelectedItem', option)
-  selectedItemType.value = option
-  const db = await getDbConnection()
-  switch (option.id) {
-    case 'categories':
-      await setCategories(db)
-      return
-    case 'colors':
-      await setColors(db)
-      return
-    case 'itemTypes':
-      await setItemTypes(db)
-      return
-    case 'items':
-      await setItems(db)
-      return
-  }
-}
+import { setSelectedItem } from '../../model'
 const localTableRef = ref<InstanceType<typeof TableComponent> | null>(null)
 watch(() => selectedItemType.value, (value) => {
   if (!value) {

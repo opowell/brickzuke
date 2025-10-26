@@ -1,12 +1,14 @@
 import { computed, ref } from 'vue'
-import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item, type UiItem } from './view/stores/bricklink/catalog-download-page'
+import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
-import { count, getAllFromIndex } from './idb/db'
+import { count, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
 import type { IDBPDatabase } from 'idb'
 import indices from './idb/indices'
+import { sum } from './idb/utils'
+import { loadCategory } from './idb/category'
 
 interface Filter {
   key: string
@@ -195,6 +197,81 @@ export async function setItems(db: IDBPDatabase) {
         tableRef.value?.addRow(item, index)
       }
     }
+  }
+}
+
+async function setCategories(db: IDBPDatabase) {
+  const currentSearch = search.value
+  console.log('setCategories')
+  const categories = await getAll<Category>(db, stores.CATEGORIES)
+  if (!categories) {
+    return
+  }
+  tableItems.value = []
+  const searchLower = search.value?.toLowerCase() || ''
+  for (let i = 0; i < categories.length; i++) {
+    if (selectedItemType.value?.id !== 'categories') {
+      break
+    }
+    if (currentSearch !== search.value) {
+      console.log('search changed, aborting setCategories')
+      break
+    }
+    const category = await loadCategory(db, categories[i].id!)
+    if (searchLower?.length && !category.name?.toLowerCase().includes(searchLower)) {
+      continue
+    }
+    const index = findIndex(tableItems.value, category)
+    tableItems.value.splice(index, 0, category)
+  }
+}
+async function setColors(db: IDBPDatabase) {
+  const colors = await getAll<Color>(db, stores.COLORS)
+  if (!colors) {
+    return
+  }
+  for (let i = 0; i < colors.length; i++) {
+    const color = colors[i]
+    color.brickLinkColors = await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id)
+    color.countItems = sum<BrickLinkColor>(color.brickLinkColors, c => Number.parseInt(c.Parts))
+    color.image = color.brickLinkColors?.find((c: BrickLinkColor) => c.image)?.image
+  }
+  tableItems.value = colors
+}
+async function setItemTypes(db: IDBPDatabase) {
+  const itemTypesData = await getAll<ItemType>(db, stores.ITEM_TYPES)
+  if (!itemTypesData) {
+    return
+  }
+  for (let i = 0; i < itemTypesData.length; i++) {
+    const itemType = itemTypesData[i]
+    itemType.brickLinkItemTypes = await getAllFromIndex<BrickLinkItemType>(db, indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID, itemType.id)
+    itemType.countItems = sum<BrickLinkItemType>(itemType.brickLinkItemTypes, it => Number.parseInt(it.Items))
+  }
+  tableItems.value = itemTypesData
+}
+
+export const setSelectedItem = async function (option: SelectOption<any>) {
+  console.log('setSelectedItem', option)
+  selectedItemType.value = option
+  updateView()
+}
+
+export const updateView = async () => {
+  const db = await getDbConnection()
+  switch (selectedItemType.value?.id) {
+    case 'categories':
+      await setCategories(db)
+      return
+    case 'colors':
+      await setColors(db)
+      return
+    case 'itemTypes':
+      await setItemTypes(db)
+      return
+    case 'items':
+      await setItems(db)
+      return
   }
 }
 
