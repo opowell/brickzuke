@@ -9,6 +9,7 @@ import type { IDBPDatabase } from 'idb'
 import indices from './idb/indices'
 import { sum } from './idb/utils'
 import { loadCategory } from './idb/category'
+import router from '@/router'
 
 interface Filter {
   key: string
