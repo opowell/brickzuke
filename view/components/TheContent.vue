@@ -10,7 +10,7 @@ import { getAll, getAllFromIndex } from '../../idb/db'
 import type { BrickLinkColor, BrickLinkItemType, Category, Color, ItemType } from '@/stores/bricklink/catalog-download-page'
 import indices from '../../idb/indices'
 import { loadCategory } from '../../idb/category'
-import { findIndex, itemTypes, selectedItemType, setItems, tableItems, tableRef } from '../../model'
+import { findIndex, itemTypes, search, selectedItemType, setItems, tableItems, tableRef } from '../../model'
 import type { IDBPDatabase } from 'idb'
 import { nextTick, ref, watch } from 'vue'
 
@@ -21,11 +21,15 @@ async function setCategories(db: IDBPDatabase) {
     return
   }
   tableItems.value = []
+  const searchLower = search.value?.toLowerCase() || ''
   for (let i = 0; i < categories.length; i++) {
     if (selectedItemType.value?.id !== 'categories') {
       break
     }
     const category = await loadCategory(db, categories[i].id!)
+    if (searchLower?.length && !category.name?.toLowerCase().includes(searchLower)) {
+      continue
+    }
     const index = findIndex(tableItems.value, category)
     tableItems.value.splice(index, 0, category)
   }

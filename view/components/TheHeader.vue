@@ -2,13 +2,10 @@
 import TheViews from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
-import { storeToRefs } from 'pinia'
-import { useModelsStore } from '../stores/models.ts'
 import { ref } from 'vue'
 import { selectedItemType, itemTypes } from '../../model'
+import { search } from '../../model'
 
-const modelsStore = useModelsStore()
-const { search } = storeToRefs(modelsStore)
 const localSearch = ref(search.value)
 function doSearch() {
   search.value = localSearch.value

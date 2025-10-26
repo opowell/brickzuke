@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Item, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, getAllFromIndex } from './idb/db'
@@ -7,7 +7,6 @@ import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
 import type { IDBPDatabase } from 'idb'
 import indices from './idb/indices'
-import router from '@/router/index'
 
 interface Filter {
   key: string

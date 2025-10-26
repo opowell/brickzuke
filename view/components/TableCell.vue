@@ -2,10 +2,8 @@
 import { formatInteger } from '@/assets/js/utils.ts'
 import type { TableColumn } from './TableComponent.vue'
 import { computed } from 'vue'
-import { useModelsStore } from '@/stores/models'
-import { storeToRefs } from 'pinia'
 import { processQueue } from '@/assets/js/make-call'
-import { selectedItemType, filters, setCounts, clearCounts } from '../../model'
+import { selectedItemType, filters, setCounts } from '../../model'
 const {
   column,
   item,
