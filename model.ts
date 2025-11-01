@@ -1,13 +1,12 @@
 import { computed, ref } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
-import type { TableComponent } from './types/components'
-import { count, countFromIndex, getAll, getAllFromIndex } from './idb/db'
+import { count, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
-import stores, { type StoreDefinition } from './idb/stores'
+import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
 import { type IDBPDatabase } from 'idb'
-import indices, { type IndexDefinition } from './idb/indices'
+import indices from './idb/indices'
 import { sum } from './idb/utils'
 import { loadCategory } from './idb/category'
 import router from '@/router'
@@ -33,7 +32,7 @@ export const hasSearch = computed(() => {
 export async function setCounts() {
   processingCounts.value = true
   const db = await getDbConnection()
-  itemTypes.value[0].count = await count(db, stores.CATEGORIES)
+  // itemTypes.value[0].count = await count(db, stores.CATEGORIES)
   itemTypes.value[1].count = await count(db, stores.COLORS)
   itemTypes.value[2].count = await count(db, stores.ITEM_TYPES)
   itemTypes.value[4].count = await count(db, stores.PART_AND_COLOR_CODES)
@@ -56,12 +55,13 @@ async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: numbe
 export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
 
-async function getItemsCount(): Promise<number> {
+async function getItemsCount() {
   const db = await getDbConnection()
   console.log('Setting items with filters:', filters.value, search.value, hasSearch.value)
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
   if (filteredCategories.length === 0 && !hasSearch.value) {
-    return await count(db, stores.ITEMS)
+    itemTypes.value[3].count = await count(db, stores.ITEMS)
+    return
   }
   let numItems = 0
   const searchLowercase = search.value?.toLowerCase()
@@ -78,7 +78,6 @@ async function getItemsCount(): Promise<number> {
         }
         for (let j = 0; j < brickLinkCategories.length; j++) {
           const blCategory = brickLinkCategories[j]
-          console.log('BrickLink Category:', blCategory['Category Name'])
           while (true) {
             const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
             const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
@@ -109,34 +108,31 @@ async function getItemsCount(): Promise<number> {
         console.error('Error loading category ID:', categoryId, e)
       }
     }
+    itemTypes.value[3].count = numItems
   }
   // Only search
   else {
     db.close()
     console.log('Counting items with search only:', searchLowercase)
+    const worker = new ItemCounterWorker();
 
-    return new Promise<number>((resolve) => {
-      const worker = new ItemCounterWorker();
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') {
+        itemTypes.value[3].count = e.data.count;
+        itemTypes.value[0].count = e.data.numCategories;
+      } else if (e.data.type === 'complete') {
+        itemTypes.value[3].count = e.data.count;
+        itemTypes.value[0].count = e.data.numCategories;
+        worker.terminate();
+      }
+    };
 
-      worker.onmessage = (e) => {
-        if (e.data.type === 'progress') {
-          itemTypes.value[3].count = e.data.count;
-        } else if (e.data.type === 'complete') {
-          itemTypes.value[3].count = e.data.count;
-          worker.terminate();
-          resolve(e.data.count);
-        }
-      };
-
-      worker.postMessage({
-        stores,
-        indices,
-        searchLowercase: searchLowercase || ''
-      });
+    worker.postMessage({
+      stores,
+      indices,
+      searchLowercase
     });
   }
-  console.log('found', numItems)
-  return numItems
 }
 
 export function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {

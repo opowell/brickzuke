@@ -21,10 +21,10 @@ interface WorkerMessage {
 
 let lastUpdateTime = Date.now();
 
-const postProgress = (count: number) => {
+const postProgress = (count: number, numCategories: number) => {
   const currentTime = Date.now();
   if (currentTime - lastUpdateTime >= 500) {
-    const message: WorkerMessage = { type: 'progress', count };
+    const message: WorkerMessage = { type: 'progress', count, numCategories };
     self.postMessage(message);
     lastUpdateTime = currentTime;
   }
@@ -46,22 +46,22 @@ self.onmessage = async (e: MessageEvent) => {
       return;
     }
 
-    let numItems = 0;
+    let numItems = 0
+    let numCategories = 0
     const store = bzDb.transaction(stores.CATEGORIES.name, 'readonly').store;
     if (!store) {
-      self.postMessage({ type: 'complete', count: 0 });
+      self.postMessage({ type: 'complete', count: 0, numCategories });
       return;
     }
 
     const allCategories = await store.getAll();
     if (!allCategories) {
-      self.postMessage({ type: 'complete', count: 0 });
+      self.postMessage({ type: 'complete', count: 0, numCategories });
       return;
     }
 
     for (const category of allCategories) {
       const categoryId = category.id;
-      console.log('Loading category:', categoryId);
 
       try {
         const categoryTx = bzDb.transaction(stores.BRICK_LINK_CATEGORIES.name, 'readonly');
@@ -76,11 +76,12 @@ self.onmessage = async (e: MessageEvent) => {
         for (const blCategory of brickLinkCategories) {
           try {
             if (blCategory['Category Name'].toLowerCase().includes(searchLowercase)) {
+              numCategories++;
               const itemsTx = bzDb.transaction(stores.BRICK_LINK_ITEMS.name, 'readonly');
               const itemsIndex = itemsTx.store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name);
               const count = await itemsIndex.count(blCategory.categoryId);
               numItems += count;
-              postProgress(numItems);
+              postProgress(numItems, numCategories);
               continue;
             }
 
@@ -92,7 +93,7 @@ self.onmessage = async (e: MessageEvent) => {
               const brickLinkItem = cursor.value;
               if (brickLinkItem.Name.toLowerCase().includes(searchLowercase)) {
                 numItems++;
-                postProgress(numItems);
+                postProgress(numItems, numCategories);
               }
               cursor = await cursor.continue();
             }
@@ -105,10 +106,10 @@ self.onmessage = async (e: MessageEvent) => {
       }
     }
 
-    self.postMessage({ type: 'complete', count: numItems });
+    self.postMessage({ type: 'complete', count: numItems, numCategories });
     bzDb.close();
   } catch (e) {
     console.error('Worker error:', e);
-    self.postMessage({ type: 'complete', count: 0 });
+    self.postMessage({ type: 'complete', count: 0, numCategories: 0});
   }
 };
