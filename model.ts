@@ -1,19 +1,17 @@
-import { defineConfig } from 'vite';
-import { BRICK_LINK_CATALOG } from './view/stores/bricklink/catalog-codes';
 import { computed, ref } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, countFromIndex, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
-import stores from './idb/stores'
+import stores, { type StoreDefinition } from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
 import { type IDBPDatabase } from 'idb'
-import indices from './idb/indices'
+import indices, { type IndexDefinition } from './idb/indices'
 import { sum } from './idb/utils'
 import { loadCategory } from './idb/category'
 import router from '@/router'
 import { useWebWorkerFn } from '@vueuse/core'
-
+import workerGetItemsCount from './workerGetItemsCount'
 interface Filter {
   key: string
   label?: string
@@ -45,6 +43,7 @@ export async function setCounts() {
   // itemTypes.value[2].previewItems = await getPreviewItems<ItemType>(db, stores.ITEM_TYPES, 10)
   // itemTypes.value[3].previewItems = await getPreviewItems<Item>(db, stores.ITEMS, 10)
   // itemTypes.value[4].previewItems = await getPreviewItems<PartAndColorCode>(db, stores.PART_AND_COLOR_CODES, 10)
+  processingCounts.value = false
 }
 
 async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: number): Promise<any[]> {
@@ -222,62 +221,25 @@ async function getItemsCount(): Promise<number> {
     //   ]
     // })
 // useWebWorkerFn for sorting
-const { workerFn, status: workerStatus, terminate } = useWebWorkerFn(
-  async (stores) => {
-    // Write a log entry to IndexedDB
-    let openDB;
-    try {
-      // Try dynamic import (should work in vite web worker)
-      openDB = (await import('idb')).openDB;
-    } catch (e) {
-      // Fallback: try importScripts from CDN (UMD build)
-      if (typeof importScripts === 'function') {
-        importScripts('https://cdn.jsdelivr.net/npm/idb@8.0.3/build/umd.js');
-        openDB = self.idb.openDB;
-      } else {
-        throw new Error('idb not available in worker');
+    const { workerFn, status: workerStatus, terminate } = useWebWorkerFn(
+      workerGetItemsCount,
+      {
+        timeout: 10000,
+        localDependencies: [
+          getDbConnection,
+          getAllFromIndex,
+          countFromIndex
+        ],
+        // Remove dependencies: [] so Vite doesn't try to bundle idb for worker
       }
-    }
-    console.log('adding log entry in worker');
-    const bzDb = await openDB('brickzuke', 16, {
-      upgrade() {
-        console.log('upgrade db')
-      },
-    })
-    if (!bzDb) {
-      console.log('Worker could not get DB connection');
-      return 0;
-    }
-    const numItems = 0
-    const transaction = bzDb.transaction(stores.BRICK_LINK_CATEGORIES.name, 'readonly')
-    console.log('transaction', transaction)
-    if (!transaction) {
-      return numItems
-    }
-    const store = transaction.store
-    console.log('store', store)
-    if (!store) {
-      return numItems
-    }
-    const allCategories = await store.getAll()
-    console.log('allCategories', allCategories)
-    if (!allCategories) {
-      return numItems
-    }
-    return allCategories.length
-  },
-  {
-    timeout: 10000,
-    // Remove dependencies: [] so Vite doesn't try to bundle idb for worker
-  }
-);
+    );
 
     const workerResponse = await workerFn(stores, indices, searchLowercase!)
     // const workerResponse = await workerFn(stores, indices, searchLowercase!)
     if (!workerResponse) {
       return 0
     }
-    return workerResponse[5000]
+    return workerResponse
   }
   console.log('found', numItems)
   return numItems
