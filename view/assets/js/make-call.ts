@@ -204,6 +204,7 @@ export async function processQueue(reps = 1) {
       }
     }
   }
+  db.close()
 }
 
 export async function queueCalls(
@@ -255,6 +256,7 @@ export async function queueCalls(
       storageTime,
     })
   }
+  db.close()
 }
 
 export function callKey(url: string, options: { body?: string }, extraParams?: object) {
@@ -290,6 +292,7 @@ export async function queueCall(
   const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
   // If the call is already stored, return the stored response.
   if (value) {
+    db.close()
     handleEvent({
       request: {
         type: callType,
@@ -312,6 +315,7 @@ export async function queueCall(
     date: new Date(),
     storageTime,
   })
+  db.close()
   return false
 }
 
@@ -337,6 +341,7 @@ export async function makeCall(
       },
       response: value.response,
     })
+    db.close()
     return true
   }
   // Otherwise dispatch the call to the server.

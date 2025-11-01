@@ -7,7 +7,7 @@ import { isProxy, toRaw } from 'vue'
 export async function openCursor(
   db: IDBPDatabase,
   store: StoreDefinition,
-): Promise<IDBCursor | undefined> {
+): Promise<IDBCursorWithValue | null> {
   return await db.transaction(store.name).store.openCursor()
 }
 
@@ -20,6 +20,10 @@ export async function getAll<T>(
 
 export async function count(db: IDBPDatabase, storeDefinition: StoreDefinition) {
   return await db.count(storeDefinition.name)
+}
+
+export async function countFromIndex(db: IDBPDatabase, index: IndexDefinition, parameter) {
+  return await db.countFromIndex(index.store.name, index.name, parameter)
 }
 
 export async function get<T>(

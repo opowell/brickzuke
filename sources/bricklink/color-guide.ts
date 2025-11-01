@@ -45,4 +45,5 @@ export const handleResponse = async function(response: any[]) {
     existingColor.image = color.image
     await put<BrickLinkColor>(db, stores.BRICK_LINK_COLORS, existingColor)
   }
+  db.close()
 }

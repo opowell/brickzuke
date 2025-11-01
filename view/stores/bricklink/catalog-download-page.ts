@@ -331,6 +331,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       delete brickLinkObject[brickLinkObjectIdField]
       await put<T>(db, brickLinkStore, brickLinkObject)
     }
+    db.close()
   }
   async function handleItemTypes(detail: EventDetail) {
     const response = await handleDownload<ItemType, BrickLinkItemType>(
@@ -341,7 +342,9 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       'bzItemTypeId',
       'Item Type ID'
     )
-    const brickLinkItemTypes = await getAll<BrickLinkItemType>(await getDbConnection(), stores.BRICK_LINK_ITEM_TYPES)
+    const db = await getDbConnection()
+    const brickLinkItemTypes = await getAll<BrickLinkItemType>(db, stores.BRICK_LINK_ITEM_TYPES)
+    db.close()
     if (brickLinkItemTypes) {
       for (let i = 0; i < brickLinkItemTypes?.length; i++) {
         const type = brickLinkItemTypes[i].itemTypeId
@@ -351,7 +354,9 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     return response
   }
   async function updateCatalogTree() {
-    const brickLinkItemTypes = await getAll<BrickLinkItemType>(await getDbConnection(), stores.BRICK_LINK_ITEM_TYPES)
+    const db = await getDbConnection()
+    const brickLinkItemTypes = await getAll<BrickLinkItemType>(db, stores.BRICK_LINK_ITEM_TYPES)
+    db.close()
     if (!brickLinkItemTypes) {
       return
     }
@@ -428,6 +433,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       brickLinkItem.bzItemId = itemId
       await put<BrickLinkItem>(db, stores.BRICK_LINK_ITEMS, brickLinkItem)
     }
+    db.close()
 
     items.value.set(itemType, map)
   }

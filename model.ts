@@ -1,15 +1,18 @@
+import { defineConfig } from 'vite';
+import { BRICK_LINK_CATALOG } from './view/stores/bricklink/catalog-codes';
 import { computed, ref } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
-import { count, getAll, getAllFromIndex } from './idb/db'
+import { count, countFromIndex, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
-import type { IDBPDatabase } from 'idb'
+import { type IDBPDatabase } from 'idb'
 import indices from './idb/indices'
 import { sum } from './idb/utils'
 import { loadCategory } from './idb/category'
 import router from '@/router'
+import { useWebWorkerFn } from '@vueuse/core'
 
 interface Filter {
   key: string
@@ -22,19 +25,26 @@ export const selectedItemType = ref()
 export const filters = ref<Filter[]>([])
 export const processingCounts = ref(false)
 export const search = ref<string | undefined>(undefined)
+export const hasSearch = computed(() => {
+  if (!search.value) {
+    return false
+  }
+  return search.value.length > 0
+})
 export async function setCounts() {
   processingCounts.value = true
   const db = await getDbConnection()
   itemTypes.value[0].count = await count(db, stores.CATEGORIES)
   itemTypes.value[1].count = await count(db, stores.COLORS)
   itemTypes.value[2].count = await count(db, stores.ITEM_TYPES)
-  itemTypes.value[3].count = await getItemsCount(db)
   itemTypes.value[4].count = await count(db, stores.PART_AND_COLOR_CODES)
-  itemTypes.value[0].previewItems = await getPreviewItems<Category>(db, stores.CATEGORIES, 10)
-  itemTypes.value[1].previewItems = await getPreviewItems<Color>(db, stores.COLORS, 10)
-  itemTypes.value[2].previewItems = await getPreviewItems<ItemType>(db, stores.ITEM_TYPES, 10)
-  itemTypes.value[3].previewItems = await getPreviewItems<Item>(db, stores.ITEMS, 10)
-  itemTypes.value[4].previewItems = await getPreviewItems<PartAndColorCode>(db, stores.PART_AND_COLOR_CODES, 10)
+  db.close()
+  itemTypes.value[3].count = await getItemsCount()
+  // itemTypes.value[0].previewItems = await getPreviewItems<Category>(db, stores.CATEGORIES, 10)
+  // itemTypes.value[1].previewItems = await getPreviewItems<Color>(db, stores.COLORS, 10)
+  // itemTypes.value[2].previewItems = await getPreviewItems<ItemType>(db, stores.ITEM_TYPES, 10)
+  // itemTypes.value[3].previewItems = await getPreviewItems<Item>(db, stores.ITEMS, 10)
+  // itemTypes.value[4].previewItems = await getPreviewItems<PartAndColorCode>(db, stores.PART_AND_COLOR_CODES, 10)
 }
 
 async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: number): Promise<any[]> {
@@ -46,50 +56,230 @@ async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: numbe
 export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
 
-async function getItemsCount(db: IDBPDatabase): Promise<number> {
-  console.log('Setting items with filters:', filters.value)
+async function getItemsCount(): Promise<number> {
+  const db = await getDbConnection()
+  console.log('Setting items with filters:', filters.value, search.value, hasSearch.value)
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
-  if (filteredCategories.length === 0) {
+  if (filteredCategories.length === 0 && !hasSearch.value) {
     return await count(db, stores.ITEMS)
   }
   let numItems = 0
-  for (let i = 0; i < filteredCategories.length; i++) {
-    const categoryId = filteredCategories[i]
-    try {
-      let count = 0
-      const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
-      if (!brickLinkCategories) {
-        console.log('No BrickLink categories for category ID:', categoryId)
-        continue
-      }
-      for (let j = 0; j < brickLinkCategories.length; j++) {
-        const blCategory = brickLinkCategories[j]
-        console.log('BrickLink Category:', blCategory['Category Name'])
-        while (true) {
-          const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
-          const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
-          const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
-          const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
-          if (!cursor) {
-            console.log('No more items for BL category:', blCategory)
-            break
-          }
-          if (count > 0) {
-            await cursor.advance(count)
-          }
-          count++
-          const brickLinkItem = cursor.value
-          if (!brickLinkItem) {
-            break
-          }
-          numItems++
+  const searchLowercase = search.value?.toLowerCase()
+  // Filters and maybe search
+  if (filteredCategories.length > 0) {
+    for (let i = 0; i < filteredCategories.length; i++) {
+      const categoryId = filteredCategories[i]
+      try {
+        let count = 0
+        const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
+        if (!brickLinkCategories) {
+          console.log('No BrickLink categories for category ID:', categoryId)
+          continue
         }
+        for (let j = 0; j < brickLinkCategories.length; j++) {
+          const blCategory = brickLinkCategories[j]
+          console.log('BrickLink Category:', blCategory['Category Name'])
+          while (true) {
+            const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
+            const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
+            const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
+            const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
+            if (!cursor) {
+              console.log('No more items for BL category:', blCategory)
+              break
+            }
+            if (count > 0) {
+              await cursor.advance(count)
+            }
+            const brickLinkItem = cursor.value
+            if (!brickLinkItem) {
+              break
+            }
+            if (hasSearch.value) {
+              if (brickLinkItem.name.includes(search.value!.toLowerCase())) {
+                continue
+              }
+            }
+            count++
+            numItems++
+          }
+        }
+        console.log('Loaded category:', categoryId)
+      } catch (e) {
+        console.error('Error loading category ID:', categoryId, e)
       }
-      console.log('Loaded category:', categoryId)
-    } catch (e) {
-      console.error('Error loading category ID:', categoryId, e)
     }
   }
+  // Only search
+  else {
+    db.close()
+    console.log('Counting items with search only:', searchLowercase)
+    // const { workerFn } = useWebWorkerFn(async (
+    //   stores,
+    //   indices,
+    //   searchLowercase: string,
+    // ) => {
+    //   let workerDb
+    //   try {
+    //     let openDB;
+    //     try {
+    //       // Try dynamic import (should work in vite web worker)
+    //       openDB = (await import('idb')).openDB;
+    //     } catch (e) {
+    //       // Fallback: try importScripts from CDN (UMD build)
+    //       if (typeof importScripts === 'function') {
+    //         importScripts('https://cdn.jsdelivr.net/npm/idb@8.0.3/build/umd.js');
+    //       } else {
+    //         throw new Error('idb not available in worker');
+    //       }
+    //     }
+    //     if (!openDB) {
+    //       throw new Error('idb openDB function not found');
+    //     }
+    //     workerDb = await openDB('brickzuke', 16, {})
+    //     if (!workerDb) {
+    //       console.log('Worker could not get DB connection');
+    //       return 0;
+    //     }
+    //       const numItems = 0
+    //       const transaction = workerDb.transaction(stores.BRICK_LINK_CATEGORIES.name, 'readonly')
+    //       console.log('transaction', transaction)
+    //       if (!transaction) {
+    //         return numItems
+    //       }
+    //       const store = transaction.store
+    //       console.log('store', store)
+    //       if (!store) {
+    //         return numItems
+    //       }
+    //       const allCategories = await store.getAll()
+    //       if (!allCategories) {
+    //         return numItems
+    //       }
+    //       return allCategories.length
+    //     } catch (e) {
+    //     console.error('Worker error:', e)
+    //     return 0
+    //   } finally {
+    //     if (workerDb) {
+    //       workerDb.close()
+    //     }
+    //   }
+    //     // for (let i = 0; i < allCategories.length; i++) {
+    //     //   const category = allCategories[i]
+    //     //   const categoryId = category.categoryId
+    //     //   try {
+    //     //     const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
+    //     //     if (!brickLinkCategories) {
+    //     //       console.log('No BrickLink categories for category ID:', categoryId)
+    //     //       continue
+    //     //     }
+    //     //     for (let j = 0; j < brickLinkCategories.length; j++) {
+    //     //       const blCategory = brickLinkCategories[j]
+    //     //       console.log('BrickLink Category:', blCategory, searchLowercase)
+    //     //         try {
+    //     //         if (blCategory['Category Name'].toLowerCase().includes(searchLowercase!)) {
+    //     //           const blItemCount = await countFromIndex(db, indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID, blCategory.categoryId)
+    //     //           console.log('direct match on name', blItemCount)
+    //     //           numItems += blItemCount
+    //     //           continue
+    //     //         }
+    //     //         const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
+    //     //         const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
+    //     //         const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
+    //     //         const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
+    //     //         while (true) {
+    //     //           console.log(blCategory, numItems)
+    //     //           if (!cursor) {
+    //     //             console.log('No more items for BL category:', blCategory)
+    //     //             break
+    //     //           }
+    //     //           const brickLinkItem = cursor.value
+    //     //           if (!brickLinkItem) {
+    //     //             console.log('No more items for BL category:', blCategory)
+    //     //             break
+    //     //           }
+    //     //           if (brickLinkItem.Name.toLowerCase().includes(searchLowercase)) {
+    //     //             numItems++
+    //     //           }
+    //     //           await cursor.continue()
+    //     //         }
+    //     //       } catch (e) {
+    //     //         console.error('Error processing BL category:', blCategory, e)
+    //     //       }
+    //     //     }
+    //     //     console.log('Loaded category:', categoryId)
+    //     //   } catch (e) {
+    //     //     console.error('Error loading category ID:', categoryId, e)
+    //     //   }
+    //     // }
+    //     // return numItems
+    // }, {
+    //   localDependencies: [
+    //     getAllFromIndex,
+    //     getDbConnection,
+    //     countFromIndex,
+    //   ]
+    // })
+// useWebWorkerFn for sorting
+const { workerFn, status: workerStatus, terminate } = useWebWorkerFn(
+  async (stores) => {
+    // Write a log entry to IndexedDB
+    let openDB;
+    try {
+      // Try dynamic import (should work in vite web worker)
+      openDB = (await import('idb')).openDB;
+    } catch (e) {
+      // Fallback: try importScripts from CDN (UMD build)
+      if (typeof importScripts === 'function') {
+        importScripts('https://cdn.jsdelivr.net/npm/idb@8.0.3/build/umd.js');
+        openDB = self.idb.openDB;
+      } else {
+        throw new Error('idb not available in worker');
+      }
+    }
+    console.log('adding log entry in worker');
+    const bzDb = await openDB('brickzuke', 16, {
+      upgrade() {
+        console.log('upgrade db')
+      },
+    })
+    if (!bzDb) {
+      console.log('Worker could not get DB connection');
+      return 0;
+    }
+    const numItems = 0
+    const transaction = bzDb.transaction(stores.BRICK_LINK_CATEGORIES.name, 'readonly')
+    console.log('transaction', transaction)
+    if (!transaction) {
+      return numItems
+    }
+    const store = transaction.store
+    console.log('store', store)
+    if (!store) {
+      return numItems
+    }
+    const allCategories = await store.getAll()
+    console.log('allCategories', allCategories)
+    if (!allCategories) {
+      return numItems
+    }
+    return allCategories.length
+  },
+  {
+    timeout: 10000,
+    // Remove dependencies: [] so Vite doesn't try to bundle idb for worker
+  }
+);
+
+    const workerResponse = await workerFn(stores, indices, searchLowercase!)
+    // const workerResponse = await workerFn(stores, indices, searchLowercase!)
+    if (!workerResponse) {
+      return 0
+    }
+    return workerResponse[5000]
+  }
+  console.log('found', numItems)
   return numItems
 }
 
@@ -120,6 +310,14 @@ function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {
     category: brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', '),
     image: brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
   }
+  console.log('check search', search.value, item.name)
+  if (search.value) {
+    const searchLower = search.value.toLowerCase()
+    if (!item.name?.toLowerCase().includes(searchLower)) {
+      console.log('Skipping item due to search filter:', item.name)
+      return
+    }
+  }
   const index = findIndex(items, item)
   items.splice(index, 0, item)
   if (index < 200) {
@@ -128,8 +326,8 @@ function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {
 }
 
 export async function setItems(db: IDBPDatabase) {
-  console.log('Setting items with filters:', filters.value)
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
+  console.log('Setting items with filters:', filters.value, filteredCategories.length)
   if (filteredCategories.length > 0) {
     const items: UiItem[] = []
     tableItems.value = []
@@ -259,17 +457,18 @@ export const updateView = async () => {
   switch (selectedItemType.value?.id) {
     case 'categories':
       await setCategories(db)
-      return
+      break
     case 'colors':
       await setColors(db)
-      return
+      break
     case 'itemTypes':
       await setItemTypes(db)
-      return
+      break
     case 'items':
-      await setItems(db)
-      return
+      // await setItems(db)
+      break
   }
+  db.close()
 }
 
 const clickCategoryItemsFn = async (category: Category) => {
@@ -287,6 +486,7 @@ const clickCategoryItemsFn = async (category: Category) => {
   updateWindowUrl()
   const db = await getDbConnection()
   setItems(db)
+  db.close()
   setCounts()
 }
 

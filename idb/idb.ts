@@ -4,16 +4,11 @@ import INDICES from './indices'
 
 import { createIndex, createStore } from './db'
 
-let dbConnection: IDBPDatabase | undefined
-
 const DB_NAME = 'brickzuke'
 const DB_VERSION = 16
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
-  if (dbConnection) {
-    return dbConnection
-  }
-  const db = await openDB(DB_NAME, DB_VERSION, {
+  return await openDB(DB_NAME, DB_VERSION, {
     async upgrade(db, oldVersion, newVersion, transaction) {
       Object.values(STORES).forEach((store) => {
         try {
@@ -31,6 +26,4 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
       })
     },
   })
-  dbConnection = db
-  return db
 }

@@ -24,6 +24,7 @@ export function initBrickLinkWorker() {
           expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
         })
         handleEvent(e.detail)
+        db.close()
         break
       }
       case 'query': {
@@ -40,6 +41,7 @@ export function initBrickLinkWorker() {
           expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
         })
         handleEvent(e.detail)
+        db.close()
         break
       }
     }

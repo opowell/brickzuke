@@ -42,6 +42,7 @@ async function getFilterDisplayValue(key: string, value: string): Promise<string
         return category.name || value
       }
   }
+  db.close()
 }
 
 async function processUrl() {
@@ -85,7 +86,7 @@ async function processUrl() {
 
 onMounted(async () => {
   initStorageUsageFunction()
-  initBrickLinkWorker()
+  // initBrickLinkWorker()
   await router.isReady()
   await processUrl()
   setCounts()

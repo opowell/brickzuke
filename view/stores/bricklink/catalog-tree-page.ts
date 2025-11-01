@@ -41,6 +41,7 @@ async function handlePageResponse(detail: EventDetail) {
     console.log(category['Category Name'], category.items, values)
     await put(db, stores.BRICK_LINK_CATEGORIES, category)
   }
+  db.close()
 }
 
 export default {

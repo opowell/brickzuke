@@ -86,6 +86,7 @@ async function handleFetchResponse(response: string) {
   //     name: parts[1],
   //   }
   // })
+  db.close()
 }
 
 export default {
