@@ -2,11 +2,27 @@ import type { BrickLinkCategory } from '@/stores/bricklink/catalog-download-page
 import type { IndexDefinition } from './idb/indices';
 import type { StoreDefinition } from './idb/stores';
 
+/// <reference lib="webworker" />
+
+interface WorkerMessage {
+  type: 'progress' | 'complete';
+  count: number;
+}
+
 export default async function workerGetItemsCount(
   stores: { [key: string]: StoreDefinition },
   indices: { [key: string]: IndexDefinition },
   searchLowercase: string,
 ): Promise<number> {
+  let lastUpdateTime = Date.now();
+  const postProgress = (count: number) => {
+    const currentTime = Date.now();
+    if (currentTime - lastUpdateTime >= 500) {
+      const message: WorkerMessage = { type: 'progress', count };
+      self.postMessage(message);
+      lastUpdateTime = currentTime;
+    }
+  };
   // Write a log entry to IndexedDB
   let openDB;
   try {
@@ -76,17 +92,19 @@ export default async function workerGetItemsCount(
             }
             if (brickLinkItem.Name.toLowerCase().includes(searchLowercase)) {
               numItems++
+              postProgress(numItems);
             }
             await cursor.continue()
           }
-        } catch (e) {
-          // console.error('Error processing BL category:', blCategory, e)
+        } catch (e: unknown) {
+          console.error('Error processing BL category:', blCategory, e)
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('Error loading category ID:', categoryId, e)
     }
   }
-  console.log('Total items found:', numItems)
+  // Send final count
+  postMessage({ type: 'complete', count: numItems });
   return numItems
 }
