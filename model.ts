@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, getAll, getAllFromIndex } from './idb/db'
@@ -343,6 +343,13 @@ export function updateWindowUrl() {
   router.push(currentQueryString.value)
 }
 
+interface CountsState {
+  items: number
+  categories: number
+  colors: number
+  updated: number
+}
+
 // State
 export const selectedItemType = ref()
 export const filters = ref<Filter[]>([])
@@ -641,6 +648,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
     count: 0
   }
 ])
+export const counts = ref<Map<string, CountsState>>(new Map())
 
 // Computed
 export const hasSearch = computed(() => {
@@ -668,4 +676,14 @@ const currentQueryString = computed(() => {
     return '/'
   }
   return '/?' + parts.join('&')
+})
+
+// Watchers
+watch(currentQueryString, (newQuery) => {
+  counts.value.set(newQuery, {
+    items: 0,
+    categories: 0,
+    colors: 0,
+    updated: Date.now() 
+  })
 })
