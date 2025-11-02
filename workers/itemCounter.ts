@@ -12,14 +12,20 @@ let lastUpdateTime = Date.now();
 const postProgress = (count: number, numCategories: number) => {
   const currentTime = Date.now();
   if (currentTime - lastUpdateTime >= 10) {
-    const message: WorkerMessage = { type: 'progress', count, numCategories };
+    const message: WorkerMessage = {
+      type: 'progress',
+      count,
+      numCategories
+    };
     self.postMessage(message);
     lastUpdateTime = currentTime;
   }
 };
 
 self.onmessage = async (e: MessageEvent) => {
-  const { stores, indices, searchLowercase } = e.data;
+  const {
+    stores, indices, searchLowercase
+  } = e.data;
 
   try {
     const bzDb = await openDB('brickzuke', 16, {
@@ -30,7 +36,10 @@ self.onmessage = async (e: MessageEvent) => {
 
     if (!bzDb) {
       console.log('Worker could not get DB connection');
-      self.postMessage({ type: 'complete', count: 0 });
+      self.postMessage({
+        type: 'complete',
+        count: 0
+      });
       return;
     }
 
@@ -38,13 +47,21 @@ self.onmessage = async (e: MessageEvent) => {
     let numCategories = 0
     const store = bzDb.transaction(stores.CATEGORIES.name, 'readonly').store;
     if (!store) {
-      self.postMessage({ type: 'complete', count: 0, numCategories });
+      self.postMessage({
+        type: 'complete',
+        count: 0,
+        numCategories
+      });
       return;
     }
 
     const allCategories = await store.getAll();
     if (!allCategories) {
-      self.postMessage({ type: 'complete', count: 0, numCategories });
+      self.postMessage({
+        type: 'complete',
+        count: 0,
+        numCategories
+      });
       return;
     }
 
@@ -94,10 +111,19 @@ self.onmessage = async (e: MessageEvent) => {
       }
     }
 
-    self.postMessage({ type: 'complete', count: numItems, numCategories });
+    self.postMessage({
+      type: 'progress',
+      count: numItems,
+      numCategories
+    });
+    self.postMessage({
+      type: 'complete',
+    });
     bzDb.close();
   } catch (e) {
     console.error('Worker error:', e);
-    self.postMessage({ type: 'complete', count: 0, numCategories: 0});
+    self.postMessage({
+      type: 'complete',
+    });
   }
 };

@@ -40,6 +40,9 @@ export default defineConfigWithVueTs(
         ImportDeclaration: { minProperties: 999 },
         ExportDeclaration: { minProperties: 999 }
       }],
+      // enforce no semicolons
+      'semi': ['error', 'never'],
+      '@typescript-eslint/semi': ['error', 'never'],
     },
   },
 )

@@ -1,3 +1,4 @@
+import type { CountsState } from './types/counts-state';
 import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
@@ -67,6 +68,7 @@ async function getColorsCount() {
 }
 
 async function getItemsCount() {
+  const query = currentQueryString.value
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
   // No filters or search
   if (filteredCategories.length === 0 && !hasSearch.value) {
@@ -130,12 +132,16 @@ async function getItemsCount() {
     const worker = new ItemCounterWorker();
 
     worker.onmessage = (e) => {
+      const countObject = counts.value.get(query)
+      if (!countObject) {
+        return
+      }
       if (e.data.type === 'progress') {
         itemTypes.value[3].count = e.data.count;
         itemTypes.value[0].count = e.data.numCategories;
+        countObject.items = e.data.count
+        countObject.categories = e.data.numCategories
       } else if (e.data.type === 'complete') {
-        itemTypes.value[3].count = e.data.count;
-        itemTypes.value[0].count = e.data.numCategories;
         worker.terminate();
       }
     };
@@ -341,13 +347,6 @@ const clickCategoryItemsFn = async (category: Category) => {
 
 export function updateWindowUrl() {
   router.push(currentQueryString.value)
-}
-
-interface CountsState {
-  items: number
-  categories: number
-  colors: number
-  updated: number
 }
 
 // State
@@ -678,12 +677,29 @@ const currentQueryString = computed(() => {
   return '/?' + parts.join('&')
 })
 
+export const selectedItemTypes = computed<SelectOption<any>[]>(() => {
+  if (!selectedCounts.value) {
+    return
+  }
+  const object = {
+    ...itemTypes.value
+  }
+  object[0].count = selectedCounts.value?.categories
+  object[3].count = selectedCounts.value?.items
+  return object
+})
+
+export const selectedCounts = computed(() => {
+  return counts.value.get(currentQueryString.value)
+})
+
 // Watchers
 watch(currentQueryString, (newQuery) => {
   counts.value.set(newQuery, {
     items: 0,
     categories: 0,
     colors: 0,
-    updated: Date.now() 
+    updated: Date.now(),
+    finished: false
   })
 })

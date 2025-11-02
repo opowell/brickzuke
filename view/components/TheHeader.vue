@@ -2,7 +2,7 @@
 import TheViews from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { selectedItemType, itemTypes, updateView, setCounts, updateWindowUrl } from '../../model'
 import { search } from '../../model'
 
@@ -13,6 +13,7 @@ async function doSearch() {
   await setCounts()
   updateWindowUrl()
 }
+watch(search, () => localSearch.value = search.value)
 </script>
 
 <template>
