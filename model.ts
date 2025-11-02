@@ -10,8 +10,8 @@ import indices from './idb/indices'
 import { sum } from './idb/utils'
 import { loadCategory } from './idb/category'
 import router from '@/router'
-// Import the Web Worker using ?worker to have Vite bundle it correctly
 import ItemCounterWorker from './workers/itemCounter?worker'
+import ColorCounterWorker from './workers/colorCounter?worker'
 interface Filter {
   key: string
   label?: string
@@ -32,13 +32,12 @@ export const hasSearch = computed(() => {
 export async function setCounts() {
   processingCounts.value = true
   const db = await getDbConnection()
-  // itemTypes.value[0].count = await count(db, stores.CATEGORIES)
-  itemTypes.value[1].count = await count(db, stores.COLORS)
   itemTypes.value[2].count = await count(db, stores.ITEM_TYPES)
   itemTypes.value[4].count = await count(db, stores.PART_AND_COLOR_CODES)
   db.close()
   processingCounts.value = false
   getItemsCount()
+  getColorsCount()
   // itemTypes.value[0].previewItems = await getPreviewItems<Category>(db, stores.CATEGORIES, 10)
   // itemTypes.value[1].previewItems = await getPreviewItems<Color>(db, stores.COLORS, 10)
   // itemTypes.value[2].previewItems = await getPreviewItems<ItemType>(db, stores.ITEM_TYPES, 10)
@@ -54,6 +53,26 @@ async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: numbe
 
 export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
+
+async function getColorsCount() {
+  const searchLowercase = search.value?.toLowerCase()
+  const worker = new ColorCounterWorker();
+
+  worker.onmessage = (e) => {
+    if (e.data.type === 'progress') {
+      itemTypes.value[1].count = e.data.count;
+    } else if (e.data.type === 'complete') {
+      itemTypes.value[1].count = e.data.count;
+      worker.terminate();
+    }
+  };
+
+  worker.postMessage({
+    stores,
+    indices,
+    searchLowercase
+  });
+}
 
 async function getItemsCount() {
   const db = await getDbConnection()

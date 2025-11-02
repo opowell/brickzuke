@@ -23,7 +23,7 @@ let lastUpdateTime = Date.now();
 
 const postProgress = (count: number, numCategories: number) => {
   const currentTime = Date.now();
-  if (currentTime - lastUpdateTime >= 500) {
+  if (currentTime - lastUpdateTime >= 10) {
     const message: WorkerMessage = { type: 'progress', count, numCategories };
     self.postMessage(message);
     lastUpdateTime = currentTime;
