@@ -1,17 +1,5 @@
 /// <reference lib="webworker" />
 
-interface BrickLinkCategory {
-  categoryId: string;
-  'Category Name': string;
-}
-
-interface StoreDefinition {
-  name: string;
-}
-
-interface IndexDefinition {
-  name: string;
-}
 import { openDB } from 'idb';
 
 interface WorkerMessage {

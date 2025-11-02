@@ -55,6 +55,14 @@ export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
 
 async function getColorsCount() {
+  const filteredColors: number[] = filters.value.filter(f => f.key === 'color').map(f => Number(f.value))
+  if (filteredColors.length === 0 && !hasSearch.value) {
+    const db = await getDbConnection()
+    itemTypes.value[1].count = await count(db, stores.COLORS)
+    db.close()
+    return
+  }
+
   const searchLowercase = search.value?.toLowerCase()
   const worker = new ColorCounterWorker();
 
@@ -75,17 +83,19 @@ async function getColorsCount() {
 }
 
 async function getItemsCount() {
-  const db = await getDbConnection()
-  console.log('Setting items with filters:', filters.value, search.value, hasSearch.value)
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
+  // No filters or search
   if (filteredCategories.length === 0 && !hasSearch.value) {
+    const db = await getDbConnection()
     itemTypes.value[3].count = await count(db, stores.ITEMS)
+    db.close()
     return
   }
   let numItems = 0
   const searchLowercase = search.value?.toLowerCase()
   // Filters and maybe search
   if (filteredCategories.length > 0) {
+    const db = await getDbConnection()
     for (let i = 0; i < filteredCategories.length; i++) {
       const categoryId = filteredCategories[i]
       try {
@@ -128,10 +138,10 @@ async function getItemsCount() {
       }
     }
     itemTypes.value[3].count = numItems
+    db.close()
   }
   // Only search
   else {
-    db.close()
     console.log('Counting items with search only:', searchLowercase)
     const worker = new ItemCounterWorker();
 
