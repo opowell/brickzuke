@@ -40,10 +40,15 @@ async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: numbe
 }
 
 async function getColorsCount() {
+  const query = currentQueryString.value
   const filteredColors: number[] = filters.value.filter(f => f.key === 'color').map(f => Number(f.value))
   if (filteredColors.length === 0 && !hasSearch.value) {
+    const countObject = counts.value.get(query)
+    if (!countObject) {
+      return
+    }
     const db = await getDbConnection()
-    itemTypes.value[1].count = await count(db, stores.COLORS)
+    countObject.colors = await count(db, stores.COLORS)
     db.close()
     return
   }
@@ -53,9 +58,12 @@ async function getColorsCount() {
 
   worker.onmessage = (e) => {
     if (e.data.type === 'progress') {
-      itemTypes.value[1].count = e.data.count;
+      const countObject = counts.value.get(query)
+      if (!countObject) {
+        return
+      }
+      countObject.colors = e.data.count;
     } else if (e.data.type === 'complete') {
-      itemTypes.value[1].count = e.data.count;
       worker.terminate();
     }
   };
@@ -137,8 +145,6 @@ async function getItemsCount() {
         return
       }
       if (e.data.type === 'progress') {
-        itemTypes.value[3].count = e.data.count;
-        itemTypes.value[0].count = e.data.numCategories;
         countObject.items = e.data.count
         countObject.categories = e.data.numCategories
       } else if (e.data.type === 'complete') {
@@ -685,6 +691,7 @@ export const selectedItemTypes = computed<SelectOption<any>[]>(() => {
     ...itemTypes.value
   }
   object[0].count = selectedCounts.value?.categories
+  object[1].count = selectedCounts.value?.colors
   object[3].count = selectedCounts.value?.items
   return object
 })

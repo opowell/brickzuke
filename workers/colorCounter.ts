@@ -77,7 +77,8 @@ self.onmessage = async (e: MessageEvent) => {
       }
     }
 
-    self.postMessage({ type: 'complete', count: numItems });
+    self.postMessage({ type: 'progress', count: numItems });
+    self.postMessage({ type: 'complete' });
     bzDb.close();
   } catch (e) {
     console.error('Worker error:', e);
