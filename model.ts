@@ -12,23 +12,10 @@ import { loadCategory } from './idb/category'
 import router from '@/router'
 import ItemCounterWorker from './workers/itemCounter?worker'
 import ColorCounterWorker from './workers/colorCounter?worker'
-interface Filter {
-  key: string
-  label?: string
-  value: string | number
-  displayValue?: string | number
-}
+import type { Filter } from './types/filter'
+import { findIndex } from './utils/findIndex'
 
-export const selectedItemType = ref()
-export const filters = ref<Filter[]>([])
-export const processingCounts = ref(false)
-export const search = ref<string | undefined>(undefined)
-export const hasSearch = computed(() => {
-  if (!search.value) {
-    return false
-  }
-  return search.value.length > 0
-})
+// Methods
 export async function setCounts() {
   processingCounts.value = true
   const db = await getDbConnection()
@@ -50,9 +37,6 @@ async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: numbe
   processingCounts.value = false;
   return items || [];
 }
-
-export const pauseRedirect = ref(false)
-export const selectedItemTypeId = ref<string | undefined>(undefined)
 
 async function getColorsCount() {
   const filteredColors: number[] = filters.value.filter(f => f.key === 'color').map(f => Number(f.value))
@@ -163,21 +147,6 @@ async function getItemsCount() {
     });
   }
 }
-
-export function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
-  let low = 0,
-    high = array.length;
-
-  while (low < high) {
-    const mid = low + high >>> 1
-    if (array[mid].score > itemToAdd.score) low = mid + 1
-    else high = mid
-  }
-  return low
-}
-
-export const tableItems = ref<any[]>([])
-export const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
 
 function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {
   console.log('Processing items:', brickLinkItems.map(bl => bl.id))
@@ -328,7 +297,6 @@ async function setItemTypes(db: IDBPDatabase) {
 }
 
 export const setSelectedItem = async function (option: SelectOption<any>) {
-  console.log('setSelectedItem', option)
   selectedItemType.value = option
   updateView()
 }
@@ -371,30 +339,19 @@ const clickCategoryItemsFn = async (category: Category) => {
   setCounts()
 }
 
-const currentQueryString = computed(() => {
-  const parts = []
-  if (selectedItemType.value) {
-    parts.push('v=' + selectedItemType.value.id)
-  }
-  if (search.value) {
-    parts.push('s=' + search.value)
-  }
-  if (filters.value.length > 0) {
-    parts.push('f=' + filters.value.map((filter) => filter.key + '_' + filter.value).join(','))
-  }
-  // if (sorts.value.length > 0) {
-  //   parts.push('b=' + sorts.value.map((sort) => sort.key + '_' + sort.dir).join(','))
-  // }
-  if (parts.length === 0) {
-    return '/'
-  }
-  return '/?' + parts.join('&')
-})
-
 export function updateWindowUrl() {
   router.push(currentQueryString.value)
 }
 
+// State
+export const selectedItemType = ref()
+export const filters = ref<Filter[]>([])
+export const processingCounts = ref(false)
+export const search = ref<string | undefined>(undefined)
+export const pauseRedirect = ref(false)
+export const selectedItemTypeId = ref<string | undefined>(undefined)
+export const tableItems = ref<any[]>([])
+export const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
 export const itemTypes = ref<SelectOption<any>[]>([
   {
     id: 'categories',
@@ -684,3 +641,31 @@ export const itemTypes = ref<SelectOption<any>[]>([
     count: 0
   }
 ])
+
+// Computed
+export const hasSearch = computed(() => {
+  if (!search.value) {
+    return false
+  }
+  return search.value.length > 0
+})
+
+const currentQueryString = computed(() => {
+  const parts = []
+  if (selectedItemType.value) {
+    parts.push('v=' + selectedItemType.value.id)
+  }
+  if (search.value) {
+    parts.push('s=' + search.value)
+  }
+  if (filters.value.length > 0) {
+    parts.push('f=' + filters.value.map((filter) => filter.key + '_' + filter.value).join(','))
+  }
+  // if (sorts.value.length > 0) {
+  //   parts.push('b=' + sorts.value.map((sort) => sort.key + '_' + sort.dir).join(','))
+  // }
+  if (parts.length === 0) {
+    return '/'
+  }
+  return '/?' + parts.join('&')
+})
