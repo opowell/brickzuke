@@ -3,15 +3,15 @@ import TheViews from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
 import { ref } from 'vue'
-import { selectedItemType, itemTypes, updateView, setCounts } from '../../model'
+import { selectedItemType, itemTypes, updateView, setCounts, updateWindowUrl } from '../../model'
 import { search } from '../../model'
 
 const localSearch = ref(search.value)
 async function doSearch() {
-  console.log('doSearch', localSearch.value)
   search.value = localSearch.value
   await updateView()
   await setCounts()
+  updateWindowUrl()
 }
 </script>
 

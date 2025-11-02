@@ -391,8 +391,7 @@ const currentQueryString = computed(() => {
   return '/?' + parts.join('&')
 })
 
-function updateWindowUrl() {
-  console.log(currentQueryString.value)
+export function updateWindowUrl() {
   router.push(currentQueryString.value)
 }
 
