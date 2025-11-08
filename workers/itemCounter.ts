@@ -24,7 +24,7 @@ const postProgress = (count: number, numCategories: number) => {
 
 self.onmessage = async (e: MessageEvent) => {
   const {
-    stores, indices, searchLowercase
+    stores, indices, searchLowercase, filteredCategories
   } = e.data;
 
   try {
@@ -55,14 +55,17 @@ self.onmessage = async (e: MessageEvent) => {
       return;
     }
 
-    const allCategories = await store.getAll();
-    if (!allCategories) {
-      self.postMessage({
-        type: 'complete',
-        count: 0,
-        numCategories
-      });
-      return;
+    let allCategories = []
+    if (filteredCategories.length === 0) {
+      allCategories = await store.getAll();
+      if (!allCategories) {
+        self.postMessage({
+          type: 'complete',
+          count: 0,
+          numCategories
+        });
+        return;
+      }
     }
 
     for (const category of allCategories) {

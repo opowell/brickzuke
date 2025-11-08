@@ -2,9 +2,9 @@
 import TableComponent from './TableComponent.vue'
 import { getTableLabel } from '@/assets/js/getTableLabel.ts'
 import TableCell from './TableCell.vue'
-import { selectedItemTypes, selectedItemType, tableItems, tableRef } from '../../model'
+import { typesWithCounts, selectedItemType, tableItems, tableRef } from '../../model'
 import { nextTick, ref, watch } from 'vue'
-import { setSelectedItem } from '../../model'
+import { setSelectedItem, currentQueryString } from '../../model'
 const localTableRef = ref<InstanceType<typeof TableComponent> | null>(null)
 watch(() => selectedItemType.value, (value) => {
   if (!value) {
@@ -18,9 +18,10 @@ watch(() => selectedItemType.value, (value) => {
 
 <template>
   <section>
+    <div>{{ currentQueryString }}</div>
     <TableComponent v-if="selectedItemType" :table="selectedItemType" :items="tableItems" ref="localTableRef" />
     <div v-else class="buttons">
-      <div v-for="table in selectedItemTypes" :key="table.id" class="itemType">
+      <div v-for="table in typesWithCounts" :key="table.id" class="itemType">
         <button @click="setSelectedItem(table)" v-html="getTableLabel(table)" />
         <template v-if="table.preview && table.items?.length">:
           <div v-for="item in table.previewItems" :key="item.id">

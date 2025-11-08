@@ -80,62 +80,67 @@ async function getItemsCount() {
   const filteredCategories: number[] = filters.value.filter(f => f.key === 'category').map(f => Number(f.value))
   // No filters or search
   if (filteredCategories.length === 0 && !hasSearch.value) {
+    const countObject = counts.value.get(query)
+    if (!countObject) {
+      return
+    }
     const db = await getDbConnection()
-    itemTypes.value[3].count = await count(db, stores.ITEMS)
+    countObject.items = await count(db, stores.ITEMS)
+    countObject.categories = await count(db, stores.CATEGORIES)
     db.close()
     return
   }
   let numItems = 0
   const searchLowercase = search.value?.toLowerCase()
   // Filters and maybe search
-  if (filteredCategories.length > 0) {
-    const db = await getDbConnection()
-    for (let i = 0; i < filteredCategories.length; i++) {
-      const categoryId = filteredCategories[i]
-      try {
-        let count = 0
-        const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
-        if (!brickLinkCategories) {
-          console.log('No BrickLink categories for category ID:', categoryId)
-          continue
-        }
-        for (let j = 0; j < brickLinkCategories.length; j++) {
-          const blCategory = brickLinkCategories[j]
-          while (true) {
-            const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
-            const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
-            const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
-            const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
-            if (!cursor) {
-              console.log('No more items for BL category:', blCategory)
-              break
-            }
-            if (count > 0) {
-              await cursor.advance(count)
-            }
-            const brickLinkItem = cursor.value
-            if (!brickLinkItem) {
-              break
-            }
-            if (hasSearch.value) {
-              if (brickLinkItem.name.includes(search.value!.toLowerCase())) {
-                continue
-              }
-            }
-            count++
-            numItems++
-          }
-        }
-        console.log('Loaded category:', categoryId)
-      } catch (e) {
-        console.error('Error loading category ID:', categoryId, e)
-      }
-    }
-    itemTypes.value[3].count = numItems
-    db.close()
-  }
-  // Only search
-  else {
+  // if (filteredCategories.length > 0) {
+  //   const db = await getDbConnection()
+  //   for (let i = 0; i < filteredCategories.length; i++) {
+  //     const categoryId = filteredCategories[i]
+  //     try {
+  //       let count = 0
+  //       const brickLinkCategories = await getAllFromIndex<BrickLinkCategory>(db, indices.BRICK_LINK_CATEGORIES_BY_CATEGORY_ID, categoryId)
+  //       if (!brickLinkCategories) {
+  //         console.log('No BrickLink categories for category ID:', categoryId)
+  //         continue
+  //       }
+  //       for (let j = 0; j < brickLinkCategories.length; j++) {
+  //         const blCategory = brickLinkCategories[j]
+  //         while (true) {
+  //           const tx = db.transaction(stores.BRICK_LINK_ITEMS.name)
+  //           const store = tx.objectStore(stores.BRICK_LINK_ITEMS.name)
+  //           const dbIndex = store.index(indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID.name)
+  //           const cursor = await dbIndex.openCursor(IDBKeyRange.only(blCategory.categoryId))
+  //           if (!cursor) {
+  //             console.log('No more items for BL category:', blCategory)
+  //             break
+  //           }
+  //           if (count > 0) {
+  //             await cursor.advance(count)
+  //           }
+  //           const brickLinkItem = cursor.value
+  //           if (!brickLinkItem) {
+  //             break
+  //           }
+  //           if (hasSearch.value) {
+  //             if (brickLinkItem.name.includes(search.value!.toLowerCase())) {
+  //               continue
+  //             }
+  //           }
+  //           count++
+  //           numItems++
+  //         }
+  //       }
+  //       console.log('Loaded category:', categoryId)
+  //     } catch (e) {
+  //       console.error('Error loading category ID:', categoryId, e)
+  //     }
+  //   }
+  //   itemTypes.value[3].count = numItems
+  //   db.close()
+  // }
+  // // Only search
+  // else {
     console.log('Counting items with search only:', searchLowercase)
     const worker = new ItemCounterWorker();
 
@@ -155,9 +160,9 @@ async function getItemsCount() {
     worker.postMessage({
       stores,
       indices,
-      searchLowercase
+      searchLowercase,
+      filteredCategories
     });
-  }
 }
 
 function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {
@@ -663,7 +668,7 @@ export const hasSearch = computed(() => {
   return search.value.length > 0
 })
 
-const currentQueryString = computed(() => {
+export const currentQueryString = computed(() => {
   const parts = []
   if (selectedItemType.value) {
     parts.push('v=' + selectedItemType.value.id)
@@ -683,7 +688,7 @@ const currentQueryString = computed(() => {
   return '/?' + parts.join('&')
 })
 
-export const selectedItemTypes = computed<SelectOption<any>[]>(() => {
+export const typesWithCounts = computed<SelectOption<any>[]>(() => {
   if (!selectedCounts.value) {
     return
   }
@@ -709,4 +714,6 @@ watch(currentQueryString, (newQuery) => {
     updated: Date.now(),
     finished: false
   })
+}, {
+  immediate: true
 })
