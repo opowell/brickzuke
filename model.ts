@@ -2,7 +2,7 @@ import type { CountsState } from './types/counts-state';
 import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
-import { count, getAll, getAllFromIndex } from './idb/db'
+import { count, get, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
@@ -224,11 +224,13 @@ export async function setItems(db: IDBPDatabase) {
               await cursor.advance(count)
             }
             count++
-            const brickLinkItem = cursor.value
-            if (!brickLinkItem) {
+            const brickLinkItem: BrickLinkItem = cursor.value
+            console.log(brickLinkItem)
+            const brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, brickLinkItem.bzItemId)
+            if (!brickLinkItems) {
               break
             }
-            processItem(brickLinkItem, items)
+            processItem(brickLinkItems, items)
           }
         }
         console.log('Loaded category:', categoryId)
@@ -351,7 +353,7 @@ const clickCategoryItemsFn = async (category: Category) => {
   search.value = undefined
   updateWindowUrl()
   const db = await getDbConnection()
-  setItems(db)
+  await setItems(db)
   db.close()
   setCounts()
 }
