@@ -166,18 +166,19 @@ async function getItemsCount() {
 }
 
 function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {
-  console.log('Processing items:', brickLinkItems.map(bl => bl.id))
   const item: UiItem = {
     id: brickLinkItems[0].itemId,
-    score: Math.random(),
     brickLinkItems,
     name: brickLinkItems?.map((bi: BrickLinkItem) => bi.Name + ' (' + bi.id + ')').join(', '),
-    itemTypeId: brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', '),
+    itemType: brickLinkItems?.map((bi: BrickLinkItem) => bi.itemType).join(', '),
     itemTypeName: 'todo',
     category: brickLinkItems?.map((bi: BrickLinkItem) => bi['Category Name']).join(', '),
-    image: brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image
+    image: brickLinkItems?.find((bi: BrickLinkItem) => bi.image)?.image,
+    year: brickLinkItems[0]['Year Released'],
+    weight: brickLinkItems[0].weight,
+    dimensions: brickLinkItems[0].Dimensions
   }
-  console.log('check search', search.value, item.name)
+  console.log('check search', search.value, item, brickLinkItems)
   if (search.value) {
     const searchLower = search.value.toLowerCase()
     if (!item.name?.toLowerCase().includes(searchLower)) {
@@ -225,7 +226,6 @@ export async function setItems(db: IDBPDatabase) {
             }
             count++
             const brickLinkItem: BrickLinkItem = cursor.value
-            console.log(brickLinkItem)
             const brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, brickLinkItem.bzItemId)
             if (!brickLinkItems) {
               break
@@ -609,7 +609,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
         clickValue: (item: BrickLinkItem) => item['Category ID'],
       },
       {
-        id: 'Year Released',
+        id: 'year',
         label: 'Year',
         width: '70px',
       },
@@ -650,7 +650,6 @@ export const itemTypes = ref<SelectOption<any>[]>([
         id: 'dimensions',
         label: 'Dimensions',
         width: '115px',
-        valueField: 'Dimensions',
       },
     ],
   },

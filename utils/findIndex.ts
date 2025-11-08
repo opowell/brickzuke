@@ -1,4 +1,7 @@
 export function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
+  if (itemToAdd.score === undefined) {
+    return array.length
+  }
   let low = 0,
     high = array.length;
 
