@@ -19,7 +19,7 @@ import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
 import { fetchCatalogPage, fetchBrickLink, updateCatalogTree } from '../sources/bricklink'
 import { makeCall as fetchBrickLinkColorGuide } from '../sources/bricklink/color-guide'
-import { filters, pauseRedirect, search, selectedItemType, selectedItemTypeId, setCounts } from '../model'
+import { filters, itemTypes, pauseRedirect, search, selectedItemType, selectedItemTypeId, setCounts, updateView } from '../model'
 import { useRoute, useRouter } from 'vue-router'
 import { getDbConnection } from '../idb/idb'
 import { loadCategory } from '../idb/category'
@@ -51,6 +51,13 @@ async function processUrl() {
     return
   }
   pauseRedirect.value = true
+  const queryView = route.query.v?.toString()
+  if (queryView) {
+    const type = itemTypes.value.find(t => t.id === queryView)
+    if (type) {
+      selectedItemType.value = type
+    }
+  }
   search.value = route.query.s?.toString()
   selectedItemTypeId.value = route.query.v?.toString()
   const filtersString = route.query.f?.toString()
@@ -68,7 +75,6 @@ async function processUrl() {
       })
     }
   }
-  console.log('set filters from query', filters.value)
   // const sortsString = route.query.b?.toString()
   // if (sortsString) {
   //   sorts.value = sortsString.split(',').map((bs) => {
@@ -82,6 +88,7 @@ async function processUrl() {
   //   sorts.value = []
   // }
   pauseRedirect.value = false
+  updateView()
 }
 
 onMounted(async () => {

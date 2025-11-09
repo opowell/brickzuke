@@ -2,7 +2,7 @@ import type { CountsState } from './types/counts-state';
 import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
-import { count, get, getAll, getAllFromIndex } from './idb/db'
+import { count, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
 import { formatInteger } from '@/assets/js/utils'
@@ -178,7 +178,7 @@ function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {
     weight: brickLinkItems[0].weight,
     dimensions: brickLinkItems[0].Dimensions
   }
-  console.log('check search', search.value, item, brickLinkItems)
+  // console.log('check search', search.value, item, brickLinkItems)
   if (search.value) {
     const searchLower = search.value.toLowerCase()
     if (!item.name?.toLowerCase().includes(searchLower)) {
@@ -226,6 +226,12 @@ export async function setItems(db: IDBPDatabase) {
             }
             count++
             const brickLinkItem: BrickLinkItem = cursor.value
+            if (!brickLinkItem) {
+              break
+            }
+            if (!brickLinkItem.bzItemId) {
+              continue
+            }
             const brickLinkItems = await getAllFromIndex<BrickLinkItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, brickLinkItem.bzItemId)
             if (!brickLinkItems) {
               break
@@ -333,7 +339,7 @@ export const updateView = async () => {
       await setItemTypes(db)
       break
     case 'items':
-      // await setItems(db)
+      await setItems(db)
       break
   }
   db.close()
