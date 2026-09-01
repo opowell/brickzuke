@@ -29,7 +29,9 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
     },
     filteredColors(state): BrickLinkColor[] {
       const modelsStore = useModelsStore()
-      const { search, sorts } = storeToRefs(modelsStore)
+      const {
+        search, sorts 
+      } = storeToRefs(modelsStore)
       const catalogItemPage = useCatalogItemPageStore()
       const catalogItemPageRefs = storeToRefs(catalogItemPage)
       const singleItem = catalogItemPageRefs.singleItem

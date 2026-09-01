@@ -69,7 +69,9 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       ?.get(singleItem.value.itemNumber)
     console.log('filteredItemVariants', singleItem.value?.itemType, singleItem.value?.itemNumber)
     const modelsStore = useModelsStore()
-    const { filters, sorts } = storeToRefs(modelsStore)
+    const {
+      filters, sorts 
+    } = storeToRefs(modelsStore)
     console.log('filteredItemVariants', itemVariants.value, variants, filters)
     const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
     const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
@@ -105,7 +107,9 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       .get(singleItem.value.itemType)
       ?.get(singleItem.value.itemNumber)
     const modelsStore = useModelsStore()
-    const { filters, sorts } = storeToRefs(modelsStore)
+    const {
+      filters, sorts 
+    } = storeToRefs(modelsStore)
     const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
     const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
     invItems = invItems?.filter((invItem) => {

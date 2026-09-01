@@ -50,7 +50,9 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     filteredRegions: (state): Region[] => {
       const out = Array.from(state.regionsMap.values())
       const queryStore = useModelsStore()
-      const { search } = storeToRefs(queryStore)
+      const {
+        search 
+      } = storeToRefs(queryStore)
       if (!search.value || search.value === '') {
         return out
       }
@@ -66,10 +68,14 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     },
     filteredCountries(): Country[] {
       const queryStore = useModelsStore()
-      const { search, filters, sorts } = storeToRefs(queryStore)
+      const {
+        search, filters, sorts 
+      } = storeToRefs(queryStore)
       let out = [...this.countriesArray]
       const catalogItemPageStore = useCatalogItemPageStore()
-      const { filteredInventories } = storeToRefs(catalogItemPageStore)
+      const {
+        filteredInventories 
+      } = storeToRefs(catalogItemPageStore)
       if (filteredInventories.value && filteredInventories.value.length > 0) {
         const inventoryCountries = filteredInventories.value.map((i) => i.sellerCountryCode)
         out = out.filter((c) => inventoryCountries.includes(c.countryCode))
@@ -103,10 +109,14 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     },
     filteredStores(): Store[] {
       const queryStore = useModelsStore()
-      const { search, filters, sorts } = storeToRefs(queryStore)
+      const {
+        search, filters, sorts 
+      } = storeToRefs(queryStore)
       let out = [...this.storesArray]
       const catalogItemPageStore = useCatalogItemPageStore()
-      const { filteredInventories } = storeToRefs(catalogItemPageStore)
+      const {
+        filteredInventories 
+      } = storeToRefs(catalogItemPageStore)
 
       if (filteredInventories.value) {
         out = filteredInventories.value?.map((inventory) => {

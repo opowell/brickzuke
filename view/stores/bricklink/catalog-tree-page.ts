@@ -1,9 +1,9 @@
-import type { EventDetail } from "@/assets/js/make-call";
-import { extractValueFromHtml, extractValuesFromHtml } from "@/assets/js/utils";
-import { getDbConnection } from "../../../idb/idb";
-import stores from "../../../idb/stores";
-import { get, put } from "../../../idb/db";
-import type { BrickLinkCategory, Category } from "./catalog-download-page";
+import type { EventDetail } from "@/assets/js/make-call"
+import { extractValueFromHtml, extractValuesFromHtml } from "@/assets/js/utils"
+import { getDbConnection } from "../../../idb/idb"
+import stores from "../../../idb/stores"
+import { get, put } from "../../../idb/db"
+import type { BrickLinkCategory, Category } from "./catalog-download-page"
 
 async function handlePageResponse(detail: EventDetail) {
   const categoryTreeHtml = extractValueFromHtml(

@@ -34,7 +34,9 @@ export interface Table<T> {
   count?: number
 }
 const modelsStore = useModelsStore()
-const { items, table } = defineProps<{
+const {
+  items, table 
+} = defineProps<{
   table: Table
   items: any[]
 }>()
@@ -44,7 +46,9 @@ watch(
   (newItems) => {
     tableItems.value = newItems
   },
-  { deep: true }
+  {
+    deep: true 
+  }
 )
 function sortBy(column: TableColumn) {
   modelsStore.addSort(column.id, 'a')
@@ -71,7 +75,7 @@ defineExpose({
     <div v-for="item in tableItems" :key="item[table.idField]" class="row">
       <div v-if="!table.hideSelect"><input type="checkbox" /></div>
       <TableCell v-for="column in table.columns" :key="column.id + '-' + item[table.idField]" :column="column"
-        :item="item" />
+                 :item="item" />
       <div v-if="!table.hidePriceModifier"><input style="width: 75px" /></div>
     </div>
   </div>

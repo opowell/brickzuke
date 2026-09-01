@@ -61,7 +61,7 @@ const styles = computed(() => {
       </button>
       <template v-else>
         <img v-if="column.type === 'image'" :src="label" :style="{ 'max-width': column.width || '100px' }"
-          @click="handleClick" />
+             @click="handleClick" />
         <div v-else-if="hasLabel" v-html="label" />
       </template>
     </template>

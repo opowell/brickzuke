@@ -1,15 +1,13 @@
 import { useCatalogItemInvPageStore } from '@/stores/bricklink/catalog-item-inv-page'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import {
-  Call,
+import {Call,
   CallType,
   makeTextCall,
   makeTextCalls,
   processQueue,
   queueCall,
-  type EventDetail,
-} from '~/assets/js/make-call'
+  type EventDetail,} from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { useCatalogItemPageStore } from './catalog-item-page'

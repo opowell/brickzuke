@@ -22,23 +22,35 @@ export default defineConfigWithVueTs(
   {
     // enforce one property per line for object literals (disallow all props on same line)
     rules: {
-      'object-property-newline': ['error', { allowAllPropertiesOnSameLine: false }],
+      'object-property-newline': ['error', {
+        allowAllPropertiesOnSameLine: false 
+      }],
       // enforce consistent indentation (2 spaces) so newlines get properly indented
       indent: ['error', 2, {
         SwitchCase: 1,
         VariableDeclarator: 1,
         outerIIFEBody: 1,
         MemberExpression: 1,
-        FunctionDeclaration: { parameters: 'first' },
+        FunctionDeclaration: {
+          parameters: 'first' 
+        },
       }],
       // Vue template indentation
       'vue/html-indent': ['error', 2],
       // require line breaks inside object braces even for single-property objects
       'object-curly-newline': ['error', {
-        ObjectExpression: { minProperties: 1 },
-        ObjectPattern: { minProperties: 1 },
-        ImportDeclaration: { minProperties: 999 },
-        ExportDeclaration: { minProperties: 999 }
+        ObjectExpression: {
+          minProperties: 1 
+        },
+        ObjectPattern: {
+          minProperties: 1 
+        },
+        ImportDeclaration: {
+          minProperties: 999 
+        },
+        ExportDeclaration: {
+          minProperties: 999 
+        }
       }],
       // enforce no semicolons
       'semi': ['error', 'never'],

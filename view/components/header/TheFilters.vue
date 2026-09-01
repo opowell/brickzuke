@@ -9,7 +9,7 @@ function removeFilter(index: number) {
 <template>
   <div class="filters">
     <button v-for="(filter, index) in filters" :key="filter.key + '#' + filter.value"
-      v-html="filter.label + ': ' + filter.displayValue" @click="removeFilter(index)" />
+            v-html="filter.label + ': ' + filter.displayValue" @click="removeFilter(index)" />
   </div>
 </template>
 

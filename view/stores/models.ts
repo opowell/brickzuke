@@ -1,20 +1,16 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore, storeToRefs } from 'pinia'
-import {
-  useCatalogListPageStore,
+import {useCatalogListPageStore,
   type BrickLinkCategory,
-  type ItemType,
-} from './bricklink/catalog-list-page'
+  type ItemType,} from './bricklink/catalog-list-page'
 import router from '@/router/index'
 import { useCatalogDownloadPageStore } from './bricklink/catalog-download-page'
 import { useRoute } from 'vue-router'
 import { useCatalogItemPageStore, type StoreInventory } from './bricklink/catalog-item-page'
 import { processQueue } from '@/assets/js/make-call'
-import {
-  useCatalogItemInvPageStore,
+import {useCatalogItemInvPageStore,
   type ItemInventory,
-  type ItemVariant,
-} from './bricklink/catalog-item-inv-page'
+  type ItemVariant,} from './bricklink/catalog-item-inv-page'
 import { formatInteger } from '@/assets/js/utils'
 import { useColorsPageStore, type BrickLinkColor } from './bricklink/colors-page'
 import { useStoresPageStore, type Store } from './bricklink/stores-page'
@@ -65,7 +61,9 @@ export const useModelsStore = defineStore('models', () => {
   // computeds
   const images = computed(() => {
     const catalogItemPage = useCatalogItemPageStore()
-    const { singleItem } = storeToRefs(catalogItemPage)
+    const {
+      singleItem 
+    } = storeToRefs(catalogItemPage)
     if (!singleItem.value) {
       return []
     }
@@ -75,12 +73,16 @@ export const useModelsStore = defineStore('models', () => {
   })
   const colors = computed(() => {
     const colorsPage = useColorsPageStore()
-    const { filteredColors } = storeToRefs(colorsPage)
+    const {
+      filteredColors 
+    } = storeToRefs(colorsPage)
     return filteredColors.value
   })
   const inventories = computed(() => {
     const catalogItemPageStore = useCatalogItemPageStore()
-    const { filteredInventories } = storeToRefs(catalogItemPageStore)
+    const {
+      filteredInventories 
+    } = storeToRefs(catalogItemPageStore)
     return filteredInventories.value
   })
   const countries = computed(() => {

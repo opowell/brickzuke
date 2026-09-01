@@ -19,7 +19,9 @@ export const useSearchAdvancedPageStore = defineStore('searchAdvancedPageStore',
         name: value,
       }))
       const queryStore = useQueryStore()
-      const { s } = storeToRefs(queryStore)
+      const {
+        s 
+      } = storeToRefs(queryStore)
       const search = s
       if (!search.value || search.value === '') {
         return out

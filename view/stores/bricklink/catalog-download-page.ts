@@ -7,8 +7,8 @@ import { useModelsStore } from '../models'
 import { computed, ref } from 'vue'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
 import { getDbConnection } from '../../../idb/idb'
-import stores, { type StoreDefinition } from '../../../idb/stores';
-import { get, getAll, put } from '../../../idb/db';
+import stores, { type StoreDefinition } from '../../../idb/stores'
+import { get, getAll, put } from '../../../idb/db'
 import { BRICK_LINK_CATALOG } from './catalog-codes'
 
 export interface BrickLinkItem {
@@ -154,7 +154,9 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     const singleItem = catalogItemPageRefs.singleItem
     let out = itemsArray.value
     const modelsStore = useModelsStore()
-    const { filters, search, sorts } = storeToRefs(modelsStore)
+    const {
+      filters, search, sorts 
+    } = storeToRefs(modelsStore)
     if (singleItem.value) {
       const catalogItemInvPage = useCatalogItemInvPageStore()
       const invItems = catalogItemInvPage.itemInventories
@@ -247,7 +249,9 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       Call.GET_CATALOG_DOWNLOAD_PAGE,
       'https://www.bricklink.com/catalogDownload.asp?a=a',
       getOptions(itemType),
-      { itemType },
+      {
+        itemType 
+      },
       ONE_MONTH,
     )
   }
@@ -256,7 +260,9 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       Call.GET_CATALOG_TREE_PAGE,
       'https://www.bricklink.com/catalogTree.asp?itemType=' + itemType,
       getOptions(itemType),
-      { itemType },
+      {
+        itemType 
+      },
       ONE_MONTH,
     )
   }

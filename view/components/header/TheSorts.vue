@@ -3,7 +3,9 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useModelsStore } from '../../stores/models.ts'
 const modelsStore = useModelsStore()
-const { sorts } = storeToRefs(modelsStore)
+const {
+  sorts 
+} = storeToRefs(modelsStore)
 function getKey(key: string) {
   switch (key) {
     case 'category':

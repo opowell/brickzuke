@@ -19,7 +19,9 @@ export const useCatalogPageStore = defineStore('catalogPageStore', {
   getters: {
     filteredCategories: (state) => {
       const queryStore = useQueryStore()
-      const { s } = storeToRefs(queryStore)
+      const {
+        s 
+      } = storeToRefs(queryStore)
       const search = s
       if (!search.value || search.value === '') {
         return state.categories

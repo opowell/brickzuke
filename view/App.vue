@@ -37,10 +37,10 @@ async function getFilterDisplayValue(key: string, value: string): Promise<string
   const db = await getDbConnection()
   switch (key) {
     case 'category':
-      {
-        const category = await loadCategory(db, Number.parseInt(value))
-        return category.name || value
-      }
+    {
+      const category = await loadCategory(db, Number.parseInt(value))
+      return category.name || value
+    }
   }
   db.close()
 }
@@ -65,7 +65,7 @@ async function processUrl() {
   if (filtersString) {
     const filterStrings = filtersString.split(',')
     for (let i = 0; i < filterStrings.length; i++) {
-      const fs = filterStrings[i];
+      const fs = filterStrings[i]
       const parts = fs.split('_')
       filters.value.push({
         key: parts[0],

@@ -27,7 +27,7 @@ watch(() => selectedItemType.value, (value) => {
           <div v-for="item in table.previewItems" :key="item.id">
             <template v-if="typeof table.preview === 'string'">
               <button v-if="!!table.previewClickFn" v-html="item[table.preview]"
-                @click="table.previewClickFn(item)"></button>
+                      @click="table.previewClickFn(item)"></button>
               <div v-else v-html="item[table.preview]" />
             </template>
             <TableCell v-else :column="table.preview" :item="item" set-max-width />

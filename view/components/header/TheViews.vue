@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { formatInteger } from '@/assets/js/utils';
-import type { TableColumn } from '../TableComponent.vue';
+import { computed } from 'vue'
+import { formatInteger } from '@/assets/js/utils'
+import type { TableColumn } from '../TableComponent.vue'
 export interface SelectOption<T> {
   id: string | number
   label: string

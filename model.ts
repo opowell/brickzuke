@@ -1,4 +1,4 @@
-import type { CountsState } from './types/counts-state';
+import type { CountsState } from './types/counts-state'
 import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
@@ -34,9 +34,9 @@ export async function setCounts() {
 }
 
 async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: number): Promise<any[]> {
-  const items = await db.transaction(storeName).store.getAll(undefined, limit);
-  processingCounts.value = false;
-  return items || [];
+  const items = await db.transaction(storeName).store.getAll(undefined, limit)
+  processingCounts.value = false
+  return items || []
 }
 
 async function getColorsCount() {
@@ -54,7 +54,7 @@ async function getColorsCount() {
   }
 
   const searchLowercase = search.value?.toLowerCase()
-  const worker = new ColorCounterWorker();
+  const worker = new ColorCounterWorker()
 
   worker.onmessage = (e) => {
     if (e.data.type === 'progress') {
@@ -62,17 +62,17 @@ async function getColorsCount() {
       if (!countObject) {
         return
       }
-      countObject.colors = e.data.count;
+      countObject.colors = e.data.count
     } else if (e.data.type === 'complete') {
-      worker.terminate();
+      worker.terminate()
     }
-  };
+  }
 
   worker.postMessage({
     stores,
     indices,
     searchLowercase
-  });
+  })
 }
 
 async function getItemsCount() {
@@ -90,7 +90,7 @@ async function getItemsCount() {
     db.close()
     return
   }
-  let numItems = 0
+  const numItems = 0
   const searchLowercase = search.value?.toLowerCase()
   // Filters and maybe search
   // if (filteredCategories.length > 0) {
@@ -141,28 +141,28 @@ async function getItemsCount() {
   // }
   // // Only search
   // else {
-    console.log('Counting items with search only:', searchLowercase)
-    const worker = new ItemCounterWorker();
+  console.log('Counting items with search only:', searchLowercase)
+  const worker = new ItemCounterWorker()
 
-    worker.onmessage = (e) => {
-      const countObject = counts.value.get(query)
-      if (!countObject) {
-        return
-      }
-      if (e.data.type === 'progress') {
-        countObject.items = e.data.count
-        countObject.categories = e.data.numCategories
-      } else if (e.data.type === 'complete') {
-        worker.terminate();
-      }
-    };
+  worker.onmessage = (e) => {
+    const countObject = counts.value.get(query)
+    if (!countObject) {
+      return
+    }
+    if (e.data.type === 'progress') {
+      countObject.items = e.data.count
+      countObject.categories = e.data.numCategories
+    } else if (e.data.type === 'complete') {
+      worker.terminate()
+    }
+  }
 
-    worker.postMessage({
-      stores,
-      indices,
-      searchLowercase,
-      filteredCategories
-    });
+  worker.postMessage({
+    stores,
+    indices,
+    searchLowercase,
+    filteredCategories
+  })
 }
 
 function processItem(brickLinkItems: BrickLinkItem[], items: UiItem[]) {

@@ -43,8 +43,12 @@ async function handleScrapeRequest(message, sendResponse) {
   )
   sendResponses[tab.id] = sendResponse
   console.log('SCRAPE', message.url, tab, tab.id)
-  await chrome.storage.local.set({ scraperTabId: tab.id })
-  await chrome.storage.local.set({ scraperTabOriginalUrl: url })
+  await chrome.storage.local.set({
+    scraperTabId: tab.id 
+  })
+  await chrome.storage.local.set({
+    scraperTabOriginalUrl: url 
+  })
   console.log('set tab id', tab.id, await chrome.storage.local.get())
 }
 
@@ -90,7 +94,9 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   }
   const execute = await chrome.scripting.executeScript(
     {
-      target: { tabId },
+      target: {
+        tabId 
+      },
       func: parseColorsPage
     }
   )

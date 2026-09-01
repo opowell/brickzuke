@@ -1,11 +1,9 @@
 import { defineStore } from 'pinia'
-import {
-  Call,
+import {Call,
   makeJsonCall,
   makeTextCall,
   processQueue,
-  type EventDetail,
-} from '~/assets/js/make-call'
+  type EventDetail,} from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { ONE_DAY, ONE_WEEK } from '@/assets/js/timesToMs'
@@ -133,7 +131,9 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
   }),
   getters: {
     singleItem(state): Item | undefined {
-      const { itemIds } = useModelsStore()
+      const {
+        itemIds 
+      } = useModelsStore()
       if (!itemIds || itemIds.length !== 1) {
         return
       }
@@ -141,7 +141,9 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
     },
     filteredImages(state) {
       if (this.singleItem) {
-        const { itemIds } = useModelsStore()
+        const {
+          itemIds 
+        } = useModelsStore()
         if (!itemIds || itemIds.length !== 1) {
           return
         }
@@ -152,7 +154,9 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
     },
     filteredInventories(state) {
       if (this.singleItem) {
-        const { itemIds } = useModelsStore()
+        const {
+          itemIds 
+        } = useModelsStore()
         if (!itemIds || itemIds.length !== 1) {
           return
         }
