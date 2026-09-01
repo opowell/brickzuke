@@ -5,6 +5,8 @@ keyLabels.set('items', 'Items')
 keyLabels.set('itemTypes', 'Item types')
 import { defineStore } from 'pinia'
 import { useRoute } from 'vue-router'
+import { useCatalogListPageStore } from './bricklink/catalog-list-page'
+import { useCatalogItemPageStore } from './bricklink/catalog-item-page'
 
 interface Filter {
   action: 'include' | 'exclude'
@@ -45,6 +47,15 @@ function getItemLabel(type: string, item?: string): string | undefined {
     }
   }
   return item
+}
+
+// Inverse of the filter parsing in setState()
+function filterToQueryString(filter: Filter): string {
+  const parts = [filter.action === 'include' ? 'i' : 'e', filter.key]
+  if (filter.item) {
+    parts.push(filter.item)
+  }
+  return parts.join(FILTER_SEPARATOR)
 }
 
 function getQueryValue(param: string) {

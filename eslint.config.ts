@@ -14,7 +14,7 @@ export default defineConfigWithVueTs(
     files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', '**/storybook-static/**']),
 
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
@@ -42,7 +42,6 @@ export default defineConfigWithVueTs(
       }],
       // enforce no semicolons
       'semi': ['error', 'never'],
-      '@typescript-eslint/semi': ['error', 'never'],
     },
   },
 )

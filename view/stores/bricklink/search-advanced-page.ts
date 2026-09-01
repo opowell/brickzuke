@@ -1,5 +1,6 @@
 import { ONE_MONTH, ONE_YEAR } from '@/assets/js/timesToMs'
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
+import { useQueryStore } from '../query'
 import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml } from '~/assets/js/utils'
 
