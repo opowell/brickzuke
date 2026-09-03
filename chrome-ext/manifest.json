@@ -6,10 +6,7 @@
     "32": "images/32x32.png"
   },
   "host_permissions": [
-    "http://*/*",
-    "https://*/*",
-    "https://www.bricklink.com/*",
-    "https://store.bricklink.com/*",
+    "https://*.bricklink.com/*",
     "https://www.lego.com/api/"
   ],
   "content_scripts": [
@@ -18,9 +15,7 @@
       "matches": [
         "http://localhost:5173/*",
         "https://localhost:5173/*",
-        "https://www.brickzuke.com/*",
-        "https://developer.chrome.com/docs/extensions/*",
-        "https://developer.chrome.com/docs/webstore/*"
+        "https://www.brickzuke.com/*"
       ]
     }
   ],
@@ -32,5 +27,5 @@
     "scripting",
     "tabs"
   ],
-  "description": "Add the reading time to Chrome Extension documentation articles"
+  "description": "Fetches and scrapes BrickLink catalog data on behalf of the BrickZuke web app."
 }
