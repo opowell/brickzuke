@@ -109,9 +109,13 @@ function narrowToItem(row: ShellRow) {
  * the colour guide counts the parts made in a colour separately from the sets
  * containing it, and BrickLink answers them on two different pages. `type`
  * says which.
+ *
+ * `colorId` and not `id`: the page being asked for is BrickLink's, so the id
+ * has to be BrickLink's too. brickzuke's own key for Aqua is 2, and
+ * BrickLink's colour 2 is Tan.
  */
 function narrowToColor(catType: string, row: ShellRow) {
-  const colorId = String(row.fields.id ?? '')
+  const colorId = String(row.fields.colorId ?? '')
   if (!colorId) {
     return
   }

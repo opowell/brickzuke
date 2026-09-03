@@ -105,6 +105,11 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
         // where it substring-matches strings — `id:"85"` must not also answer
         // for colour 185.
         id: color.id,
+        // BrickLink's own colour id, which is not this one: `id` above is
+        // brickzuke's auto-increment key, and asking BrickLink for its colour
+        // 2 when brickzuke means Aqua gets you Tan. The same gap categories
+        // carry between `id` and `categoryId`.
+        colorId: joined.find((c) => c.colorId)?.colorId,
         name: color.name ?? joined.find((c) => c['Color Name'])?.['Color Name'],
         image: joined.find((c) => c.image)?.image,
         // `countItems` is the sum of `Parts`, exactly as `setColors` computes it.
