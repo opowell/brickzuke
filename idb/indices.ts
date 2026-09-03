@@ -12,6 +12,7 @@ const indices: {
   BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID: IndexDefinition
   BRICK_LINK_ITEMS_BY_ITEM_ID: IndexDefinition
   BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID: IndexDefinition
+  ITEM_INVENTORIES_BY_RECORD: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -42,6 +43,16 @@ const indices: {
     store: stores.BRICK_LINK_ITEMS,
     name: 'categoryId',
     keyPath: 'categoryId'
+  },
+  /**
+   * Every part of one set, by the BrickLink record it belongs to — `S-10511-1`.
+   * The same shape as BRICK_LINK_ITEMS_BY_ITEM_ID: one indexed lookup answers
+   * "what is in this".
+   */
+  ITEM_INVENTORIES_BY_RECORD: {
+    store: stores.ITEM_INVENTORIES,
+    name: 'record',
+    keyPath: 'record'
   },
 }
 

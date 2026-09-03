@@ -16,6 +16,7 @@ const stores: {
   BRICK_LINK_CATEGORIES: StoreDefinition
   PART_AND_COLOR_CODES: StoreDefinition
   BRICK_LINK_PART_AND_COLOR_CODES: StoreDefinition
+  ITEM_INVENTORIES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -70,6 +71,17 @@ const stores: {
   BRICK_LINK_PART_AND_COLOR_CODES: {
     name: 'brickLinkPartAndColorCodes',
     keyPath: 'partAndColorCodeId'
+  },
+  /**
+   * What a set is made of: one record per part in one set.
+   *
+   * Unlike every other store here this is not filled by a bulk download —
+   * BrickLink states an inventory one item at a time, so this fills in as items
+   * are opened rather than all at once.
+   */
+  ITEM_INVENTORIES: {
+    name: 'itemInventories',
+    keyPath: 'id'
   }
 }
 

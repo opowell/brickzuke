@@ -45,6 +45,24 @@ export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value:
   }
 }
 
+/**
+ * Many records into one store, in one transaction.
+ *
+ * `put` opens a transaction per record, which is the right shape for the one-off
+ * writes it was built for and the wrong one for an inventory: a large set is
+ * hundreds of parts, and that is hundreds of transactions for one page.
+ */
+export async function putAll<T>(db: IDBPDatabase, storeDef: StoreDefinition, values: T[]) {
+  if (!values.length) {
+    return
+  }
+  const tx = db.transaction(storeDef.name, 'readwrite')
+  await Promise.all([
+    ...values.map((value) => tx.store.put(isProxy(value) ? toRaw(value) : value)),
+    tx.done,
+  ])
+}
+
 export async function dbDelete(db: IDBPDatabase, storeDef: StoreDefinition, keyPath: IDBValidKey) {
   try {
     return await db.delete(storeDef.name, keyPath)

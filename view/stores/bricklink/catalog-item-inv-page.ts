@@ -5,8 +5,27 @@ import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets
 import { useCatalogItemPageStore } from './catalog-item-page'
 import { ONE_DAY } from '@/assets/js/timesToMs'
 import { useModelsStore } from '../models'
+import { putAll } from '~/../idb/db'
+import { getDbConnection } from '~/../idb/idb'
+import STORES from '~/../idb/stores'
 
 export interface ItemInventory {
+  quantity: number
+  itemVariant: ItemVariant
+}
+
+/**
+ * One part of one set, as it is stored.
+ *
+ * The parsed inventory has lived only in the maps below, so it went away on
+ * reload and every re-open re-parsed the page. This is the same thing keyed for
+ * IndexedDB: `record` is the BrickLink id the inventory belongs to — `S-10511-1`,
+ * which is exactly the id an item record already carries — and `id` adds the
+ * variant so two colours of the same part in one set stay two rows.
+ */
+export interface StoredItemInventory {
+  id: string
+  record: string
   quantity: number
   itemVariant: ItemVariant
 }
@@ -199,6 +218,26 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
         },
       }
     })
+    // The BrickLink id this inventory belongs to: `S` + `10511-1` is the
+    // `S-10511-1` an item record is keyed by, so what is stored here can be
+    // found from a record with one indexed lookup.
+    const record = `${itemType}-${urlParams[1]}`
+    const db = await getDbConnection()
+    try {
+      await putAll<StoredItemInventory>(
+        db,
+        STORES.ITEM_INVENTORIES,
+        parsedInvItems.map((ii) => ({
+          id: `${record}|${ii.itemVariant.variantId}`,
+          record,
+          quantity: ii.quantity,
+          itemVariant: ii.itemVariant,
+        })),
+      )
+    } finally {
+      db.close()
+    }
+
     let variantMap = itemVariants.value.get(itemType)
     if (!variantMap) {
       variantMap = new Map<string, ItemVariant[]>()
