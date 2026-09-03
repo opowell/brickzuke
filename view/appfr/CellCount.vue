@@ -10,9 +10,11 @@
  * column is right both now and once an update run fills those numbers in.
  *
  * The `component` kind is handed the raw value and formats nothing itself, so
- * the column's own `format` is applied here.
+ * the column's own `format` is applied here — and, with it, the hover the
+ * shell puts on the cells it draws itself: `1.3k` is worth pressing precisely
+ * when you can see it is 1300.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { cellFull, type ColumnDef, type ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 
@@ -37,6 +39,8 @@ const props = defineProps({
 
 const text = computed(() => props.column.format?.(props.value, props.row) ?? String(props.value ?? ''))
 
+const title = computed(() => cellFull(props.column, props.row))
+
 function press() {
   props.column.click?.(props.row)
 }
@@ -44,7 +48,7 @@ function press() {
 
 <template>
   <template v-if="text">
-    <button v-if="column.click" type="button" @click="press">{{ text }}</button>
-    <template v-else>{{ text }}</template>
+    <button v-if="column.click" type="button" :title="title" @click="press">{{ text }}</button>
+    <template v-else><span :title="title">{{ text }}</span></template>
   </template>
 </template>

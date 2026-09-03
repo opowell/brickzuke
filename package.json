@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@vueuse/core": "^14.0.0",
-    "header-content-layout": "github:opowell/appfr#v0.10.0",
+    "header-content-layout": "github:opowell/appfr#v0.10.1",
     "idb": "^8.0.3",
     "mathjs": "^14.4.0",
     "pinia": "^3.0.1",
