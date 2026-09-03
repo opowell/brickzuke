@@ -165,4 +165,37 @@ describe('item records, addressed by item', () => {
   it('returns nothing when no item is named', async () => {
     expect(await rowsOf(itemRecords, '')).toHaveLength(0)
   })
+
+  it('narrows the records by whatever else the query says', async () => {
+    const rows = await rowsOf(itemRecords, 'item:"42" type:"S"')
+    expect(rows.map((r) => r.fields.type)).toEqual(['S'])
+  })
+})
+
+/**
+ * The address term says which record is open; every other term still narrows
+ * what came back. A colour press inside a set writes one of those, and before
+ * this the source dropped it on the floor.
+ */
+describe('a query over what is open', () => {
+  it('leaves the parts of the set in that colour', async () => {
+    const rows = await rowsOf(inventory, 'record:"S-10511-1" colorid:"11"')
+    expect(rows.map((r) => r.fields.name)).toEqual(['Brick 2 x 4'])
+  })
+
+  it('holds the colour as a number, so 1 does not answer for 11', async () => {
+    const rows = await rowsOf(inventory, 'record:"S-10511-1" colorid:"1"')
+    // `:` substring-matches strings and compares numbers exactly, which is the
+    // whole reason `colorid` is stored as one.
+    expect(rows.map((r) => r.fields.colorid)).toEqual([1])
+    expect(rows.map((r) => r.fields.name)).toEqual(['Plate 2 x 4'])
+  })
+
+  it('still shows the whole set when the query is only its address', async () => {
+    expect(await rowsOf(inventory, 'record:"S-10511-1"')).toHaveLength(2)
+  })
+
+  it('narrows nothing on a colour the set has none of', async () => {
+    expect(await rowsOf(inventory, 'record:"S-10511-1" colorid:"85"')).toHaveLength(0)
+  })
 })

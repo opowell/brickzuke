@@ -17,6 +17,7 @@ const stores: {
   PART_AND_COLOR_CODES: StoreDefinition
   BRICK_LINK_PART_AND_COLOR_CODES: StoreDefinition
   ITEM_INVENTORIES: StoreDefinition
+  COLOR_ITEMS: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -81,6 +82,17 @@ const stores: {
    */
   ITEM_INVENTORIES: {
     name: 'itemInventories',
+    keyPath: 'id'
+  },
+  /**
+   * What comes in one colour: one record per item BrickLink lists for a
+   * colour, under `P` for the parts made in it and `S` for the sets containing
+   * it. Filled the same way inventories are — a page at a time, when someone
+   * asks — because the bulk downloads state a colour's counts and never which
+   * items they are.
+   */
+  COLOR_ITEMS: {
+    name: 'colorItems',
     keyPath: 'id'
   }
 }

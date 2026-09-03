@@ -13,6 +13,7 @@ const indices: {
   BRICK_LINK_ITEMS_BY_ITEM_ID: IndexDefinition
   BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID: IndexDefinition
   ITEM_INVENTORIES_BY_RECORD: IndexDefinition
+  COLOR_ITEMS_BY_SCOPE: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -53,6 +54,16 @@ const indices: {
     store: stores.ITEM_INVENTORIES,
     name: 'record',
     keyPath: 'record'
+  },
+  /**
+   * Every item of one colour and type — `P-2` is the parts made in colour 2.
+   * The same shape as ITEM_INVENTORIES_BY_RECORD, and for the same reason: one
+   * indexed lookup answers "what is in this".
+   */
+  COLOR_ITEMS_BY_SCOPE: {
+    store: stores.COLOR_ITEMS,
+    name: 'scope',
+    keyPath: 'scope'
   },
 }
 

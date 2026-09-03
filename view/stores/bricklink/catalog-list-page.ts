@@ -11,6 +11,7 @@ import {Call,
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { useCatalogItemPageStore } from './catalog-item-page'
+import { listPageOptions, pageCount, parseRows } from './catalog-list'
 import { ONE_MONTH, ONE_WEEK, ONE_YEAR } from '@/assets/js/timesToMs'
 
 export interface BrickLinkCategory {
@@ -25,7 +26,7 @@ export async function fetchAll() {
   return await makeTextCall(
     Call.GET_CATALOG_LIST_PAGE_ALL,
     'https://www.bricklink.com/catalogList.asp?v=3',
-    getOptions(),
+    listPageOptions(),
     undefined,
     ONE_WEEK,
   )
@@ -34,7 +35,7 @@ export async function fetch(catId: string, page: number = 1) {
   return await makeTextCall(
     Call.GET_CATALOG_LIST_PAGE,
     getPageUrl(catId, page),
-    getOptions(),
+    listPageOptions(),
     undefined,
     ONE_MONTH,
   )
@@ -44,7 +45,7 @@ export async function fetchFirstIds(catIds: string[]) {
     return {
       call: Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
       url: getPageUrl(id, 1),
-      options: getOptions(),
+      options: listPageOptions(),
       undefined,
       ONE_YEAR,
     }
@@ -55,7 +56,7 @@ export async function fetchFirst(catId: string) {
   await makeTextCall(
     Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY,
     getPageUrl(catId, 1),
-    getOptions(),
+    listPageOptions(),
     undefined,
     ONE_YEAR,
   )
@@ -65,30 +66,6 @@ function getPageUrl(catId: string, page: number) {
   return `https://www.bricklink.com/catalogList.asp?catID=${catId}&pg=${page}`
 }
 
-function getOptions() {
-  return {
-    headers: {
-      accept:
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      'accept-language': 'en,de;q=0.9,es;q=0.8,en-US;q=0.7',
-      'cache-control': 'max-age=0',
-      priority: 'u=0, i',
-      'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"macOS"',
-      'sec-fetch-dest': 'document',
-      'sec-fetch-mode': 'navigate',
-      'sec-fetch-site': 'none',
-      'sec-fetch-user': '?1',
-      'upgrade-insecure-requests': '1',
-    },
-    referrerPolicy: 'strict-origin-when-cross-origin',
-    body: null,
-    method: 'GET',
-    mode: 'cors',
-    credentials: 'include',
-  }
-}
 export interface ItemType {
   name: string
   count: number
@@ -284,56 +261,23 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
     const params = extractValuesFromHtml(detail.request.url, ['catID=', 'pg='], ['&', ''])
     const catId = params[0]
     const page = params[1]
-    const numPagesExtraction = extractValueFromHtml(
-      detail.response,
-      [
-        'Items Found.  Page <B>',
-        '<B>', // numPages
-      ],
-      ['</B> (Showing', ''],
-    )
     if (page === '1' && fetchAll) {
       parts.value.delete(catId)
-      const numPages = Number.parseInt(numPagesExtraction[0][0])
+      const numPages = pageCount(detail.response)
       for (let i = numPages; i > 1; i--) {
         await queueCall(
           CallType.TEXT,
           Call.GET_CATALOG_LIST_PAGE,
           getPageUrl(catId, i),
-          getOptions(),
+          listPageOptions(),
         )
       }
     }
-    const localParts = extractValueFromHtml(
-      detail.response,
-      ['<TR class="catalog-list__body-header">', '<TR'],
-      ['</TABLE>', '</TR>'],
-    )
-    if (!localParts[0]) {
+    const parts2 = parseRows(detail.response)
+    if (!parts2.length) {
       // console.log('something wrong', detail, parts)
       return
     }
-    const parts2 = localParts[0].map((partHtml: string) => {
-      const values = extractValuesFromHtml(
-        partHtml,
-        [
-          "data-itemid='", // item id
-          "data-itemcolorid='", // color id,
-          "SRC='", // image
-          '<A HREF="',
-          '>', // item number
-          '<strong>', // item name
-        ],
-        ["' ", "'", "'", '"', '</A>', '</strong>'],
-      )
-      return {
-        itemId: values[0],
-        colorId: values[1],
-        image: values[2],
-        itemNumber: values[4],
-        itemName: values[5],
-      }
-    })
     let currentValue = parts.value.get(catId)
     if (!currentValue) {
       currentValue = []

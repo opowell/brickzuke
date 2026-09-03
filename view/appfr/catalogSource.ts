@@ -19,6 +19,9 @@ import indices from '../../idb/indices'
 import { rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { inventoryFor, readInventory } from './inventoryFetch'
+import { colorItemsFor, readColorItems } from './colorItemsFetch'
+import { colorScope } from '../stores/bricklink/catalog-list-color-page'
+import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 
 /**
@@ -238,6 +241,32 @@ function termValue(request: QueryRequest, field: string): string | undefined {
   return undefined
 }
 
+/**
+ * The query, with the term that says which record this table is showing taken
+ * out of it.
+ *
+ * `record:` and `item:` are an address rather than a filter — the rows came
+ * back because of them — but everything else in the expression still narrows.
+ * Without this a colour press inside an open set would write a term the source
+ * then ignored, which is a filter that does nothing.
+ *
+ * A group left with no terms constrains nothing, so it matches every row, and
+ * the whole expression with it.
+ */
+function matcherBesides(
+  request: QueryRequest,
+  ...addresses: string[]
+): (row: ShellRow) => boolean {
+  const groups = parseExpression(request.query.expr).map((group) =>
+    group.filter((term) => !(term.kind === 'field' && addresses.includes(term.field)))
+  )
+  if (!groups.length || groups.some((group) => !group.length)) {
+    return () => true
+  }
+  const entity = request.entity ?? request.schema.entities[0]
+  return (row) => matchesExpression(groups, row, entity)
+}
+
 function openItemId(request: QueryRequest): number | undefined {
   const value = termValue(request, 'item')
   const id = Number(value)
@@ -260,11 +289,57 @@ function toInventoryRow(stored: StoredItemInventory): ShellRow {
       name: variant.name,
       itemId: variant.itemId,
       color: variant.colorName,
-      colorId: variant.colorId,
+      // Lowercase because the parser lowercases a term's field, and a number
+      // because `:` compares numbers exactly where it substring-matches
+      // strings — `colorid:"85"` must not also answer for colour 185.
+      colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
       category: variant.catString,
       categoryName: variant.categoryName
     }
   }
+}
+
+/** One item of one colour, as a row. */
+function toColorItemRow(stored: StoredColorItem): ShellRow {
+  return {
+    id: stored.id,
+    entityKey: 'colorItems',
+    entityLabel: 'Color items',
+    fields: {
+      id: stored.id,
+      scope: stored.scope,
+      // The two terms that address this table, under the names a term can be
+      // written against: lowercase, and the colour a number so `:` compares it
+      // exactly rather than finding 2 inside 12.
+      colorid: Number(stored.colorId),
+      type: stored.catType,
+      // `itemId` and `type` together are what narrows back into the items
+      // table, which is the same pair an inventory row carries.
+      itemId: stored.itemNumber,
+      number: stored.itemNumber,
+      name: stored.itemName,
+      image: stored.image
+    }
+  }
+}
+
+/**
+ * The items of one colour.
+ *
+ * Addressed by two terms rather than one, because "colour 2" is not a question
+ * on its own — the colour guide counts the parts made in a colour separately
+ * from the sets containing it, and they are two different pages.
+ */
+async function colorItemRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const colorId = termValue(request, 'colorid')
+  const catType = termValue(request, 'type') ?? 'P'
+  if (!colorId) {
+    return []
+  }
+  const stored = fetching
+    ? await colorItemsFor(catType, colorId)
+    : await readColorItems(colorScope(catType, colorId))
+  return stored.map(toColorItemRow)
 }
 
 /**
@@ -354,10 +429,26 @@ export const catalogSource: DataSource = {
       }
     }
 
+    if (key === 'colorItems') {
+      // Reads only, as for inventories below: the home screen runs one of
+      // these per type every time it is drawn, and a summary card is no reason
+      // to scrape twenty pages of BrickLink.
+      const rows = present(
+        await colorItemRows(request, false),
+        request,
+        matcherBesides(request, 'colorid', 'type')
+      )
+      return {
+        rows: rows.slice(request.offset, request.offset + request.limit),
+        total: rows.length,
+        unfiltered
+      }
+    }
+
     if (key === 'inventory') {
       // Reads only. `query` is the home screen's, which runs one per type every
       // time it is drawn, and a summary card is no reason to scrape BrickLink.
-      const rows = present(await inventoryRows(request, false), request, () => true)
+      const rows = present(await inventoryRows(request, false), request, matcherBesides(request, 'record'))
       return {
         rows: rows.slice(request.offset, request.offset + request.limit),
         total: rows.length,
@@ -366,7 +457,7 @@ export const catalogSource: DataSource = {
     }
 
     if (key === 'itemRecords') {
-      const rows = present(await recordRows(request), request, () => true)
+      const rows = present(await recordRows(request), request, matcherBesides(request, 'item'))
       return {
         rows: rows.slice(request.offset, request.offset + request.limit),
         total: rows.length,
@@ -426,13 +517,22 @@ export const catalogSource: DataSource = {
     const key = entityKey(request)
     let cancelled = false
 
-    if (key === 'inventory' || key === 'itemRecords') {
-      void (key === 'inventory' ? inventoryRows(request) : recordRows(request))
+    if (key === 'inventory' || key === 'itemRecords' || key === 'colorItems') {
+      const addresses =
+        key === 'inventory' ? ['record'] : key === 'itemRecords' ? ['item'] : ['colorid', 'type']
+      const fetched =
+        key === 'inventory'
+          ? inventoryRows(request)
+          : key === 'itemRecords'
+            ? recordRows(request)
+            : colorItemRows(request)
+      void fetched
         .then((all) => {
           if (cancelled || !sink.open) return
-          // The `item:` term is this table's address rather than a filter over
-          // it, so the rows it fetched are not filtered by it again.
-          const rows = present(all, request, () => true)
+          // The address terms are this table's address rather than a filter
+          // over it, so the rows they fetched are not filtered by them again —
+          // but whatever else the query carries does narrow them.
+          const rows = present(all, request, matcherBesides(request, ...addresses))
           sink.set({
             rows: rows.slice(request.offset, request.offset + request.limit),
             total: rows.length

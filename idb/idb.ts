@@ -5,8 +5,8 @@ import INDICES from './indices'
 import { createIndex, createStore } from './db'
 
 const DB_NAME = 'brickzuke'
-// 17 adds ITEM_INVENTORIES and its by-record index.
-const DB_VERSION = 17
+// 18 adds COLOR_ITEMS and its by-scope index.
+const DB_VERSION = 18
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

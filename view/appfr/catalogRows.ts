@@ -72,6 +72,11 @@ async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
         // The first, because narrowing states one term and all but a handful
         // of categories map to a single BrickLink category.
         categoryId: category.brickLinkCategories?.[0]?.categoryId,
+        // The one-letter code an item carries in its own `type`. `type` above
+        // is every BrickLink category's `catType` joined, which is a label;
+        // this is the first of them, which is the one a term can be written
+        // against — as `categoryId` is, and for the same reason.
+        typeId: category.type?.split(',')[0].trim(),
         // The id after the name, the way the original category cell reads.
         name: category.name + ' (' + category.id + ')'
       }
@@ -95,7 +100,11 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
       entityKey: 'colors',
       entityLabel: 'Colors',
       fields: {
-        id: String(color.id),
+        // A number rather than the string every other type states, because a
+        // colour is narrowed to by this id and `:` compares numbers exactly
+        // where it substring-matches strings — `id:"85"` must not also answer
+        // for colour 185.
+        id: color.id,
         name: color.name ?? joined.find((c) => c['Color Name'])?.['Color Name'],
         image: joined.find((c) => c.image)?.image,
         // `countItems` is the sum of `Parts`, exactly as `setColors` computes it.

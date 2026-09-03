@@ -2,6 +2,7 @@ import { getDbConnection } from '../../../idb/idb'
 
 import { useCatalogItemPageStore } from '@/stores/bricklink/catalog-item-page'
 import { useCatalogListPageStore } from '@/stores/bricklink/catalog-list-page'
+import { handlePageResponse as handleColorPageResponse } from '@/stores/bricklink/catalog-list-color-page'
 import STORES from '../../../idb/stores'
 import { get, put, getAllFromIndex, deleteQueuedCall } from '../../../idb/db'
 export interface QueuedCall {
@@ -41,6 +42,7 @@ export enum Call {
   GET_CATALOG_LIST_PAGE = 'https://www.bricklink.com/catalogList.asp',
   GET_CATALOG_LIST_PAGE_ALL = 'https://www.bricklink.com/catalogList.asp#all',
   GET_CATALOG_LIST_PAGE_FIRST_ONLY = 'https://www.bricklink.com/catalogList.asp#first-only',
+  GET_CATALOG_LIST_COLOR_PAGE = 'https://www.bricklink.com/catalogList.asp#color',
   GET_SEARCH_ADVANCED_PAGE = 'https://www.bricklink.com/searchAdvanced.asp',
 }
 export enum CallType {
@@ -165,6 +167,12 @@ export function handleEvent(detail: EventDetail) {
       case Call.GET_CATALOG_LIST_PAGE_FIRST_ONLY: {
         const catalogListPage = useCatalogListPageStore()
         catalogListPage.handleFetchResponse(detail, false)
+        return
+      }
+      // Not a store: the colour pages are parsed and stored, and nothing in
+      // the legacy views reads them.
+      case Call.GET_CATALOG_LIST_COLOR_PAGE: {
+        void handleColorPageResponse(detail)
         return
       }
       case Call.GET_SEARCH_ADVANCED_PAGE: {
