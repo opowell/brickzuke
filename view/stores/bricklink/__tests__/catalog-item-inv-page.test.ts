@@ -1,14 +1,15 @@
 /**
- * Persisting a parsed inventory.
+ * Scraping and persisting a set's inventory.
  *
- * IMPORTANT — what this fixture is, and what it is not. The markup below is
- * *reconstructed* from what the extractors in `handlePageResponse` look for; it
- * is not a captured BrickLink page. So this pins the half that is ours — the
- * record key the inventory is filed under, the id that keeps two colours of one
- * part apart, and the round trip through the new index — and it proves nothing
- * about whether the scrape still matches BrickLink's real HTML. That needs a
- * saved `catalogItemInv.asp` response dropped in as `PAGE`, which is the one
- * change this file should need.
+ * The fixture is a real `catalogItemInv.asp` response — the inventory table
+ * BrickLink served for set 10511-1, trimmed to six rows and checked for
+ * anything identifying, since it was fetched with a logged-in session. Four of
+ * those rows carry a colour and two do not, which is the branch the parser
+ * takes separately.
+ *
+ * So this covers both halves: that the scrape still matches the markup
+ * BrickLink actually sends, and that what it parses is filed where a set can
+ * find it again.
  */
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -18,63 +19,8 @@ import type { StoredItemInventory } from '../catalog-item-inv-page'
 import { getAllFromIndex } from '../../../../idb/db'
 import { getDbConnection } from '../../../../idb/idb'
 import indices from '../../../../idb/indices'
+import PAGE from './fixtures/catalogItemInv-S-10511-1.html?raw'
 
-const TABLE = '<TABLE BORDER="0" CELLPADDING="3" CELLSPACING="0" WIDTH="100%" CLASS="ta">'
-
-/** One inventory row, in the marker order the extractors walk. */
-function row(options: {
-  itemId: string
-  name: string
-  thumbnail: string
-  quantity: number
-  colorId?: string
-  colorName?: string
-}) {
-  const color = options.colorId
-    ? ` idColor=${options.colorId}" `
-    : ' '
-  const variant = options.colorId
-    ? `</A></TD><TD><B>${options.name} ${options.colorName}</B>`
-    : ''
-  return (
-    `<TR class="IV_${options.itemId} ">` +
-    `<TD><A href="/catalogItem.asp?${color}">Name: ${options.name}"</A></TD>` +
-    variant +
-    `<TD><IMG SRC='${options.thumbnail}'></TD>` +
-    `<TD ALIGN="RIGHT">&nbsp;${options.quantity}&nbsp;</TD>` +
-    `<TD><A href="/x?itemType=P"></A>` +
-    `<A href="/y?catType=P&catString=5'>Bricks<</A></TD>` +
-    `</TR>`
-  )
-}
-
-const PAGE =
-  '<html><body>' +
-  TABLE +
-  row({
-    itemId: '3001',
-    name: 'Brick 2 x 4',
-    thumbnail: 'https://img.example/3001.png',
-    quantity: 12,
-    colorId: '11',
-    colorName: 'Red'
-  }) +
-  row({
-    itemId: '3001',
-    name: 'Brick 2 x 4',
-    thumbnail: 'https://img.example/3001b.png',
-    quantity: 4,
-    colorId: '1',
-    colorName: 'Blue'
-  }) +
-  row({
-    itemId: '3020',
-    name: 'Plate 2 x 4',
-    thumbnail: 'https://img.example/3020.png',
-    quantity: 2
-  }) +
-  '<!-- Classic Contents End-->' +
-  '</body></html>'
 
 function detailFor(url: string, response: string) {
   return {
@@ -114,22 +60,29 @@ describe('inventory persistence', () => {
     )
 
     const stored = await storedFor('S-10511-1')
-    expect(stored).toHaveLength(3)
+    expect(stored).toHaveLength(6)
     expect(new Set(stored.map((s) => s.record))).toEqual(new Set(['S-10511-1']))
+    // Parsed off the real page, not invented: a part number, a name, a colour
+    // and a quantity that all came out of BrickLink's own markup.
+    const brick = stored.find((s) => s.itemVariant.itemId === '3011')!
+    expect(brick.quantity).toBe(1)
+    expect(brick.itemVariant.name).toBe('Duplo, Brick 2 x 4')
+    expect(brick.itemVariant.colorName).toBe('Blue')
+    expect(brick.itemVariant.itemType).toBe('P')
   })
 
-  it('keeps two colours of the same part apart', async () => {
+  it('gives every part its own row, colour or no colour', async () => {
     const store = useCatalogItemInvPageStore()
     await store.handlePageResponse(
       detailFor('https://www.bricklink.com/catalogItemInv.asp?S=10511-1', PAGE)
     )
 
     const stored = await storedFor('S-10511-1')
-    // Same part number, two colours: two rows, not one overwriting the other.
-    const brick = stored.filter((s) => s.itemVariant.itemId === '3001')
-    expect(brick).toHaveLength(2)
-    expect(new Set(brick.map((s) => s.id)).size).toBe(2)
-    expect(new Set(brick.map((s) => s.itemVariant.colorId))).toEqual(new Set(['11', '1']))
+    // The id carries the variant, so nothing overwrites anything.
+    expect(new Set(stored.map((s) => s.id)).size).toBe(stored.length)
+    // The fixture holds both kinds of row the parser branches on.
+    expect(stored.some((s) => s.itemVariant.colorId !== undefined)).toBe(true)
+    expect(stored.some((s) => s.itemVariant.colorId === undefined)).toBe(true)
   })
 
   it('survives a reload, which the Pinia maps did not', async () => {
@@ -142,7 +95,7 @@ describe('inventory persistence', () => {
     // everything to. The rows are still in IndexedDB.
     setActivePinia(createPinia())
     expect(useCatalogItemInvPageStore().itemInventories.size).toBe(0)
-    expect(await storedFor('S-10511-1')).toHaveLength(3)
+    expect(await storedFor('S-10511-1')).toHaveLength(6)
   })
 
   it('re-reading a page replaces its rows rather than doubling them', async () => {
@@ -151,7 +104,7 @@ describe('inventory persistence', () => {
     await store.handlePageResponse(detail)
     await store.handlePageResponse(detail)
 
-    expect(await storedFor('S-10511-1')).toHaveLength(3)
+    expect(await storedFor('S-10511-1')).toHaveLength(6)
   })
 
   it('files a different set separately', async () => {
@@ -163,7 +116,7 @@ describe('inventory persistence', () => {
       detailFor('https://www.bricklink.com/catalogItemInv.asp?S=60012-1', PAGE)
     )
 
-    expect(await storedFor('S-10511-1')).toHaveLength(3)
-    expect(await storedFor('S-60012-1')).toHaveLength(3)
+    expect(await storedFor('S-10511-1')).toHaveLength(6)
+    expect(await storedFor('S-60012-1')).toHaveLength(6)
   })
 })
