@@ -5,7 +5,22 @@ import { getDbConnection } from '../../../idb/idb'
 import stores from '../../../idb/stores'
 import { ONE_WEEK } from './timesToMs'
 
-export function initBrickLinkWorker() {
+let listening = false
+
+/**
+ * The half of the bridge that receives: the extension answers a dispatched call
+ * with `bzServerToClient`, and this caches the raw response and hands it to
+ * whichever store asked for it.
+ *
+ * Separate from the worker below because a host may want the answers without
+ * the queue being drained on a timer — appfr fetches one inventory when someone
+ * opens a set, and nothing else.
+ */
+export function installResponseListener() {
+  if (listening) {
+    return
+  }
+  listening = true
   // @ts-expect-error addEventListener
   document.addEventListener('bzServerToClient', async function (e: CustomEvent) {
     console.log('got response', e)
@@ -46,6 +61,10 @@ export function initBrickLinkWorker() {
       }
     }
   })
+}
+
+export function initBrickLinkWorker() {
+  installResponseListener()
 
   const brickLinkWorker = new BrickLinkWorker()
   brickLinkWorker.onmessage = async () => {

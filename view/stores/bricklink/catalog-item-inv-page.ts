@@ -43,6 +43,23 @@ export interface ItemVariant {
   categoryName: string
 }
 
+/**
+ * A value that came out of the page, as text.
+ *
+ * These are scraped out of HTML, so they arrive carrying its entities — a part
+ * called `Plate 2 x 4 x 1/2 (Thick)` comes across as `&#40;Thick&#41;`. Every
+ * other store here holds decoded text, and a table that renders text rather
+ * than markup has no chance to resolve them later.
+ */
+function decodeEntities(value: string | undefined): string | undefined {
+  if (!value || !value.includes('&')) {
+    return value
+  }
+  const element = document.createElement('textarea')
+  element.innerHTML = value
+  return element.value
+}
+
 export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore', () => {
   const itemVariants = ref(new Map<string, Map<string, ItemVariant[]>>())
   const itemInventories = ref(new Map<string, Map<string, ItemInventory[]>>())
@@ -182,7 +199,7 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
         ],
         [' ', '"', "'", '&nbsp;', '"', '&', "'", '<'],
       )
-      const name = params[1]
+      const name = decodeEntities(params[1])!
       let colorId = undefined
       let colorName = undefined
       if (row.includes('idColor=')) {
@@ -191,11 +208,13 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
           'idColor=', // colorId
           '"',
         )[0]
-        const variantName = extractValuesFromHtml(
-          row,
-          '</A></TD><TD><B>', // variantName
-          '</B>',
-        )[0]
+        const variantName = decodeEntities(
+          extractValuesFromHtml(
+            row,
+            '</A></TD><TD><B>', // variantName
+            '</B>',
+          )[0],
+        )
         if (!!variantName) {
           colorName = variantName.replace(name, '').trim()
         }
@@ -208,12 +227,12 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
           itemType: params[4],
           itemId,
           name,
-          thumbnail: params[2],
+          thumbnail: decodeEntities(params[2])!,
           colorId,
           colorName,
           catType: params[5],
           catString: params[6],
-          categoryName: params[7],
+          categoryName: decodeEntities(params[7])!,
           variantId: itemId + '-' + colorId,
         },
       }

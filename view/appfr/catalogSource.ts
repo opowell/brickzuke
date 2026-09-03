@@ -18,6 +18,7 @@ import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
 import { rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
+import { inventoryFor, readInventory } from './inventoryFetch'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 
 /**
@@ -258,28 +259,24 @@ function toInventoryRow(stored: StoredItemInventory): ShellRow {
 }
 
 /**
- * What one set is made of, as stored.
+ * What one set is made of.
  *
- * Reads only — nothing here fetches. An inventory reaches IndexedDB when
- * `catalogItemInv.asp` has been scraped for that record, so a set nobody has
- * fetched yet is an empty table rather than a wait.
+ * `fetching` is the difference between this and every other type here: a set
+ * nobody has opened before is not in IndexedDB at all, so the rows come over
+ * the network the first time. The sink stays open across that, which is what
+ * puts the shell in its "Running query…" state rather than showing an empty
+ * table that is about to fill.
  */
-async function inventoryRows(request: QueryRequest): Promise<ShellRow[]> {
+async function inventoryRows(
+  request: QueryRequest,
+  fetching = true
+): Promise<ShellRow[]> {
   const record = termValue(request, 'record')
   if (!record) {
     return []
   }
-  const db = await getDbConnection()
-  try {
-    const parts = (await getAllFromIndex<StoredItemInventory>(
-      db,
-      indices.ITEM_INVENTORIES_BY_RECORD,
-      record
-    )) ?? []
-    return parts.map(toInventoryRow)
-  } finally {
-    db.close()
-  }
+  const stored = fetching ? await inventoryFor(record) : await readInventory(record)
+  return stored.map(toInventoryRow)
 }
 
 /** The records behind one item, ordered the way the query asks. */
@@ -349,7 +346,9 @@ export const catalogSource: DataSource = {
     }
 
     if (key === 'inventory') {
-      const rows = present(await inventoryRows(request), request, () => true)
+      // Reads only. `query` is the home screen's, which runs one per type every
+      // time it is drawn, and a summary card is no reason to scrape BrickLink.
+      const rows = present(await inventoryRows(request, false), request, () => true)
       return {
         rows: rows.slice(request.offset, request.offset + request.limit),
         total: rows.length,

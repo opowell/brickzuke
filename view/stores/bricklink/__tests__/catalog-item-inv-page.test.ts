@@ -69,6 +69,11 @@ describe('inventory persistence', () => {
     expect(brick.itemVariant.name).toBe('Duplo, Brick 2 x 4')
     expect(brick.itemVariant.colorName).toBe('Blue')
     expect(brick.itemVariant.itemType).toBe('P')
+
+    // Names arrive as HTML and have to be stored as text: this one is
+    // `&#40;Thick&#41;` on the page.
+    const plate = stored.find((s) => s.itemVariant.name.includes('Plate 2 x 4'))!
+    expect(plate.itemVariant.name).toBe('Duplo, Plate 2 x 4 x 1/2 (Thick)')
   })
 
   it('gives every part its own row, colour or no colour', async () => {
