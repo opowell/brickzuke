@@ -364,7 +364,24 @@ const clickCategoryItemsFn = async (category: Category) => {
   setCounts()
 }
 
+/**
+ * True while the appfr shell owns the address bar.
+ *
+ * Two writers cannot share a query string: `currentQueryString` rebuilds the
+ * whole thing from `v`/`s`/`f` and pushes it, so it deletes every parameter it
+ * does not know about — which is all of the shell's. While the shell is up it
+ * is the only writer, and this is what the rest of the app checks before
+ * reaching for the URL.
+ */
+export const shellOwnsUrl = ref(
+  typeof window === 'undefined' ? false : new URLSearchParams(window.location.search).has('appfr'),
+)
+
 export function updateWindowUrl() {
+  // The shell's query is the URL. Pushing brickzuke's would wipe it.
+  if (shellOwnsUrl.value) {
+    return
+  }
   router.push(currentQueryString.value)
 }
 

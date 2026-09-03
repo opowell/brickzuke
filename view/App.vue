@@ -1,30 +1,36 @@
 <template>
-  <TheHeader />
-  <div v-if="!selectedItemType">
-    <button @click="fetchBrickLink">Update BrickLink</button>
-    <button @click="updateCatalogTree">Update BrickLink Categories</button>
-    <button @click="fetchBrickLinkColorGuide">Update BrickLink Color Guide</button>
-    <button @click="fetchCatalogPage">Update BrickLink Item Types</button>
-  </div>
-  <TheContent />
-  <PulseMonitor />
+  <!-- Prototype: ?appfr=1 swaps TableComponent for header-content-layout. -->
+  <ItemsShell v-if="useAppfr" />
+  <template v-else>
+    <TheHeader />
+    <div v-if="!selectedItemType">
+      <button @click="fetchBrickLink">Update BrickLink</button>
+      <button @click="updateCatalogTree">Update BrickLink Categories</button>
+      <button @click="fetchBrickLinkColorGuide">Update BrickLink Color Guide</button>
+      <button @click="fetchCatalogPage">Update BrickLink Item Types</button>
+    </div>
+    <TheContent />
+    <PulseMonitor />
+  </template>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import TheHeader from './components/TheHeader.vue'
+import ItemsShell from './components/ItemsShell.vue'
 import TheContent from './components/TheContent.vue'
 import PulseMonitor from './components/PulseMonitor.vue'
 import { initBrickLinkWorker } from './assets/js/init-brick-link-worker'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
 import { fetchCatalogPage, fetchBrickLink, updateCatalogTree } from '../sources/bricklink'
 import { makeCall as fetchBrickLinkColorGuide } from '../sources/bricklink/color-guide'
-import { filters, itemTypes, pauseRedirect, search, selectedItemType, selectedItemTypeId, setCounts, updateView } from '../model'
+import { filters, itemTypes, pauseRedirect, search, selectedItemType, selectedItemTypeId, setCounts, shellOwnsUrl, updateView } from '../model'
 import { useRoute, useRouter } from 'vue-router'
 import { getDbConnection } from '../idb/idb'
 import { loadCategory } from '../idb/category'
 const router = useRouter()
 const route = useRoute()
+const useAppfr = shellOwnsUrl
 
 const filterDisplayLabelMap = {
   category: 'Category',
@@ -48,6 +54,11 @@ async function getFilterDisplayValue(key: string, value: string): Promise<string
 async function processUrl() {
   console.log('processUrl', route, route?.query)
   if (!route?.query) {
+    return
+  }
+  // The shell's `v` is a view and its `s` is a sort field. Reading them as a
+  // selected type and a search would import the shell's query as nonsense.
+  if (shellOwnsUrl.value) {
     return
   }
   pauseRedirect.value = true
