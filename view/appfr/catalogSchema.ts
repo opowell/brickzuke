@@ -110,6 +110,7 @@ export const itemColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     width: '60px',
+    sort: 'type',
     click: (row) => narrowBy('type', String(row.fields.typeId ?? ''))
   },
   // Pressing a name narrows to that one item, which is what the `item` filter
@@ -128,6 +129,7 @@ export const itemColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Category',
     width: '200px',
+    sort: 'categoryName',
     // `category` holds the id so a term can address it; the cell shows the name.
     value: (row) => row.fields.categoryName,
     click: (row) => narrowBy('category', String(row.fields.category ?? ''))
@@ -143,8 +145,9 @@ export const itemColumns: ColumnDef[] = [
     key: 'weight',
     label: 'Weight',
     width: '75px',
+    sort: 'weight',
     // Held in grams, read in whatever unit the number is actually in.
-    value: (row) => Number.parseFloat(String(row.fields.weight)) * 100,
+    value: (row) => Number(row.fields.weight) * 100,
     // `formatInteger` hands NaN straight back for an item that carries no
     // weight, so a missing weight would read `NaN`. It gets the same mark for
     // an absent value the shell puts in every other column.
@@ -156,7 +159,8 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'dimensions',
     label: 'Dimensions',
-    width: '115px'
+    width: '115px',
+    sort: 'dimensions'
   }
 ]
 
@@ -234,12 +238,13 @@ export const itemRecordColumns: ColumnDef[] = [
  * order: the variant picture, its type, the item, its category, its colour and
  * how many of them.
  *
- * Only `Type` leads anywhere. An item row carries no colour, so colour narrows
- * nothing here for the same reason it does not on the colours table; and
- * whether a variant's `catString` is the same number an item carries in
- * `category` is not something this can claim until there is real inventory to
- * check it against. They stay plain until then rather than offering a press
- * that may go nowhere.
+ * Type and category both lead back to the items table. A variant's `catString`
+ * is the same id an item carries in `category` — checked against a real
+ * inventory: the parts of 10511-1 sit in `417`, and `category:"417"` is 92
+ * items, every one of them a DUPLO brick.
+ *
+ * Colour leads nowhere, and cannot: an item row carries no colour at all, which
+ * is the same reason the colours table narrows nothing.
  */
 export const inventoryColumns: ColumnDef[] = [
   {
@@ -273,7 +278,8 @@ export const inventoryColumns: ColumnDef[] = [
     key: 'categoryName',
     role: 'reference',
     label: 'Category',
-    width: '160px'
+    width: '160px',
+    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
   },
   {
     key: 'color',
@@ -592,14 +598,32 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: ['Information', 'Inventory', 'Images'],
       samples: [],
       columns: itemColumns,
+      // Every labelled column, because every header in the original is a
+      // button that sorts by it.
       sorts: [
+        {
+          key: 'type',
+          label: 'Type'
+        },
         {
           key: 'name',
           label: 'Name'
         },
         {
+          key: 'categoryName',
+          label: 'Category'
+        },
+        {
           key: 'year',
           label: 'Year'
+        },
+        {
+          key: 'weight',
+          label: 'Weight'
+        },
+        {
+          key: 'dimensions',
+          label: 'Dimensions'
         }
       ]
     },

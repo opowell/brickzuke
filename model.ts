@@ -394,6 +394,36 @@ export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
 export const tableItems = ref<any[]>([])
 export const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
+/**
+ * The one-letter code an item carries in its type — `S`, `P`, `M`.
+ *
+ * The handlers below read `catType` off the item type, and it is not there:
+ * nothing in this repo ever writes that field, so every one of these filters
+ * was carrying `undefined`. The code is on the BrickLink records
+ * `setItemTypes` joins in, which is where appfr reads it from as well.
+ */
+function itemTypeCode(type: ItemType): string | undefined {
+  return type.brickLinkItemTypes?.[0]?.itemTypeId
+}
+
+/**
+ * Move to a table with a filter applied.
+ *
+ * This is what `clickCategoryItemsFn` does by hand, and what the handlers below
+ * were reaching for through `selectedItem` — an identifier that is not declared
+ * anywhere, so every one of those presses threw a ReferenceError. One of them
+ * assigned the string `'items'` to `selectedItemType`, which holds a table
+ * object everywhere else, so it failed differently.
+ */
+async function selectTableWithFilters(tableId: string, ...newFilters: Filter[]) {
+  selectedItemType.value = itemTypes.value.find((table) => table.id === tableId)
+  filters.value.push(...newFilters)
+  search.value = undefined
+  updateWindowUrl()
+  await updateView()
+  setCounts()
+}
+
 export const itemTypes = ref<SelectOption<any>[]>([
   {
     id: 'categories',
@@ -472,52 +502,45 @@ export const itemTypes = ref<SelectOption<any>[]>([
         id: 'countItems',
         label: 'Items',
         type: 'number',
-        clickFn: (color: BrickLinkColor) => {
-          selectedItem.value = undefined
-          filters.value.push({
+        clickFn: (color: Color) =>
+          selectTableWithFilters('items', {
             key: 'color',
-            value: color.colorID,
-          })
-          search.value = undefined
-        },
+            value: color.id,
+          }),
       },
       {
         id: 'countParts',
         label: 'Parts',
         type: 'number',
-        clickFn: (color: BrickLinkColor) => {
-          selectedItem.value = 'items'
-          filters.value.push(
+        clickFn: (color: Color) =>
+          selectTableWithFilters(
+            'items',
             {
               key: 'color',
-              value: color.colorID,
+              value: color.id,
             },
             {
               key: 'itemType',
               value: 'P',
             },
-          )
-          search.value = undefined
-        },
+          ),
       },
       {
         id: 'countSets',
         label: 'Sets',
         type: 'number',
-        clickFn: (color: BrickLinkColor) => {
-          selectedItem.value = 'items'
-          filters.value.push(
+        clickFn: (color: Color) =>
+          selectTableWithFilters(
+            'items',
             {
               key: 'color',
-              value: color.colorID,
+              value: color.id,
             },
             {
               key: 'itemType',
               value: 'S',
             },
-          )
-          search.value = undefined
-        },
+          ),
       },
       {
         id: 'countWanted',
@@ -549,12 +572,15 @@ export const itemTypes = ref<SelectOption<any>[]>([
         label: 'Name',
         width: '105px',
         clickFn: (type: ItemType) => {
-          selectedItem.value = undefined
-          filters.value.push({
-            key: 'itemType',
-            value: type.catType,
-          })
-          search.value = undefined
+          const code = itemTypeCode(type)
+          // No code is nothing to narrow by, so the press does nothing rather
+          // than filtering on `undefined`, which matches everything.
+          return code
+            ? selectTableWithFilters('items', {
+              key: 'itemType',
+              value: code,
+            })
+            : undefined
         },
       },
       {
@@ -563,12 +589,15 @@ export const itemTypes = ref<SelectOption<any>[]>([
         width: '100px',
         type: 'number',
         clickFn: (type: ItemType) => {
-          selectedItemType.value = 'items'
-          filters.value.push({
-            key: 'itemType',
-            value: type.catType,
-          })
-          search.value = undefined
+          const code = itemTypeCode(type)
+          // No code is nothing to narrow by, so the press does nothing rather
+          // than filtering on `undefined`, which matches everything.
+          return code
+            ? selectTableWithFilters('items', {
+              key: 'itemType',
+              value: code,
+            })
+            : undefined
         },
       },
       {
@@ -576,13 +605,16 @@ export const itemTypes = ref<SelectOption<any>[]>([
         label: 'Categories',
         width: '105px',
         type: 'number',
-        clickFn: (type) => {
-          selectedItem.value = 'categories'
-          filters.value.push({
-            key: 'itemType',
-            value: type.catType,
-          })
-          search.value = undefined
+        clickFn: (type: ItemType) => {
+          const code = itemTypeCode(type)
+          // No code is nothing to narrow by, so the press does nothing rather
+          // than filtering on `undefined`, which matches everything.
+          return code
+            ? selectTableWithFilters('categories', {
+              key: 'itemType',
+              value: code,
+            })
+            : undefined
         },
       },
     ],

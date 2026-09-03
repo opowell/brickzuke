@@ -28,6 +28,12 @@ import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
  */
 type JoinedItem = BrickLinkItem & { bzItemId: number }
 
+/** The stored weight as a number, or nothing when there is not one. */
+function toWeight(value: string | undefined): number | undefined {
+  const weight = Number.parseFloat(String(value))
+  return Number.isFinite(weight) ? weight : undefined
+}
+
 /**
  * One BrickLink item, flattened the way `processItem` flattens it. Every field
  * a column reads goes in `fields` under the name that column names — the shell
@@ -60,7 +66,10 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[]): ShellRow {
       categoryName: brickLinkItems.map((bi) => bi['Category Name']).join(', '),
       image: brickLinkItems.find((bi) => bi.image)?.image,
       year: raw['Year Released'],
-      weight: first.weight,
+      // A number, not the stored string: sorting a column of weights
+      // lexicographically puts 10g before 9g. Absent rather than NaN when there
+      // is no weight, so it sorts as an empty cell instead of a broken compare.
+      weight: toWeight(first.weight),
       dimensions: raw.Dimensions
     }
   }
@@ -205,7 +214,7 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
       categoryName: brickLinkItem['Category Name'],
       image: brickLinkItem.image,
       year: raw['Year Released'],
-      weight: brickLinkItem.weight,
+      weight: toWeight(brickLinkItem.weight),
       dimensions: raw.Dimensions
     }
   }
@@ -386,11 +395,18 @@ export const catalogSource: DataSource = {
     const db = await getDbConnection()
     const rows: ShellRow[] = []
     let total = 0
-    await scan(db, request, (row) => {
-      total++
-      if (total > request.offset && rows.length < request.limit) rows.push(row)
-      return true
-    })
+    try {
+      await scan(db, request, (row) => {
+        total++
+        if (total > request.offset && rows.length < request.limit) rows.push(row)
+        return true
+      })
+    } finally {
+      // An open connection blocks the next version change, and IndexedDB does
+      // not time out waiting for one — a leak here is an upgrade that never
+      // runs and an app that shows nothing.
+      db.close()
+    }
     return {
       rows,
       total,
@@ -462,8 +478,8 @@ export const catalogSource: DataSource = {
     const desc = request.query.dir === 'desc'
 
     void (async () => {
+      const db = await getDbConnection()
       try {
-        const db = await getDbConnection()
         await scan(db, request, (row) => {
           if (cancelled || !sink.open) return false
           const at = positionFor(rows, row, request.query.sort, desc)
@@ -476,6 +492,10 @@ export const catalogSource: DataSource = {
         sink.close()
       } catch (thrown) {
         sink.fail(thrown)
+      } finally {
+        // Held open for the whole scan, and every scan must give it back: a
+        // live connection blocks the next version change for ever.
+        db.close()
       }
     })()
 
