@@ -112,6 +112,39 @@ onMounted(async () => {
 </script>
 
 <style>
+/*
+ * Dark mode, in full.
+ *
+ * brickzuke names no colour of its own: every screen is browser-default text,
+ * buttons, inputs and scrollbars, and ItemsShell mounts the appfr shell with
+ * `theme="inherit"` so it draws from the host as well. `color-scheme` is
+ * therefore the whole switch — the browser repaints its own defaults from it,
+ * and the `Canvas`/`CanvasText` system colours below follow it too, so nothing
+ * here has to name a light value and a dark one.
+ *
+ * `data-theme` is written onto <html> by view/assets/js/color-mode.ts, always
+ * as a concrete `light` or `dark`. The media query is what holds before that
+ * script has run, so the first paint is already the right one.
+ */
+:root {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+body {
+  background: Canvas;
+  color: CanvasText;
+}
+
 * {
   font-size: 18px;
   font-family: Arial, Helvetica, sans-serif;

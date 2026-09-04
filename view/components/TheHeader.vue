@@ -2,6 +2,7 @@
 import TheViews from './header/TheViews.vue'
 import TheFilters from './header/TheFilters.vue'
 import TheSorts from './header/TheSorts.vue'
+import TheColorMode from './header/TheColorMode.vue'
 import { ref, watch } from 'vue'
 import { selectedItemType, itemTypes, updateView, setCounts, updateWindowUrl } from '../../model'
 import { search } from '../../model'
@@ -24,6 +25,7 @@ watch(search, () => localSearch.value = search.value)
     <TheViews v-if="selectedItemType" :item-types="itemTypes" />
     <input v-model="localSearch" placeholder="Search..." @keyup.enter="doSearch" />
     <button @click="doSearch">Search</button>
+    <TheColorMode />
   </header>
 </template>
 
