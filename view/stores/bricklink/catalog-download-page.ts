@@ -100,6 +100,9 @@ export interface BrickLinkCategory {
   items?: number
   categoryId: string
   type?: string
+  // The one-letter item type this category is listed under, as the catalogue
+  // tree writes it and as `loadCategory` reads it back.
+  catType?: string
   bzCategoryId: number
   'Category Name': string
 }

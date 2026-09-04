@@ -1,6 +1,6 @@
 import type { CountsState } from './types/counts-state'
 import { computed, ref, watch } from 'vue'
-import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type BrickLinkItemType, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
+import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
 import { count, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
@@ -10,6 +10,7 @@ import { type IDBPDatabase } from 'idb'
 import indices from './idb/indices'
 import { sum } from './idb/utils'
 import { loadCategory } from './idb/category'
+import { itemTypeCode, loadItemTypes } from './idb/itemType'
 import router from '@/router'
 import ItemCounterWorker from './workers/itemCounter?worker'
 import ColorCounterWorker from './workers/colorCounter?worker'
@@ -308,17 +309,17 @@ async function setColors(db: IDBPDatabase) {
   }
   tableItems.value = colors
 }
+/**
+ * The item types, with a name and both counts on them.
+ *
+ * This used to sum `Items` off the joined BrickLink records, a field nothing
+ * writes — so every row's count was `NaN` and drew blank, beside a name that
+ * was blank too because a stored item type is an id and nothing else.
+ * `loadItemTypes` is where all three now come from, and appfr reads the same
+ * loader, so the two views cannot state different numbers.
+ */
 async function setItemTypes(db: IDBPDatabase) {
-  const itemTypesData = await getAll<ItemType>(db, stores.ITEM_TYPES)
-  if (!itemTypesData) {
-    return
-  }
-  for (let i = 0; i < itemTypesData.length; i++) {
-    const itemType = itemTypesData[i]
-    itemType.brickLinkItemTypes = await getAllFromIndex<BrickLinkItemType>(db, indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID, itemType.id)
-    itemType.countItems = sum<BrickLinkItemType>(itemType.brickLinkItemTypes, it => Number.parseInt(it.Items))
-  }
-  tableItems.value = itemTypesData
+  tableItems.value = await loadItemTypes(db)
 }
 
 export const setSelectedItem = async function (option: SelectOption<any>) {
@@ -394,18 +395,6 @@ export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
 export const tableItems = ref<any[]>([])
 export const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
-/**
- * The one-letter code an item carries in its type — `S`, `P`, `M`.
- *
- * The handlers below read `catType` off the item type, and it is not there:
- * nothing in this repo ever writes that field, so every one of these filters
- * was carrying `undefined`. The code is on the BrickLink records
- * `setItemTypes` joins in, which is where appfr reads it from as well.
- */
-function itemTypeCode(type: ItemType): string | undefined {
-  return type.brickLinkItemTypes?.[0]?.itemTypeId
-}
-
 /**
  * Move to a table with a filter applied.
  *
@@ -566,6 +555,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
     id: 'itemTypes',
     label: 'Item types',
     count: 0,
+    idField: 'id',
     columns: [
       {
         id: 'name',

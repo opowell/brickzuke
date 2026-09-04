@@ -52,6 +52,16 @@ describe('opening order', () => {
     expect(opened.view).toBe('table')
   })
 
+  it('opens a colour list on the parts count, biggest first', () => {
+    const opened = openedQuery(query({
+      entity: 'colors',
+      sort: 'name' 
+    }), null)
+    // `items` is the field behind the column the colour guide labels Parts.
+    expect(opened.sort).toBe('items')
+    expect(opened.dir).toBe('desc')
+  })
+
   it('opens every other table A-to-Z, whatever sort was carried in', () => {
     const opened = openedQuery(query({
       entity: 'items',

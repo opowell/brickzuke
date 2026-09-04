@@ -239,6 +239,7 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     width: '60px',
+    sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.typeId ?? ''))
   },
   // Pressing a record's name opens what it is made of.
@@ -255,6 +256,8 @@ export const itemRecordColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Category',
     width: '200px',
+    // By the name the cell shows, not by the id behind it.
+    sort: 'categoryName',
     value: (row) => row.fields.categoryName,
     click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
   },
@@ -269,6 +272,7 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'weight',
     label: 'Weight',
     width: '75px',
+    sort: 'weight',
     value: (row) => Number.parseFloat(String(row.fields.weight)) * 100,
     format: (value) =>
       Number.isFinite(Number(value))
@@ -279,6 +283,7 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'dimensions',
     label: 'Dimensions',
     width: '115px',
+    sort: 'dimensions',
     click: (row) => narrowTo('items', 'dimensions', String(row.fields.dimensions ?? ''))
   }
 ]
@@ -316,6 +321,7 @@ export const inventoryColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     width: '60px',
+    sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
   },
   {
@@ -333,12 +339,14 @@ export const inventoryColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Category',
     width: '160px',
+    sort: 'categoryName',
     click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
   },
   {
     key: 'color',
     label: 'Color',
     width: '90px',
+    sort: 'color',
     // The one place in the catalogue a colour is a thing rows carry, so it is
     // the one place a colour narrows: pressing it leaves the parts of this set
     // in that colour. `record:` stays, being the address of the table rather
@@ -422,6 +430,7 @@ export const categoryColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     width: '60px',
+    sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.typeId ?? ''))
   },
   {
@@ -501,6 +510,7 @@ export const colorColumns: ColumnDef[] = [
     kind: 'component',
     component: CellCount,
     width: '90px',
+    sort: 'sets',
     format: counted,
     click: (row) => narrowToColor('S', row)
   },
@@ -508,23 +518,27 @@ export const colorColumns: ColumnDef[] = [
     key: 'wanted',
     label: 'Wanted',
     width: '90px',
+    sort: 'wanted',
     format: counted
   },
   {
     key: 'forSale',
     label: 'For sale',
     width: '90px',
+    sort: 'forSale',
     format: counted
   },
   {
     key: 'yearFrom',
     label: 'Year from',
-    width: '90px'
+    width: '90px',
+    sort: 'yearFrom'
   },
   {
     key: 'yearTo',
     label: 'Year to',
-    width: '90px'
+    width: '90px',
+    sort: 'yearTo'
   }
 ]
 
@@ -564,6 +578,7 @@ export const itemTypeColumns: ColumnDef[] = [
     kind: 'component',
     component: CellCount,
     width: '110px',
+    sort: 'categories',
     format: counted,
     click: (row) => narrowTo('categories', 'type', String(row.fields.code ?? ''))
   }
@@ -623,12 +638,28 @@ const itemRecordsEntity: EntitySchema = {
   columns: itemRecordColumns,
   sorts: [
     {
+      key: 'type',
+      label: 'Type'
+    },
+    {
       key: 'name',
       label: 'Name'
     },
     {
+      key: 'categoryName',
+      label: 'Category'
+    },
+    {
       key: 'year',
       label: 'Year'
+    },
+    {
+      key: 'weight',
+      label: 'Weight'
+    },
+    {
+      key: 'dimensions',
+      label: 'Dimensions'
     }
   ]
 }
@@ -643,8 +674,20 @@ const inventoryEntity: EntitySchema = {
   columns: inventoryColumns,
   sorts: [
     {
+      key: 'type',
+      label: 'Type'
+    },
+    {
       key: 'name',
       label: 'Item'
+    },
+    {
+      key: 'categoryName',
+      label: 'Category'
+    },
+    {
+      key: 'color',
+      label: 'Color'
     },
     {
       key: 'quantity',
@@ -670,12 +713,12 @@ const colorItemsEntity: EntitySchema = {
   columns: colorItemColumns,
   sorts: [
     {
-      key: 'name',
-      label: 'Name'
-    },
-    {
       key: 'number',
       label: 'No.'
+    },
+    {
+      key: 'name',
+      label: 'Name'
     }
   ]
 }
@@ -694,10 +737,14 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: [],
       samples: [],
       columns: categoryColumns,
-      // Items first, as the columns have it — and as the original has it: a
-      // category list there is ordered by how many items are in each, never
-      // A-to-Z. See `openingOrder`, which is what actually opens it that way.
+      // Every labelled column, in the order the table shows them — see the
+      // note on `items` below. Which of them a table *opens* on is not this
+      // list's business: `openingOrder` says that.
       sorts: [
+        {
+          key: 'type',
+          label: 'Type'
+        },
         {
           key: 'items',
           label: 'Items'
@@ -724,6 +771,26 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'items',
           label: 'Parts'
+        },
+        {
+          key: 'sets',
+          label: 'Sets'
+        },
+        {
+          key: 'wanted',
+          label: 'Wanted'
+        },
+        {
+          key: 'forSale',
+          label: 'For sale'
+        },
+        {
+          key: 'yearFrom',
+          label: 'Year from'
+        },
+        {
+          key: 'yearTo',
+          label: 'Year to'
         }
       ]
     },
@@ -743,6 +810,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'items',
           label: 'Items'
+        },
+        {
+          key: 'categories',
+          label: 'Categories'
         }
       ]
     },
@@ -755,7 +826,9 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       samples: [],
       columns: itemColumns,
       // Every labelled column, because every header in the original is a
-      // button that sorts by it.
+      // button that sorts by it — which is how every type here declares its
+      // sorts. A column with nothing to compare is the exception: an ordinal
+      // is the position under the current sort, and a picture is a picture.
       sorts: [
         {
           key: 'type',

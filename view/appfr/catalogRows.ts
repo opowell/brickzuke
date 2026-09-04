@@ -8,23 +8,20 @@
  *
  * Each loader is `setCategories`/`setColors`/`setItemTypes` from model.ts,
  * flattened into `fields` under the names the columns read. Where the original
- * reads a field off the stored record that its own loader never fills, this
- * derives it from the joined BrickLink records instead — the number is right
- * there, and a column that is always blank is not a wired-up column.
+ * reads a field off the stored record that nothing ever fills, this derives it
+ * from where the number is really held instead — the joined BrickLink records
+ * for a colour, the categories for an item type — because a column that is
+ * always blank is not a wired-up column.
  */
 import type { ShellRow } from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategory } from '../../idb/category'
+import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
 import indices from '../../idb/indices'
 import stores from '../../idb/stores'
 import type {BrickLinkColor,
-  BrickLinkItemType,
-  Color,
-  ItemType} from '../stores/bricklink/catalog-download-page'
-
-/** `Item Type ID` and `Items` are on the stored records but not on the type. */
-type JoinedItemType = BrickLinkItemType & { Items?: string; catType?: string }
+  Color} from '../stores/bricklink/catalog-download-page'
 
 /**
  * A sum, or nothing at all when not one of the joined records carried the
@@ -125,33 +122,30 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
   return rows
 }
 
+/**
+ * Item types.
+ *
+ * `loadItemTypes` is where the name and the two counts come from, because none
+ * of the three is on a stored item type — see it for where each one is really
+ * held. The original reads the same loader, so the two views state the same
+ * numbers.
+ */
 async function itemTypeRows(db: IDBPDatabase): Promise<ShellRow[]> {
-  const itemTypes = (await getAll<ItemType>(db, stores.ITEM_TYPES)) ?? []
-  const rows: ShellRow[] = []
-  for (const itemType of itemTypes) {
-    const joined =
-      (await getAllFromIndex<JoinedItemType>(
-        db,
-        indices.BRICK_LINK_ITEM_TYPES_BY_ITEM_TYPE_ID,
-        itemType.id
-      )) ?? []
-    const first = joined[0]
-    rows.push({
+  const itemTypes = await loadItemTypes(db)
+  return itemTypes.map((itemType) => ({
+    id: String(itemType.id),
+    entityKey: 'itemTypes',
+    entityLabel: 'Item types',
+    fields: {
       id: String(itemType.id),
-      entityKey: 'itemTypes',
-      entityLabel: 'Item types',
-      fields: {
-        id: String(itemType.id),
-        name: itemType.name ?? first?.['Item Type Name'],
-        // The one-letter code an item carries in its own `type` field, which is
-        // what narrowing the items table by this row has to say.
-        code: first?.itemTypeId ?? first?.['Item Type ID'],
-        items: total<JoinedItemType>(joined, (t) => toNumber(t.Items)),
-        categories: total<JoinedItemType>(joined, (t) => t.categories)
-      }
-    })
-  }
-  return rows
+      name: itemType.name,
+      // The one-letter code an item carries in its own `type` field, which is
+      // what narrowing the items table by this row has to say.
+      code: itemTypeCode(itemType),
+      items: itemType.countItems,
+      categories: itemType.categories
+    }
+  }))
 }
 
 const loaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {

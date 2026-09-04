@@ -2,7 +2,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { DataShell, createMemoryAdapter } from 'header-content-layout'
 import type { DataSource, ShellRow } from 'header-content-layout'
-import { catalogSchema } from '../catalogSchema'
+import type { ColumnDef } from 'header-content-layout'
+import {catalogSchema,
+  categoryColumns,
+  colorColumns,
+  colorItemColumns,
+  inventoryColumns,
+  itemColumns,
+  itemRecordColumns,
+  itemTypeColumns} from '../catalogSchema'
 
 vi.mock('../../../model', async () => {
   const {
@@ -95,5 +103,47 @@ describe('items schema', () => {
   it('shows a year as a year rather than a quantity', () => {
     expect(mountShell().text()).toContain('1958')
     expect(mountShell().text()).not.toContain('2.0k')
+  })
+})
+
+/**
+ * A column whose heading is a sort button in the original, which is every
+ * heading it has. The two that are not: an ordinal is the position under
+ * whatever sort is up rather than a value to sort by, and a picture is a
+ * picture.
+ */
+function labelled(columns: ColumnDef[]) {
+  return columns.filter(
+    (column) => column.label && column.kind !== 'ordinal' && column.key !== 'image'
+  )
+}
+
+describe('sortable columns', () => {
+  it('names a sort on every labelled column of every table', () => {
+    for (const columns of [
+      itemColumns,
+      categoryColumns,
+      colorColumns,
+      itemTypeColumns,
+      itemRecordColumns,
+      inventoryColumns,
+      colorItemColumns,
+    ]) {
+      expect(labelled(columns).filter((column) => !column.sort).map((column) => column.key))
+        .toEqual([])
+    }
+  })
+
+  it('offers each of those sorts on the type that draws the column', () => {
+    // A column can name a sort its type does not declare, and the shell then
+    // draws the heading as plain text — so the two lists have to agree or the
+    // button quietly is not one.
+    for (const entity of catalogSchema.value.entities) {
+      const offered = new Set((entity.sorts ?? []).map((sort) => sort.key))
+      const missing = (entity.columns ?? [])
+        .filter((column) => column.sort && !offered.has(column.sort))
+        .map((column) => column.key)
+      expect([entity.key, missing]).toEqual([entity.key, []])
+    }
   })
 })

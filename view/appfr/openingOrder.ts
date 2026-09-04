@@ -1,12 +1,13 @@
 /**
- * What order a table opens in, the way the original opens it.
+ * What order a table opens in.
  *
  * `setCategories` splices each category in by `score`, which `loadCategory`
  * sets to the item count, so the original category table is a league table
- * however it is reached — biggest first, never A-to-Z. `setColors`,
- * `setItemTypes` and `setItems` impose no order at all: they show the store's
- * own, which is not an ordering a source can be asked for, so those open on
- * the name instead.
+ * however it is reached — biggest first, never A-to-Z. Colours open the same
+ * way, on the parts count: `setColors` leaves them in the store's own order,
+ * which is not an ordering a source can be asked for and is no question
+ * anyone asks of a colour guide. `setItemTypes` and `setItems` leave the
+ * store's order too, and those open on the name.
  *
  * The shell has one sort for the whole query and no per-type direction. It
  * carries whichever sort is up across a change of type where the new type
@@ -22,7 +23,7 @@ export interface OpeningOrder {
   dir: SortDirection
 }
 
-/** A-to-Z: how every type the original leaves in store order opens. */
+/** A-to-Z: how every type with no count worth leading on opens. */
 const byName: OpeningOrder = {
   sort: 'name',
   dir: 'asc'
@@ -30,6 +31,12 @@ const byName: OpeningOrder = {
 
 const orders: Record<string, OpeningOrder> = {
   categories: {
+    sort: 'items',
+    dir: 'desc'
+  },
+  // `items` is the field a colour row carries for the count the colour guide
+  // labels Parts, which is what the column is called and what this sorts.
+  colors: {
     sort: 'items',
     dir: 'desc'
   }

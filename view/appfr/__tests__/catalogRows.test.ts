@@ -37,6 +37,53 @@ beforeAll(async () => {
       'Year To': '2006'
     }
   ])
+  await putAll(db, STORES.ITEM_TYPES, [
+    {
+      id: 7
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_ITEM_TYPES, [
+    {
+      // The whole of what the item types download states: a code and a name,
+      // filed on the BrickLink record because brickzuke's own is left empty.
+      itemTypeId: 'P',
+      bzItemTypeId: 7,
+      'Item Type Name': 'Part'
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_CATEGORIES, [
+    {
+      categoryId: '5',
+      bzCategoryId: 1,
+      catType: 'P',
+      'Category Name': 'Brick',
+      items: 4_000
+    },
+    // The same brickzuke category as the one above, which the categories table
+    // draws as one row — so the two are one category between them.
+    {
+      categoryId: '6',
+      bzCategoryId: 1,
+      catType: 'P',
+      'Category Name': 'Brick, Modified',
+      items: 2_000
+    },
+    {
+      categoryId: '7',
+      bzCategoryId: 2,
+      catType: 'P',
+      'Category Name': 'Plate',
+      items: 1_500
+    },
+    // Another type entirely, and none of this type's business.
+    {
+      categoryId: '8',
+      bzCategoryId: 3,
+      catType: 'S',
+      'Category Name': 'Town',
+      items: 900
+    }
+  ])
   db.close()
 })
 
@@ -66,5 +113,26 @@ describe('colour rows', () => {
     expect(aqua.fields.sets).toBe(60)
     expect(aqua.fields.yearFrom).toBe(1998)
     expect(aqua.fields.yearTo).toBe(2006)
+  })
+})
+
+describe('item type rows', () => {
+  it('names the type, which is on the BrickLink record and not brickzuke\'s', async () => {
+    const rows = (await rowsFor('itemTypes', getDbConnection))!
+    const part = rows.find((row) => row.fields.code === 'P')!
+    // A stored item type is an id and nothing else, so the name has to come
+    // off the BrickLink record — the original read it off the stored one and
+    // drew nine blank lines.
+    expect(part.fields.name).toBe('Part')
+  })
+
+  it('counts the items and the categories off the categories', async () => {
+    const rows = (await rowsFor('itemTypes', getDbConnection))!
+    const part = rows.find((row) => row.fields.code === 'P')!
+    // Every category of this type, and not the one of another.
+    expect(part.fields.items).toBe(7_500)
+    // Two, not three: `Brick` and `Brick, Modified` are one brickzuke category
+    // between them, which is one row in the table this number leads to.
+    expect(part.fields.categories).toBe(2)
   })
 })

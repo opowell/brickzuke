@@ -32,11 +32,17 @@ async function handlePageResponse(detail: EventDetail) {
       }
       category = {
         bzCategoryId,
-        catType: values[0],
         categoryId: values[1],
         'Category Name': values[2]
       }
     }
+    // The tree is fetched one item type at a time, so this page is the only
+    // thing that ever says which type a category is listed under — and it has
+    // to say it for a category the download already stored, not only for one
+    // it creates here. Setting it on creation alone is why most of the stored
+    // categories carry an item count and no type at all, and so why the item
+    // types table can count nothing for Part.
+    category.catType = values[0]
     category.items = Number.parseInt(values[3])
     console.log(category['Category Name'], category.items, values)
     await put(db, stores.BRICK_LINK_CATEGORIES, category)
