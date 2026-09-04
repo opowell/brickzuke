@@ -6,16 +6,19 @@
  * fetched when someone presses that number, and only then. BrickLink answers
  * on the page its own colour guide links to, a page at a time.
  */
+import { ref } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
 import {COLOR_LIST_TYPES,
   colorPageCounts,
   colorScope,
   fetchColorPage} from '../stores/bricklink/catalog-list-color-page'
-import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
-import { getAllFromIndex } from '../../idb/db'
+import type {StoredColorItem,
+  StoredColorScope} from '../stores/bricklink/catalog-list-color-page'
+import { get, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
+import STORES from '../../idb/stores'
 
 /**
  * How long to wait for one page before saying nothing is coming — the same
@@ -91,10 +94,29 @@ async function scrape(catType: string, colorId: string): Promise<StoredColorItem
   return stored
 }
 
-/** Whether a colour ran past what {@link colorItemsFor} was willing to fetch. */
-export function truncated(catType: string, colorId: string): boolean {
-  return (colorPageCounts.get(colorScope(catType, colorId)) ?? 1) > MAX_PAGES
+/**
+ * How much of a colour is stored, for a view that has to say so.
+ *
+ * Read back rather than remembered: a colour fetched in some earlier session
+ * is the case that matters, and by then nothing is left in memory to ask.
+ */
+export async function readColorScope(scope: string): Promise<StoredColorScope | undefined> {
+  const db = await getDbConnection()
+  try {
+    return await get<StoredColorScope>(db, STORES.COLOR_SCOPES, scope)
+  } finally {
+    db.close()
+  }
 }
+
+/**
+ * Bumped when a colour's stored pages change.
+ *
+ * A view showing how much of a colour it has cannot watch IndexedDB, and the
+ * pages land well after the navigation that asked for them — so this is what
+ * tells it to look again.
+ */
+export const colorScopeVersion = ref(0)
 
 /** One fetch per colour at a time: two views of Aqua are not two scrapes. */
 const inFlight = new Map<string, Promise<StoredColorItem[]>>()
@@ -116,7 +138,11 @@ export function colorItemsFor(catType: string, colorId: string): Promise<StoredC
   const attempt = (async () => {
     const stored = await readColorItems(scope)
     return stored.length ? stored : await scrape(catType, colorId)
-  })().finally(() => inFlight.delete(scope))
+  })()
+    .finally(() => {
+      inFlight.delete(scope)
+      colorScopeVersion.value++
+    })
   inFlight.set(scope, attempt)
   return attempt
 }

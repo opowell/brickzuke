@@ -13,7 +13,7 @@
  */
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
-import { putAll } from '../../../idb/db'
+import { get, put, putAll } from '../../../idb/db'
 import { getDbConnection } from '../../../idb/idb'
 import STORES from '../../../idb/stores'
 import { listPageOptions, pageCount, parseRows } from './catalog-list'
@@ -35,6 +35,21 @@ export interface StoredColorItem {
   itemNumber: string
   itemName: string
   image?: string
+}
+
+/**
+ * How much of one colour is stored.
+ *
+ * `pages` is what BrickLink says the list runs to; `fetchedPages` is how far
+ * up that the store actually goes. They differ when a colour ran past what
+ * appfr was willing to fetch, and the difference is the whole reason this is
+ * written down rather than held in memory: the rows outlive the session that
+ * fetched them, so the caveat has to as well.
+ */
+export interface StoredColorScope {
+  scope: string
+  pages: number
+  fetchedPages: number
 }
 
 /**
@@ -91,6 +106,27 @@ export async function fetchColorPage(catType: string, colorId: string, page: num
  * listed under `colorInSet=2` contains colour 2, but the list page prints
  * whatever colour the set's own thumbnail happens to be.
  */
+/**
+ * How far this colour now goes.
+ *
+ * The highest page seen rather than a count of them, because pages are fetched
+ * in order and a page re-read from the call cache must not make the list look
+ * longer than it is.
+ */
+async function recordScope(scope: string, pages: number, page: number) {
+  const db = await getDbConnection()
+  try {
+    const held = await get<StoredColorScope>(db, STORES.COLOR_SCOPES, scope)
+    await put<StoredColorScope>(db, STORES.COLOR_SCOPES, {
+      scope,
+      pages,
+      fetchedPages: Math.max(held?.fetchedPages ?? 0, page)
+    })
+  } finally {
+    db.close()
+  }
+}
+
 export async function handlePageResponse(detail: EventDetail) {
   const catType = String(detail.request.extraParams?.catType ?? '')
   const colorId = String(detail.request.extraParams?.colorId ?? '')
@@ -98,7 +134,9 @@ export async function handlePageResponse(detail: EventDetail) {
     return
   }
   const scope = colorScope(catType, colorId)
-  colorPageCounts.set(scope, pageCount(detail.response))
+  const pages = pageCount(detail.response)
+  colorPageCounts.set(scope, pages)
+  await recordScope(scope, pages, Number(detail.request.extraParams?.page ?? 1))
 
   const rows = parseRows(detail.response)
   if (!rows.length) {

@@ -21,6 +21,7 @@ import 'header-content-layout/style.css'
 import { useRouter } from 'vue-router'
 import { catalogSchema } from '../appfr/catalogSchema'
 import { catalogSource } from '../appfr/catalogSource'
+import { colorItemsNotice } from '../appfr/colorItemsNotice'
 
 const router = useRouter()
 const route = createVueRouterAdapter(router)
@@ -69,7 +70,20 @@ const plainTokens = {
       :previews-per-type="0"
       :defaults="{ landing: 'home', entity: 'items', sort: 'name', dir: 'asc' }"
       @query-change="onQueryChange"
-    />
+    >
+      <!--
+        A colour too long to fetch whole says so beside the count, which is the
+        number it would otherwise be quietly contradicting.
+      -->
+      <template #actions>
+        <span
+          v-if="colorItemsNotice"
+          class="items-shell__partial"
+          title="This colour runs to more pages than brickzuke fetches at once, so the list below is not all of it."
+        >{{ colorItemsNotice }}</span
+        >
+      </template>
+    </DataShell>
   </div>
 </template>
 
@@ -120,6 +134,17 @@ const plainTokens = {
  */
 .items-shell :deep(.dc-results[data-dc-pending='true']) {
   opacity: 1;
+}
+
+/*
+ * The caveat is a caveat: present where the count is, and not competing with
+ * it. Dimmed rather than coloured, brickzuke's tables having no palette to
+ * spend and the shell exposing no token for secondary ink.
+ */
+.items-shell__partial {
+  opacity: 0.7;
+  font-size: 0.85em;
+  white-space: nowrap;
 }
 
 /* A row is not pressable, so it must not offer itself as one. */

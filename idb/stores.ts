@@ -18,6 +18,7 @@ const stores: {
   BRICK_LINK_PART_AND_COLOR_CODES: StoreDefinition
   ITEM_INVENTORIES: StoreDefinition
   COLOR_ITEMS: StoreDefinition
+  COLOR_SCOPES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -94,6 +95,19 @@ const stores: {
   COLOR_ITEMS: {
     name: 'colorItems',
     keyPath: 'id'
+  },
+  /**
+   * How much of a colour was fetched: one record per scope, holding the pages
+   * BrickLink says it runs to and the pages actually stored.
+   *
+   * Kept because the difference outlives the session that found it. A colour
+   * stopped at the page cap is read back from IndexedDB ever after, and rows
+   * alone cannot say whether a thousand of them is the whole answer or the
+   * first fifth of it.
+   */
+  COLOR_SCOPES: {
+    name: 'colorScopes',
+    keyPath: 'scope'
   }
 }
 
