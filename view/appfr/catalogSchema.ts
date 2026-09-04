@@ -694,14 +694,17 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: [],
       samples: [],
       columns: categoryColumns,
+      // Items first, as the columns have it — and as the original has it: a
+      // category list there is ordered by how many items are in each, never
+      // A-to-Z. See `openingOrder`, which is what actually opens it that way.
       sorts: [
-        {
-          key: 'name',
-          label: 'Name'
-        },
         {
           key: 'items',
           label: 'Items'
+        },
+        {
+          key: 'name',
+          label: 'Name'
         }
       ]
     },

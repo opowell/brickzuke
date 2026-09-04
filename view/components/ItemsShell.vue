@@ -15,36 +15,53 @@
  * still brings — the accent colour that makes a button read as a link, and the
  * capitals and tracking on the header row.
  */
-import { DataShell, PARAM_VIEW, createVueRouterAdapter } from 'header-content-layout'
+import {DataShell,
+  PARAM_ENTITY,
+  createVueRouterAdapter,
+  parseQuery,
+  serializeQuery} from 'header-content-layout'
 import type { ShellQuery } from 'header-content-layout'
 import 'header-content-layout/style.css'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { catalogSchema } from '../appfr/catalogSchema'
 import { catalogSource } from '../appfr/catalogSource'
 import { colorItemsNotice } from '../appfr/colorItemsNotice'
+import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 
 const router = useRouter()
 const route = createVueRouterAdapter(router)
 
 /**
- * brickzuke draws a list as a table.
- *
- * This cannot go in `defaults`, because the home screen *is* the `cards` view
- * with no type selected — one setting serves as both the landing view and the
- * list view, so pinning it to `table` costs the summary. Selecting a type keeps
- * whatever view was up, which is what makes this the host's call: the moment a
- * type is chosen, the view becomes the table.
- *
- * It replaces rather than pushes, so Back from the table reaches the home
- * screen instead of a cards view nobody asked for.
+ * The type the URL names, and so the type whose opening order is in force: a
+ * URL that states no sort falls back to the one that type opens in, rather
+ * than to one name-ascending default for every table.
  */
+const urlEntity = computed(() => {
+  const named = router.currentRoute.value.query[PARAM_ENTITY]
+  return typeof named === 'string' ? named : null
+})
+
+const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
+
+/**
+ * The shell's own writer, so the query it reads back is the query written here
+ * — and so `appfr=1`, which is not the shell's, is left alone. It replaces
+ * rather than pushes, so Back from the table reaches the home screen instead of
+ * a cards view nobody asked for.
+ */
+let shownEntity = parseQuery(window.location.search, catalogSchema.value, shellDefaults.value)
+  .entity
+
 function onQueryChange(query: ShellQuery) {
-  if (!query.entity || query.view === 'table') {
+  const opened = openedQuery(query, shownEntity)
+  shownEntity = query.entity
+  if (opened === query) {
     return
   }
-  const params = new URLSearchParams(window.location.search)
-  params.set(PARAM_VIEW, 'table')
-  void router.replace('/?' + params.toString())
+  void router.replace(
+    '/' + serializeQuery(opened, catalogSchema.value, shellDefaults.value, window.location.search)
+  )
 }
 
 const plainTokens = {
@@ -68,7 +85,7 @@ const plainTokens = {
       theme="inherit"
       :tokens="plainTokens"
       :previews-per-type="0"
-      :defaults="{ landing: 'home', entity: 'items', sort: 'name', dir: 'asc' }"
+      :defaults="shellDefaults"
       @query-change="onQueryChange"
     >
       <!--
