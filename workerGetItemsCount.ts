@@ -31,7 +31,7 @@ export default async function workerGetItemsCount(
   try {
     // Try dynamic import (should work in vite web worker)
     openDB = (await import('idb')).openDB
-  } catch (e) {
+  } catch {
     // Fallback: try importScripts from CDN (UMD build)
     if (typeof importScripts === 'function') {
       importScripts('https://cdn.jsdelivr.net/npm/idb@8.0.3/build/umd.js')

@@ -1,5 +1,6 @@
-export function findIndex<T extends { score: number }>(array: T[], itemToAdd: T): number {
-  if (itemToAdd.score === undefined) {
+export function findIndex<T extends { score?: number }>(array: T[], itemToAdd: T): number {
+  const score = itemToAdd.score
+  if (score === undefined) {
     return array.length
   }
   let low = 0,
@@ -7,7 +8,7 @@ export function findIndex<T extends { score: number }>(array: T[], itemToAdd: T)
 
   while (low < high) {
     const mid = low + high >>> 1
-    if (array[mid].score > itemToAdd.score) low = mid + 1
+    if ((array[mid].score ?? 0) > score) low = mid + 1
     else high = mid
   }
   return low

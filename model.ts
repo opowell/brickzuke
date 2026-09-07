@@ -2,6 +2,7 @@ import type { CountsState } from './types/counts-state'
 import { computed, ref, watch } from 'vue'
 import { type BrickLinkCategory, type BrickLinkColor, type BrickLinkItem, type Category, type Color, type Item, type ItemType, type UiItem } from './view/stores/bricklink/catalog-download-page'
 import type { SelectOption } from './view/components/header/TheViews.vue'
+import type { TableRow } from './types/table'
 import { count, getAll, getAllFromIndex } from './idb/db'
 import { getDbConnection } from './idb/idb'
 import stores from './idb/stores'
@@ -15,6 +16,7 @@ import router from '@/router'
 import ItemCounterWorker from './workers/itemCounter?worker'
 import ColorCounterWorker from './workers/colorCounter?worker'
 import type { Filter } from './types/filter'
+import type { TableComponent } from './types/components'
 import { findIndex } from './utils/findIndex'
 
 // Methods
@@ -27,17 +29,6 @@ export async function setCounts() {
   processingCounts.value = false
   getItemsCount()
   getColorsCount()
-  // itemTypes.value[0].previewItems = await getPreviewItems<Category>(db, stores.CATEGORIES, 10)
-  // itemTypes.value[1].previewItems = await getPreviewItems<Color>(db, stores.COLORS, 10)
-  // itemTypes.value[2].previewItems = await getPreviewItems<ItemType>(db, stores.ITEM_TYPES, 10)
-  // itemTypes.value[3].previewItems = await getPreviewItems<Item>(db, stores.ITEMS, 10)
-  // itemTypes.value[4].previewItems = await getPreviewItems<PartAndColorCode>(db, stores.PART_AND_COLOR_CODES, 10)
-}
-
-async function getPreviewItems(db: IDBPDatabase, storeName: string, limit: number): Promise<any[]> {
-  const items = await db.transaction(storeName).store.getAll(undefined, limit)
-  processingCounts.value = false
-  return items || []
 }
 
 async function getColorsCount() {
@@ -91,7 +82,6 @@ async function getItemsCount() {
     db.close()
     return
   }
-  const numItems = 0
   const searchLowercase = search.value?.toLowerCase()
   // Filters and maybe search
   // if (filteredCategories.length > 0) {
@@ -322,7 +312,7 @@ async function setItemTypes(db: IDBPDatabase) {
   tableItems.value = await loadItemTypes(db)
 }
 
-export const setSelectedItem = async function (option: SelectOption<any>) {
+export const setSelectedItem = async function (option: SelectOption) {
   selectedItemType.value = option
   updateView()
 }
@@ -393,8 +383,8 @@ export const processingCounts = ref(false)
 export const search = ref<string | undefined>(undefined)
 export const pauseRedirect = ref(false)
 export const selectedItemTypeId = ref<string | undefined>(undefined)
-export const tableItems = ref<any[]>([])
-export const tableRef = ref<InstanceType<typeof TableComponent> | null>(null)
+export const tableItems = ref<TableRow[]>([])
+export const tableRef = ref<TableComponent | null>(null)
 /**
  * Move to a table with a filter applied.
  *
@@ -413,7 +403,7 @@ async function selectTableWithFilters(tableId: string, ...newFilters: Filter[]) 
   setCounts()
 }
 
-export const itemTypes = ref<SelectOption<any>[]>([
+export const itemTypes = ref<SelectOption[]>([
   {
     id: 'categories',
     label: 'Categories',
@@ -477,7 +467,7 @@ export const itemTypes = ref<SelectOption<any>[]>([
         id: 'name',
         label: 'Name',
         width: '150px',
-        clickFn: (color: BrickLinkColor) => {
+        clickFn: (_color: BrickLinkColor) => {
           // selectedItem.value = undefined
           // filters.value = []
           // filters.value.push({
@@ -630,11 +620,11 @@ export const itemTypes = ref<SelectOption<any>[]>([
         label: 'Type',
         width: '60px',
         clickKey: 'itemType',
-        clickValue: (item: Item) => {
+        clickValue: (item: UiItem) => {
           return {
             key: 'itemType',
             label: 'Item type',
-            value: item.itemTypeId!,
+            value: item.itemType,
             displayValue: item.itemTypeName,
           }
         },
@@ -734,17 +724,15 @@ export const currentQueryString = computed(() => {
   return '/?' + parts.join('&')
 })
 
-export const typesWithCounts = computed<SelectOption<any>[]>(() => {
+export const typesWithCounts = computed<SelectOption[]>(() => {
   if (!selectedCounts.value) {
-    return
+    return []
   }
-  const object = {
-    ...itemTypes.value
-  }
-  object[0].count = selectedCounts.value?.categories
-  object[1].count = selectedCounts.value?.colors
-  object[3].count = selectedCounts.value?.items
-  return object
+  const tables = [...itemTypes.value]
+  tables[0].count = selectedCounts.value.categories
+  tables[1].count = selectedCounts.value.colors
+  tables[3].count = selectedCounts.value.items
+  return tables
 })
 
 export const selectedCounts = computed(() => {

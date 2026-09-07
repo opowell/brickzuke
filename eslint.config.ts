@@ -14,7 +14,14 @@ export default defineConfigWithVueTs(
     files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', '**/storybook-static/**']),
+  globalIgnores([
+    '**/dist/**',
+    '**/dist-ssr/**',
+    '**/coverage/**',
+    '**/storybook-static/**',
+    // Vendored minified build of the idb package.
+    'public/idb.js',
+  ]),
 
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
@@ -54,6 +61,12 @@ export default defineConfigWithVueTs(
       }],
       // enforce no semicolons
       'semi': ['error', 'never'],
+      // a leading underscore is how this codebase says "declared, not used"
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
     },
   },
 )

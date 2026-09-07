@@ -16,13 +16,29 @@ import type { IDBPDatabase } from 'idb'
 import { getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
-import { rowsFor } from './catalogRows'
+import { inventoryFields, rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { inventoryFor, readInventory } from './inventoryFetch'
 import { colorItemsFor, readColorItems } from './colorItemsFetch'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
+import {countriesFor,
+  readCountries,
+  readRegions,
+  readStores,
+  regionsFor,
+  storesFor} from './storesFetch'
+import type { Country, Region, Store } from '../stores/bricklink/stores-page'
+import {imagesFor,
+  readImages,
+  readStoreInventories,
+  storeInventoriesFor} from './itemPageFetch'
+import { readStoreLots, storeLotsFor } from './storeLotsFetch'
+import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
+import type { ItemImage } from './itemPageFetch'
+import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
+import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
 
 /**
  * `bzItemId` is the key path of BRICK_LINK_ITEMS_BY_ITEM_ID and is on the
@@ -82,8 +98,8 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[]): ShellRow {
  * The query's expression, compiled once per scan.
  *
  * appfr parses and evaluates its own language, so a term resolves against the
- * fields the row actually carries — `categoryId:"5"` against `fields.categoryId`
- * — rather than against a substring check that only ever knew about the name.
+ * fields the row actually carries — `category:"5"` against `fields.category` —
+ * rather than against a substring check that only ever knew about the name.
  */
 function matcherFor(request: QueryRequest): (row: ShellRow) => boolean {
   const expr = request.query.expr.trim()
@@ -273,29 +289,19 @@ function openItemId(request: QueryRequest): number | undefined {
   return value !== undefined && Number.isFinite(id) ? id : undefined
 }
 
-/** One part of a set, as a row. */
+/**
+ * One part of a set, as a row.
+ *
+ * The fields are `inventoryFields`, shared with the `itemInventories` table:
+ * the same stored records answer both, one set at a time here and all of them
+ * at once there, so the same columns have to find the same names.
+ */
 function toInventoryRow(stored: StoredItemInventory): ShellRow {
-  const variant = stored.itemVariant
   return {
     id: stored.id,
     entityKey: 'inventory',
     entityLabel: 'Inventory',
-    fields: {
-      id: stored.id,
-      record: stored.record,
-      quantity: stored.quantity,
-      image: variant.thumbnail,
-      type: variant.itemType,
-      name: variant.name,
-      itemId: variant.itemId,
-      color: variant.colorName,
-      // Lowercase because the parser lowercases a term's field, and a number
-      // because `:` compares numbers exactly where it substring-matches
-      // strings — `colorid:"85"` must not also answer for colour 185.
-      colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
-      category: variant.catString,
-      categoryName: variant.categoryName
-    }
+    fields: inventoryFields(stored)
   }
 }
 
@@ -342,6 +348,189 @@ async function colorItemRows(request: QueryRequest, fetching = true): Promise<Sh
   return stored.map(toColorItemRow)
 }
 
+/** One lot a seller has on offer, as a row. */
+function toStoreInventoryRow(lot: StoreInventory): ShellRow {
+  return {
+    id: lot.invId,
+    entityKey: 'inventories',
+    entityLabel: 'Store inventories',
+    fields: {
+      id: lot.invId,
+      // The item this lot is for, under the same name the inventory and the
+      // pictures use — one address for the three tables an open item has.
+      record: `${lot.itemType}-${lot.itemNumber}`,
+      image: lot.image,
+      price: lot.price,
+      // The price as a number, because that is the one question a column of
+      // prices is asked and sorting it as text answers a different one:
+      // `US $10.00` sorts before `US $9.00` on every character that matters.
+      priceValue: toPrice(lot.price),
+      description: lot.description,
+      country: lot.sellerCountryCode,
+      countryName: lot.sellerCountryName,
+      store: lot.strSellerUsername,
+      storeName: lot.sellerStoreName,
+      // BrickLink's own code, `N` or `U`, which is what the conditions table
+      // is keyed by and so what a `condition:` term compares against.
+      condition: lot.condition,
+      conditionName: conditionName(lot.condition),
+      quantity: lot.quantity,
+      feedback: lot.sellerFeedbackScore,
+      type: lot.itemType,
+      itemId: lot.itemNumber,
+      colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
+    }
+  }
+}
+
+/**
+ * A displayed price as a number.
+ *
+ * These arrive formatted for a currency BrickLink chose — `US $1.23`, `EUR
+ * 1,23` — so this takes the digits and nothing else. Two lots priced in
+ * different currencies do not compare, which is a caveat of the page rather
+ * than of this: BrickLink shows one seller's price beside another's the same
+ * way.
+ */
+function toPrice(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined
+  }
+  const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ''))
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/**
+ * The lots one seller has, as rows of the same table an item's lots fill.
+ *
+ * They arrive from a different page and so carry different things. A store's
+ * own front never repeats who the seller is — every row on it has the same one
+ * — so the country and the store name are taken from the directory record
+ * instead, and the feedback score, which appears on neither, is left blank
+ * rather than guessed at.
+ */
+async function asStoreLotRows(lots: StoredStoreLot[], username: string): Promise<ShellRow[]> {
+  const seller = (await readStores()).find((store) => store.id === username)
+  const country = seller
+    ? (await readCountries()).find((one) => one.countryCode === seller.countryID)
+    : undefined
+  return lots.map((lot) => ({
+    id: lot.id,
+    entityKey: 'inventories',
+    entityLabel: 'Store inventories',
+    fields: {
+      id: lot.id,
+      record: lot.record,
+      image: lot.image,
+      price: lot.price,
+      priceValue: toPrice(lot.price),
+      // The identity column, and on this table that has to be the item: every
+      // row is the same seller, so what tells them apart is what is for sale.
+      // An item's own lots are the other way round — every row is the same
+      // item and the seller's remark is what distinguishes them — which is why
+      // the remark goes after the name here rather than instead of it.
+      description: lot.description ? `${lot.itemName} — ${lot.description}` : lot.itemName,
+      country: seller?.countryID,
+      countryName: country?.countryName,
+      store: lot.store,
+      // The trading name where the directory has it, and the username where it
+      // does not: a blank cell in the column that says whose lot this is would
+      // be the one thing this table cannot leave unanswered.
+      storeName: seller?.name ?? lot.store,
+      condition: lot.condition,
+      conditionName: conditionName(lot.condition),
+      quantity: lot.quantity,
+      type: lot.itemType,
+      itemId: lot.itemNumber,
+      colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
+    }
+  }))
+}
+
+/** The two conditions BrickLink sells in, under the codes a lot carries. */
+const CONDITIONS: Record<string, string> = {
+  N: 'New',
+  U: 'Used'
+}
+
+function conditionName(code: string | undefined): string | undefined {
+  return code === undefined ? undefined : (CONDITIONS[code] ?? code)
+}
+
+/** One picture of an item, as a row. */
+function toImageRow(record: string, image: ItemImage): ShellRow {
+  return {
+    id: image.id,
+    entityKey: 'images',
+    entityLabel: 'Images',
+    fields: {
+      id: image.id,
+      record,
+      image: image.image,
+      // The record, split the way every other table addresses an item, so the
+      // picture leads back to the catalogue entry it is of.
+      type: record.slice(0, record.indexOf('-')),
+      itemId: record.slice(record.indexOf('-') + 1),
+      name: record
+    }
+  }
+}
+
+/** One region of the world, as a row. */
+function toRegionRow(region: Region): ShellRow {
+  return {
+    id: region.name,
+    entityKey: 'regions',
+    entityLabel: 'Regions',
+    fields: {
+      id: region.name,
+      // The field a country carries its region in, which is this type's scope.
+      region: region.name,
+      name: region.name,
+      countries: region.countryCount
+    }
+  }
+}
+
+/** One country with sellers in it, as a row. */
+function toCountryRow(country: Country): ShellRow {
+  return {
+    id: country.countryCode,
+    entityKey: 'countries',
+    entityLabel: 'Countries',
+    fields: {
+      id: country.countryCode,
+      // The code a store and a lot both carry, and this type's scope — so
+      // `country:"DE"` reads as Germany wherever it is written.
+      country: country.countryCode,
+      name: country.countryName,
+      image: country.image,
+      region: country.regionId,
+      stores: country.storeCount
+    }
+  }
+}
+
+/** One seller, as a row. */
+function toStoreRow(store: Store): ShellRow {
+  return {
+    id: store.id,
+    entityKey: 'stores',
+    entityLabel: 'Stores',
+    fields: {
+      id: store.id,
+      store: store.id,
+      name: store.name,
+      country: store.countryID,
+      province: store.stateName,
+      items: store.items,
+      // A flag rather than a number, and drawn as the word or nothing: the
+      // original prints the raw boolean, which puts `false` in every other row.
+      instantCheckout: store.instantCheckout === true ? 'Instant' : ''
+    }
+  }
+}
+
 /**
  * What one set is made of.
  *
@@ -381,6 +570,262 @@ async function recordRows(request: QueryRequest): Promise<ShellRow[]> {
     return records.map((record) => toRecordRow(itemId, record))
   } finally {
     db.close()
+  }
+}
+
+/**
+ * The lots on offer for the item a query names, or the ones a seller has, or
+ * every lot loaded so far.
+ *
+ * Two pages answer this table, and which one is asked follows from what the
+ * query names. A record is an item, and BrickLink states its lots on the
+ * item's own page. A store on its own is the seller's front, which is a
+ * different fetch and a much longer one — a hundred lots to the request.
+ *
+ * Named together, the item wins and the store narrows what came back: "who
+ * sells this brick, and of those, this seller" is one request where the other
+ * way round is sixty.
+ *
+ * Un-narrowed this fetches nothing and shows what browsing has already
+ * gathered — see `storeInventoriesFor` for why there is no "all of them" to
+ * ask BrickLink for.
+ */
+async function storeInventoryRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const record = termValue(request, 'record')
+  const store = termValue(request, 'store')
+  if (!record && store) {
+    const lots = fetching ? await storeLotsFor(store) : await readStoreLots(store)
+    return await asStoreLotRows(lots, store)
+  }
+  const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
+  return lots.map(toStoreInventoryRow)
+}
+
+/** The pictures of the item a query names, or every one loaded so far. */
+async function imageRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const record = termValue(request, 'record')
+  if (record) {
+    const images = fetching ? await imagesFor(record) : readImages(record)
+    return images.map((image) => toImageRow(record, image))
+  }
+  const store = useCatalogItemPageStore()
+  const rows: ShellRow[] = []
+  for (const [key, images] of store.imagesMap) {
+    for (const image of images as ItemImage[]) {
+      rows.push(toImageRow(key, image))
+    }
+  }
+  return rows
+}
+
+/**
+ * New and Used, with how much of each is on offer.
+ *
+ * A fixed pair rather than a scan of anything: BrickLink sells in exactly
+ * these two, and a lot states which as a one-letter code. The counts are over
+ * whatever lots are loaded, so the table is two named rows before anyone has
+ * opened an item and two counted ones after.
+ */
+async function conditionRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const lots = await storeInventoryRows(request, fetching)
+  return Object.entries(CONDITIONS).map(([code, name]) => {
+    const mine = lots.filter((lot) => lot.fields.condition === code)
+    return {
+      id: code,
+      entityKey: 'conditions',
+      entityLabel: 'Conditions',
+      fields: {
+        id: code,
+        condition: code,
+        name,
+        // Blank rather than nought where nothing is loaded: no lots read is
+        // not the same claim as no lots on offer, which is the distinction
+        // `total` in catalogRows exists to keep.
+        lots: lots.length ? mine.length : undefined,
+        quantity: lots.length
+          ? mine.reduce((sum, lot) => sum + Number(lot.fields.quantity ?? 0), 0)
+          : undefined
+      }
+    }
+  })
+}
+
+/** Every region BrickLink groups its sellers into. */
+async function regionRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const regions = fetching ? await regionsFor() : await readRegions()
+  return regions.map(toRegionRow)
+}
+
+/** Every country BrickLink lists sellers in. */
+async function countryRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const countries = fetching ? await countriesFor() : await readCountries()
+  return countries.map(toCountryRow)
+}
+
+/** The sellers in the country a query names, or every one stored. */
+async function storeRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const country = termValue(request, 'country')
+  const stores = fetching ? await storesFor(country) : await readStores(country)
+  return stores.map(toStoreRow)
+}
+
+/**
+ * The years the catalogue covers, and how many items came out in each.
+ *
+ * The only type here derived from the items table rather than read from a
+ * store of its own, which makes it the only one that costs a full pass. It is
+ * the same pass the items table makes, over the same grouping — a year is the
+ * one an item's first record states, which is exactly what the items table
+ * shows in that column, so pressing a year lands on the number beside it.
+ *
+ * Held once. The catalogue changes when an update run rewrites it and not
+ * while anyone is looking at it, so this is paid on the first press of Years
+ * and never again.
+ */
+let years: Promise<ShellRow[]> | undefined
+
+function scanYears(): Promise<ShellRow[]> {
+  return (async () => {
+    const db = await getDbConnection()
+    const counts = new Map<string, number>()
+    try {
+      // Every item, whatever the query says: the query narrows the years, not
+      // the catalogue they are counted from — a year stating how many items it
+      // holds must not restate the filter that is already on screen.
+      await scan(db, everything, (row) => {
+        const year = String(row.fields.year ?? '').trim()
+        if (year) {
+          counts.set(year, (counts.get(year) ?? 0) + 1)
+        }
+        return true
+      })
+    } finally {
+      db.close()
+    }
+    return Array.from(counts.entries()).map(([year, items]) => ({
+      id: year,
+      entityKey: 'years',
+      entityLabel: 'Years',
+      fields: {
+        id: year,
+        // A number, so the column sorts as years rather than as text and so a
+        // `year:` term compares exactly — the same two reasons every other
+        // addressable field here is one.
+        year: Number(year),
+        name: year,
+        items
+      }
+    }))
+  })().catch((thrown) => {
+    // A failed pass must not be the answer forever.
+    years = undefined
+    throw thrown
+  })
+}
+
+/**
+ * A request that narrows nothing, for a pass that has to see the whole
+ * catalogue regardless of what is on screen.
+ */
+const everything = {
+  query: {
+    expr: ''
+  }
+} as unknown as QueryRequest
+
+function yearRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  // The home screen runs one query per type every time it is drawn, and a
+  // summary card is no reason to walk two hundred thousand items. Once the
+  // table itself has been opened the answer is held, and the card is free.
+  if (!fetching && !years) {
+    return Promise.resolve([])
+  }
+  years ??= scanYears()
+  return years
+}
+
+/**
+ * How many years the catalogue covers, for the home screen card.
+ *
+ * This does ask for the pass, unlike the un-narrowed query above — a card with
+ * no number on it is the thing being fixed. It is the same held promise, so the
+ * pass happens once a session whether it was the card or the table that asked.
+ */
+export async function yearCount(): Promise<number> {
+  return (await yearRows(everything, true)).length
+}
+
+/** Drops the held years, for when an update run has rewritten the catalogue. */
+export function forgetScannedRows() {
+  years = undefined
+}
+
+/**
+ * A type whose rows are fetched or derived rather than read from a store of
+ * its own, and the terms that address it.
+ *
+ * An address is the reason the rows came back rather than a filter over them —
+ * `record:"S-10511-1"` says which set, and re-testing every row against it
+ * would be asking a question the answer already assumes. Everything else in
+ * the expression still narrows.
+ */
+interface Fetched {
+  /**
+   * A function where what addresses a type depends on what the query names —
+   * see `inventories`, which is fetched two different ways.
+   */
+  addresses: string[] | ((request: QueryRequest) => string[])
+  rows: (request: QueryRequest, fetching: boolean) => Promise<ShellRow[]>
+}
+
+function addressesOf(source: Fetched, request: QueryRequest): string[] {
+  return typeof source.addresses === 'function' ? source.addresses(request) : source.addresses
+}
+
+const fetched: Record<string, Fetched> = {
+  inventory: {
+    addresses: ['record'],
+    rows: inventoryRows
+  },
+  itemRecords: {
+    addresses: ['item'],
+    rows: recordRows
+  },
+  colorItems: {
+    addresses: ['colorid', 'type'],
+    rows: colorItemRows
+  },
+  inventories: {
+    // A record is what fetched the rows, so it does not filter them again — and
+    // a `store:` term written beside one still does, being an ordinary
+    // narrowing of an item's sellers. A store on its own is what fetched them
+    // instead, and then it is the address.
+    addresses: (request) => (termValue(request, 'record') ? ['record'] : ['record', 'store']),
+    rows: storeInventoryRows
+  },
+  images: {
+    addresses: ['record'],
+    rows: imageRows
+  },
+  conditions: {
+    addresses: ['record'],
+    rows: conditionRows
+  },
+  regions: {
+    addresses: [],
+    rows: regionRows
+  },
+  countries: {
+    addresses: [],
+    rows: countryRows
+  },
+  stores: {
+    addresses: ['country'],
+    rows: storeRows
+  },
+  years: {
+    addresses: [],
+    rows: yearRows
   }
 }
 
@@ -429,35 +874,16 @@ export const catalogSource: DataSource = {
       }
     }
 
-    if (key === 'colorItems') {
-      // Reads only, as for inventories below: the home screen runs one of
-      // these per type every time it is drawn, and a summary card is no reason
-      // to scrape twenty pages of BrickLink.
+    const source = key ? fetched[key] : undefined
+    if (source) {
+      // Reads only: the home screen runs one of these per type every time it
+      // is drawn, and a summary card is no reason to scrape twenty pages of
+      // BrickLink or to walk the whole catalogue.
       const rows = present(
-        await colorItemRows(request, false),
+        await source.rows(request, false),
         request,
-        matcherBesides(request, 'colorid', 'type')
+        matcherBesides(request, ...addressesOf(source, request))
       )
-      return {
-        rows: rows.slice(request.offset, request.offset + request.limit),
-        total: rows.length,
-        unfiltered
-      }
-    }
-
-    if (key === 'inventory') {
-      // Reads only. `query` is the home screen's, which runs one per type every
-      // time it is drawn, and a summary card is no reason to scrape BrickLink.
-      const rows = present(await inventoryRows(request, false), request, matcherBesides(request, 'record'))
-      return {
-        rows: rows.slice(request.offset, request.offset + request.limit),
-        total: rows.length,
-        unfiltered
-      }
-    }
-
-    if (key === 'itemRecords') {
-      const rows = present(await recordRows(request), request, matcherBesides(request, 'item'))
       return {
         rows: rows.slice(request.offset, request.offset + request.limit),
         total: rows.length,
@@ -517,22 +943,20 @@ export const catalogSource: DataSource = {
     const key = entityKey(request)
     let cancelled = false
 
-    if (key === 'inventory' || key === 'itemRecords' || key === 'colorItems') {
-      const addresses =
-        key === 'inventory' ? ['record'] : key === 'itemRecords' ? ['item'] : ['colorid', 'type']
-      const fetched =
-        key === 'inventory'
-          ? inventoryRows(request)
-          : key === 'itemRecords'
-            ? recordRows(request)
-            : colorItemRows(request)
-      void fetched
+    const source = key ? fetched[key] : undefined
+    if (source) {
+      void source
+        .rows(request, true)
         .then((all) => {
           if (cancelled || !sink.open) return
           // The address terms are this table's address rather than a filter
           // over it, so the rows they fetched are not filtered by them again —
           // but whatever else the query carries does narrow them.
-          const rows = present(all, request, matcherBesides(request, ...addresses))
+          const rows = present(
+            all,
+            request,
+            matcherBesides(request, ...addressesOf(source, request))
+          )
           sink.set({
             rows: rows.slice(request.offset, request.offset + request.limit),
             total: rows.length

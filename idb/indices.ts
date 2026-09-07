@@ -14,6 +14,8 @@ const indices: {
   BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID: IndexDefinition
   ITEM_INVENTORIES_BY_RECORD: IndexDefinition
   COLOR_ITEMS_BY_SCOPE: IndexDefinition
+  BRICK_LINK_STORES_BY_COUNTRY: IndexDefinition
+  STORE_LOTS_BY_STORE: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -64,6 +66,25 @@ const indices: {
     store: stores.COLOR_ITEMS,
     name: 'scope',
     keyPath: 'scope'
+  },
+  /**
+   * Every seller in one country. The third of the same shape: one indexed
+   * lookup answers "what is in this", and it is also how a country's page is
+   * known to have been fetched at all.
+   */
+  BRICK_LINK_STORES_BY_COUNTRY: {
+    store: stores.BRICK_LINK_STORES,
+    name: 'countryID',
+    keyPath: 'countryID'
+  },
+  /**
+   * Every lot one seller has. The fourth of the same shape, and the reason a
+   * store's inventory is read back rather than re-fetched.
+   */
+  STORE_LOTS_BY_STORE: {
+    store: stores.STORE_LOTS,
+    name: 'store',
+    keyPath: 'store'
   },
 }
 

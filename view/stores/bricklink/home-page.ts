@@ -13,6 +13,10 @@ interface ItemTypeSummary {
 export const useHomePageStore = defineStore('homePageStore', {
   state: () => ({
     itemTypes: new Map<string, ItemTypeSummary>(),
+    sets: 0,
+    parts: 0,
+    minifigures: 0,
+    MOCs: 0,
     loaded: false,
   }),
   actions: {

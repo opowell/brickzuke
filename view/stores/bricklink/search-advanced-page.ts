@@ -1,4 +1,4 @@
-import { ONE_MONTH, ONE_YEAR } from '@/assets/js/timesToMs'
+import { ONE_YEAR } from '@/assets/js/timesToMs'
 import { defineStore, storeToRefs } from 'pinia'
 import { useQueryStore } from '../query'
 import { Call, makeTextCall } from '~/assets/js/make-call'
@@ -22,16 +22,15 @@ export const useSearchAdvancedPageStore = defineStore('searchAdvancedPageStore',
       const {
         s 
       } = storeToRefs(queryStore)
-      const search = s
-      if (!search.value || search.value === '') {
+      const search = s.value
+      if (!search) {
         return out
       }
-      const lowerCaseSearch = search.value.toLowerCase()
-      const caseMatch = search.value !== lowerCaseSearch
+      const lowerCaseSearch = search.toLowerCase()
+      const caseMatch = search !== lowerCaseSearch
       return out.filter((region) => {
         if (caseMatch) {
-          // @ts-ignore undefined case already handled above
-          return region.name.includes(search.value)
+          return region.name.includes(search)
         }
         return region.name.toLowerCase().includes(lowerCaseSearch)
       })

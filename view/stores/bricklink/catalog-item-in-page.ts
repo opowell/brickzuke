@@ -8,11 +8,8 @@ import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { ONE_DAY, ONE_WEEK } from '@/assets/js/timesToMs'
 
-interface ImagesResponse extends EventDetail {
-  request: {
-    call: Call
-    url: string
-    options: { body?: string }
+export interface ImagesResponse extends EventDetail {
+  request: EventDetail['request'] & {
     extraParams: {
       itemType: string
     }
@@ -27,11 +24,8 @@ interface ImagesResponse extends EventDetail {
   }
 }
 
-interface InventoriesResponse extends EventDetail {
-  request: {
-    call: Call
-    url: string
-    options: { body?: string }
+export interface InventoriesResponse extends EventDetail {
+  request: EventDetail['request'] & {
     extraParams: {
       itemNumber: string
       itemType: string
@@ -53,6 +47,14 @@ interface InventoriesResponse extends EventDetail {
       idInvImg: number
     }[]
   }
+}
+
+function getInventoriesUrl(itemId: string) {
+  return `https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=${itemId}&ss=AT&rpp=500&iconly=0`
+}
+
+function getImagesUrl(itemId: string) {
+  return `https://www.bricklink.com/ajax/renovate/catalog/getItemImageList.ajax?idItem=${itemId}&idColor=-1&bIncludeAssoc=1`
 }
 
 function getPageUrl(type: string, itemNumber: string) {
@@ -80,6 +82,11 @@ function getOptions(itemType: string, itemId: string) {
     mode: 'cors',
     credentials: 'include',
   }
+}
+
+export interface ItemImage {
+  id: string
+  image: string
 }
 
 export interface ItemInfo {
@@ -124,7 +131,7 @@ interface Color {
 
 export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
   state: () => ({
-    imagesMap: new Map<string, any>(),
+    imagesMap: new Map<string, ItemImage[]>(),
     inventoriesMap: new Map<string, StoreInventory[]>(),
     itemsMap: new Map<string, Item>(),
     itemVariants: new Map<string, Map<string, Color>>(),
@@ -297,7 +304,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       )
       const itemType = params[1]
       const itemNumber = params[0]
-      let weight = itemInfos[1]
+      let weight: string | undefined = itemInfos[1]
       if (weight === '?') {
         weight = undefined
       }

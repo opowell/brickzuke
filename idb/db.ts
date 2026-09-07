@@ -4,10 +4,7 @@ import type { IndexDefinition } from './indices'
 import STORES from '../idb/stores'
 import { isProxy, toRaw } from 'vue'
 
-export async function openCursor(
-  db: IDBPDatabase,
-  store: StoreDefinition,
-): Promise<IDBCursorWithValue | null> {
+export async function openCursor(db: IDBPDatabase, store: StoreDefinition) {
   return await db.transaction(store.name).store.openCursor()
 }
 
@@ -22,7 +19,11 @@ export async function count(db: IDBPDatabase, storeDefinition: StoreDefinition) 
   return await db.count(storeDefinition.name)
 }
 
-export async function countFromIndex(db: IDBPDatabase, index: IndexDefinition, parameter) {
+export async function countFromIndex(
+  db: IDBPDatabase,
+  index: IndexDefinition,
+  parameter: IDBKeyRange | IDBValidKey,
+) {
   return await db.countFromIndex(index.store.name, index.name, parameter)
 }
 
@@ -34,7 +35,7 @@ export async function get<T>(
   return await db.get(store.name, query)
 }
 
-export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value: T) {
+export async function put<T>(db: IDBPDatabase, storeDef: StoreDefinition, value: Partial<T>) {
   if (isProxy(value)) {
     value = toRaw(value)
   }

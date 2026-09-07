@@ -1,10 +1,11 @@
+import type { IDBPDatabase } from 'idb'
 import { getDbConnection } from '../../../idb/idb'
 
-import { useCatalogItemPageStore } from '@/stores/bricklink/catalog-item-page'
+import { useCatalogItemPageStore, type ImagesResponse, type InventoriesResponse } from '@/stores/bricklink/catalog-item-page'
 import { useCatalogListPageStore } from '@/stores/bricklink/catalog-list-page'
 import { handlePageResponse as handleColorPageResponse } from '@/stores/bricklink/catalog-list-color-page'
 import STORES from '../../../idb/stores'
-import { get, put, getAllFromIndex, deleteQueuedCall } from '../../../idb/db'
+import { get, put, getAllFromIndex, dbDelete, deleteQueuedCall } from '../../../idb/db'
 export interface QueuedCall {
   id?: number
   type: CallType
@@ -22,6 +23,9 @@ import { useColorsPageStore } from '@/stores/bricklink/colors-page'
 import { useHomePageStore } from '@/stores/bricklink/home-page'
 import { useSearchAdvancedPageStore } from '@/stores/bricklink/search-advanced-page'
 import { useStoresPageStore } from '@/stores/bricklink/stores-page'
+import {handleStoreFrontResponse,
+  handleStoreItemsResponse,
+  type StoreItemsResponse} from '@/stores/bricklink/store-front-page'
 import { handleResponse as handleColorGuidePageResponse } from '../../../sources/bricklink/color-guide'
 import catalogTreePage from '@/stores/bricklink/catalog-tree-page'
 import catalogPage from './../../../sources/bricklink/catalog-page'
@@ -44,6 +48,8 @@ export enum Call {
   GET_CATALOG_LIST_PAGE_FIRST_ONLY = 'https://www.bricklink.com/catalogList.asp#first-only',
   GET_CATALOG_LIST_COLOR_PAGE = 'https://www.bricklink.com/catalogList.asp#color',
   GET_SEARCH_ADVANCED_PAGE = 'https://www.bricklink.com/searchAdvanced.asp',
+  GET_STORE_FRONT_PAGE = 'https://store.bricklink.com',
+  GET_STORE_ITEMS = 'https://www.bricklink.com/ajax/clone/store/searchitems.ajax',
 }
 export enum CallType {
   JSON = 'json',
@@ -69,7 +75,15 @@ export async function makeScrapeCall(
   return await queueCall(CallType.SCRAPE, call, url, options, extraParams, storageTime)
 }
 export async function makeTextCalls(
-  calls: { call: Call; url: string; options: object; extraParams?: object; storageTime?: number }[],
+  calls: {
+    call: Call
+    url: string
+    options: object
+    // The shape every handler reads them back as — `object` let a replay hand
+    // `handleEvent` extra params it could not state the type of.
+    extraParams?: { [key: string]: string | number }
+    storageTime?: number
+  }[],
 ) {
   return await queueCalls(CallType.TEXT, calls)
 }
@@ -77,7 +91,7 @@ export async function makeJsonCall(
   call: Call,
   url: string,
   options: object,
-  extraParams?: object,
+  extraParams?: { [key: string]: string | number },
   storageTime?: number,
 ) {
   return await queueCall(CallType.JSON, call, url, options, extraParams, storageTime)
@@ -91,6 +105,9 @@ export interface EventDetail {
     extraParams?: { [key: string]: string | number }
     storageTime?: number
   }
+  // A reply is either the text of a page or a parsed JSON body, and which one
+  // it is follows from `request.call`, which the handlers switch on.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   response: any
 }
 export function handleEvent(detail: EventDetail) {
@@ -110,6 +127,14 @@ export function handleEvent(detail: EventDetail) {
       case Call.GET_COUNTRY_STORES_PAGE: {
         const storesPage = useStoresPageStore()
         storesPage.handleCountryStoresResponse(detail)
+        return
+      }
+      case Call.GET_STORE_FRONT_PAGE: {
+        handleStoreFrontResponse(detail)
+        return
+      }
+      case Call.GET_STORE_ITEMS: {
+        void handleStoreItemsResponse(detail as StoreItemsResponse)
         return
       }
       case Call.GET_COLOR_GUIDE_PAGE: {
@@ -146,12 +171,12 @@ export function handleEvent(detail: EventDetail) {
       }
       case Call.GET_CATALOG_ITEM_INVENTORIES: {
         const catalogItemPage = useCatalogItemPageStore()
-        catalogItemPage.handleInventoriesResponse(detail)
+        catalogItemPage.handleInventoriesResponse(detail as InventoriesResponse)
         return
       }
       case Call.GET_CATALOG_ITEM_IMAGES: {
         const catalogItemPage = useCatalogItemPageStore()
-        catalogItemPage.handleImagesResponse(detail)
+        catalogItemPage.handleImagesResponse(detail as ImagesResponse)
         return
       }
       case Call.GET_CATALOG_LIST_PAGE: {
@@ -204,7 +229,9 @@ export async function processQueue(reps = 1) {
       queuedCall.extraParams,
       queuedCall.storageTime,
     )
-    await deleteQueuedCall(db, queuedCall.id)
+    if (queuedCall.id !== undefined) {
+      await deleteQueuedCall(db, queuedCall.id)
+    }
     if (!cached) {
       callsMade++
       if (callsMade >= reps) {
@@ -221,7 +248,7 @@ export async function queueCalls(
     call: Call
     url: string
     options: object
-    extraParams?: object
+    extraParams?: { [key: string]: string | number }
     storageTime?: number
   }[],
 ) {
@@ -231,7 +258,7 @@ export async function queueCalls(
     const callObject = callObjects[i]
     const url = callObject.url
     const options = callObject.options
-    const value = await get<Call>(db, STORES.CALLS, callKey(url, options, callObject.extraParams))
+    const value = await freshCall(db, url, options, callObject.extraParams)
     if (value) {
       const call = callObject.call
       handleEvent({
@@ -240,6 +267,10 @@ export async function queueCalls(
           call,
           url,
           options,
+          // Carried, because a handler reads them: the country a store page is
+          // for is in here and nowhere else, so a replay without them answers
+          // about no country at all.
+          extraParams: callObject.extraParams,
         },
         response: value.response,
       })
@@ -265,6 +296,49 @@ export async function queueCalls(
     })
   }
   db.close()
+}
+
+/**
+ * One answer as the CALLS store holds it: what came back, and when it stops
+ * being worth believing.
+ */
+interface StoredCall {
+  url: string
+  options: object
+  response: unknown
+  expiryTime?: number
+}
+
+/**
+ * The stored answer to this call, if there is one that has not gone stale.
+ *
+ * `expiryTime` has been written on every cached response from the start and
+ * read by nothing, so every `storageTime` in this app was decorative: an
+ * inventory asked to be held for a day, and a colour guide for a week, were
+ * both held for ever. A page that has expired is deleted rather than merely
+ * ignored — it is not going to be read again, and leaving it there means the
+ * store only ever grows.
+ *
+ * A record with no expiry at all is kept. That is not a case either writer
+ * produces, and treating an absent deadline as one already passed would throw
+ * away answers on a guess.
+ */
+async function freshCall(
+  db: IDBPDatabase,
+  url: string,
+  options: object,
+  extraParams?: object,
+): Promise<StoredCall | undefined> {
+  const key = callKey(url, options, extraParams)
+  const value = await get<StoredCall>(db, STORES.CALLS, key)
+  if (!value) {
+    return undefined
+  }
+  if (value.expiryTime !== undefined && value.expiryTime <= Date.now()) {
+    await dbDelete(db, STORES.CALLS, key)
+    return undefined
+  }
+  return value
 }
 
 export function callKey(url: string, options: { body?: string }, extraParams?: object) {
@@ -297,8 +371,8 @@ export async function queueCall(
   storageTime?: number,
 ) {
   const db = await getDbConnection()
-  const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
-  // If the call is already stored, return the stored response.
+  const value = await freshCall(db, url, options, extraParams)
+  // If the call is already stored and still fresh, return the stored response.
   if (value) {
     db.close()
     handleEvent({
@@ -336,8 +410,8 @@ export async function makeCall(
   storageTime?: number,
 ): Promise<boolean> {
   const db = await getDbConnection()
-  const value = await get(db, STORES.CALLS, callKey(url, options, extraParams))
-  // If the call is already stored, return the stored response.
+  const value = await freshCall(db, url, options, extraParams)
+  // If the call is already stored and still fresh, return the stored response.
   if (value) {
     handleEvent({
       request: {

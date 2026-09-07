@@ -4,6 +4,9 @@ import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { useCatalogItemPageStore } from './catalog-item-page'
+import { putAll } from '~/../idb/db'
+import { getDbConnection } from '~/../idb/idb'
+import STORES from '~/../idb/stores'
 
 const INSTANT_CHECKOUT_HTML =
   '<a href="https://www.bricklink.com/help.asp?helpID=2466"><I class="fas fa-bolt icon-instant-checkout"></I></a>'
@@ -14,6 +17,12 @@ export interface Country {
   groupState: 'Y' | 'N'
   image: string
   countryName: string
+  /**
+   * How many sellers BrickLink counts in this country — parsed out of the
+   * directory beside the name, and stated on the country's own row before
+   * anyone has fetched the sellers themselves.
+   */
+  storeCount: number
 }
 
 export interface Region {
@@ -24,7 +33,14 @@ export interface Region {
 export interface Store {
   name: string
   id: string
-  lots?: number
+  /**
+   * How many items the seller has for sale — the number the directory prints
+   * after the name, and a quantity rather than a count of listings. The
+   * biggest German seller states 23,489,659 of them, which is more distinct
+   * lots than BrickLink has part-and-colour combinations to make; it is every
+   * brick in the store counted one by one.
+   */
+  items?: number
   stateName?: string
   instantCheckout?: boolean
   countryID: string
@@ -259,7 +275,10 @@ export const useStoresPageStore = defineStore('storesPageStore', {
           })
         })
       }
-      const countryID = detail.request.extraParams.countryID
+      const countryID = String(detail.request.extraParams?.countryID ?? '')
+      if (!countryID) {
+        return
+      }
       const stores: Store[] = []
       states.forEach((stateObj) => {
         const stateHtml = stateObj.html
@@ -275,13 +294,26 @@ export const useStoresPageStore = defineStore('storesPageStore', {
             stateName,
             id: params[0],
             name: params[1],
-            lots: Number.parseInt(params[2].replaceAll(',', '')),
+            items: Number.parseInt(params[2].replaceAll(',', '')),
             instantCheckout,
             countryID,
           })
         })
       })
       this.storesMap.set(countryID, stores)
+      // As above: one country's sellers, kept so the next look at that country
+      // is a read rather than another scrape.
+      void this.persistStores(stores)
+    },
+
+    /** The sellers just parsed, as IndexedDB holds them. */
+    async persistStores(stores: Store[]) {
+      const db = await getDbConnection()
+      try {
+        await putAll<Store>(db, STORES.BRICK_LINK_STORES, stores)
+      } finally {
+        db.close()
+      }
     },
     handleFetchResponse(response: string) {
       const stores = extractValueFromHtml(
@@ -339,6 +371,23 @@ export const useStoresPageStore = defineStore('storesPageStore', {
       })
       this.regions = this.regionsMap.size
       this.loaded = true
+      // Kept, rather than left in the maps above: this page is the whole of
+      // BrickLink's store directory and it went away on every reload. The
+      // write is not awaited because nothing in the parse depends on it, and
+      // this handler is called from the response dispatcher, which does not
+      // await it either.
+      void this.persistDirectory()
+    },
+
+    /** The regions and countries just parsed, as IndexedDB holds them. */
+    async persistDirectory() {
+      const db = await getDbConnection()
+      try {
+        await putAll<Region>(db, STORES.STORE_REGIONS, Array.from(this.regionsMap.values()))
+        await putAll<Country>(db, STORES.STORE_COUNTRIES, Array.from(this.countriesMap.values()))
+      } finally {
+        db.close()
+      }
     },
   },
 })

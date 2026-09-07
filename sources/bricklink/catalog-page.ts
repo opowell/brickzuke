@@ -1,15 +1,10 @@
 import { Call, makeTextCall } from '@/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml } from '../../view/assets/js/utils'
+import { extractValueFromHtml } from '../../view/assets/js/utils'
 import { ONE_YEAR } from '@/assets/js/timesToMs'
 import { getDbConnection } from '../../idb/idb'
 import { get, put } from '../../idb/db'
 import stores from '../../idb/stores'
 import type { BrickLinkCategory, BrickLinkItemType } from '@/stores/bricklink/catalog-download-page'
-
-interface Category {
-  id: string
-  name: string
-}
 
 async function fetchPage() {
   makeTextCall(

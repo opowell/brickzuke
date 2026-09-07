@@ -33,7 +33,12 @@ export const makeCall = async function() {
   )
 }
 
-export const handleResponse = async function(response: any[]) {
+interface ColorGuideEntry {
+  colorId: string
+  image: string
+}
+
+export const handleResponse = async function(response: ColorGuideEntry[]) {
   const db = await getDbConnection()
   for (let i = 0; i < response.length; i++) {
     const color = response[i]

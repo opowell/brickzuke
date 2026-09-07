@@ -11,7 +11,7 @@ import {Call,
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { useCatalogItemPageStore } from './catalog-item-page'
-import { listPageOptions, pageCount, parseRows } from './catalog-list'
+import { listPageOptions, pageCount, parseRows, type CatalogListRow } from './catalog-list'
 import { ONE_MONTH, ONE_WEEK, ONE_YEAR } from '@/assets/js/timesToMs'
 
 export interface BrickLinkCategory {
@@ -73,7 +73,7 @@ export interface ItemType {
 }
 export const useCatalogListPageStore = defineStore('catalogListPageStore', () => {
   // refs
-  const parts = ref(new Map<string, any[]>())
+  const parts = ref(new Map<string, CatalogListRow[]>())
   const itemTypes = ref<ItemType[]>([])
   const categories = ref<BrickLinkCategory[]>([])
   const categoriesMap = ref(new Map<string, BrickLinkCategory>())
@@ -191,7 +191,7 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
 
   // methods
   async function handleFetchResponseAll(detail: EventDetail) {
-    const itemTypeStrings = extractValueFromHtml(
+    const itemTypeStrings: string[] = extractValueFromHtml(
       detail.response,
       ['<div class="catalog-list__category-list--title">'],
       ['</FONT></div></TD></TR>'],
@@ -233,14 +233,14 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
       return typeCategories.map((category) => {
         return {
           catID: category[0],
-          catXrefLevel: category[1],
+          catXrefLevel: Number.parseInt(category[1]),
           catType: category[2],
           name: category[3],
-          items: category[4],
+          items: Number.parseInt(category[4]),
         }
       })
     })
-    categoriesMap.value = new Map<string, any>()
+    categoriesMap.value = new Map<string, BrickLinkCategory>()
     localCategories.forEach((type) => {
       type.forEach((category) => {
         let value = categoriesMap.value.get(category.catID)
@@ -250,7 +250,7 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
             items: 0,
           }
         }
-        value.items += Number.parseInt(category.items)
+        value.items += category.items
         categoriesMap.value.set(category.catID, value)
       })
     })

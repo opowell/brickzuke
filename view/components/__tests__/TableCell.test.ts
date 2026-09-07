@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TableCell from '../TableCell.vue'
+import type { TableRow } from '../../../types/table'
 
 vi.mock('../../../model', async () => {
   const {
@@ -68,7 +69,7 @@ describe('TableCell', () => {
       props: {
         column: {
           id: 'name',
-          itemValue: (item: any) => `${item.name} (${item.color})`,
+          itemValue: (item: TableRow) => `${item.name} (${item.color})`,
           width: '150px',
         },
         item: {

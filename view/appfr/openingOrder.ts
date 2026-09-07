@@ -39,6 +39,42 @@ const orders: Record<string, OpeningOrder> = {
   colors: {
     sort: 'items',
     dir: 'desc'
+  },
+  /*
+   * The store directory and the two cross-sections, on the same argument as
+   * the categories above: each of these leads with a count, and a table whose
+   * first column is a number is a league table however it is reached.
+   */
+  regions: {
+    sort: 'countries',
+    dir: 'desc'
+  },
+  countries: {
+    sort: 'stores',
+    dir: 'desc'
+  },
+  stores: {
+    sort: 'items',
+    dir: 'desc'
+  },
+  itemVariants: {
+    sort: 'sets',
+    dir: 'desc'
+  },
+  // Newest first, which is the one order a list of years is ever read in.
+  years: {
+    sort: 'year',
+    dir: 'desc'
+  },
+  /*
+   * Cheapest first. Not a league table but the question a page of lots is
+   * actually asked — and this one has to be said rather than left to the
+   * fallback, a lot carrying a description and a seller but no `name` at all.
+   * A sort naming a field the rows do not have is not a sort.
+   */
+  inventories: {
+    sort: 'priceValue',
+    dir: 'asc'
   }
 }
 

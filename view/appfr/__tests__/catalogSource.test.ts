@@ -263,3 +263,88 @@ describe('catalog source, streaming', () => {
     expect(seen).toBe(STOP_AFTER)
   }, 60_000)
 })
+
+/**
+ * The years the catalogue covers, which is the one table here derived from the
+ * items rather than read from a store of its own.
+ *
+ * The seed puts 5,000 items across 60 years — `1958 + (i % 60)` — so 5,000
+ * divides into 20 years of 84 and 40 of 83. That arithmetic is the point: a
+ * year states how many items came out in it, and pressing it has to land on
+ * exactly that many.
+ */
+function runFor(entityKey: string, overrides: Partial<ShellQuery> = {}) {
+  const query = ref<ShellQuery>({
+    entity: entityKey,
+    view: 'table',
+    sort: 'name',
+    dir: 'asc',
+    expr: '',
+    facets: {},
+    page: 1,
+    ...overrides,
+  })
+  const entity = catalogSchema.value.entities.find((candidate) => candidate.key === entityKey)!
+  const scope = effectScope()
+  let state!: ReturnType<typeof useResults>
+  scope.run(() => {
+    state = useResults({
+      source: computed(() => catalogSource),
+      query: computed(() => query.value),
+      schema: computed(() => catalogSchema.value),
+      entity: computed(() => entity),
+      limit: computed(() => 100),
+    })
+  })
+  return {
+    state,
+    scope 
+  }
+}
+
+describe('years', () => {
+  it('counts the items of each year, and covers every year seeded', async () => {
+    const {
+      state, scope 
+    } = runFor('years')
+    await settle(state)
+    expect(state.total.value).toBe(60)
+    const counts = state.rows.value.map((row) => Number(row.fields.items))
+    // Every item accounted for exactly once: a year is the one an item's first
+    // record states, which is the same field the items table draws.
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(SEEDED)
+    scope.stop()
+  }, 60_000)
+
+  it('states a count the items table then agrees with', async () => {
+    const {
+      state, scope 
+    } = runFor('years')
+    await settle(state)
+    const first = state.rows.value.find((row) => row.fields.name === '1958')!
+    expect(first.fields.items).toBe(84)
+    scope.stop()
+
+    // The press: `year:"1958"` against the items table. A count that leads to
+    // a different number is the one thing this table must not do.
+    const narrowed = runStream({
+      expr: 'year:"1958"' 
+    })
+    await settle(narrowed.state)
+    expect(narrowed.state.total.value).toBe(84)
+    narrowed.scope.stop()
+  }, 60_000)
+
+  it('holds a year as a number, so the column sorts as years', async () => {
+    const {
+      state, scope 
+    } = runFor('years', {
+      sort: 'year',
+      dir: 'desc' 
+    })
+    await settle(state)
+    // Text would put 1999 above 2017. The seed runs to 2017.
+    expect(state.rows.value[0]!.fields.year).toBe(2017)
+    scope.stop()
+  }, 60_000)
+})

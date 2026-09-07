@@ -1,0 +1,36 @@
+<!--
+  store.bricklink.com/BunteSteinewelt, trimmed to the two places the page
+  names StoreFront.store: a button handler that reads its id, and — far below
+  it — the object that declares one. Fetched anonymously, and the seller's VAT
+  and company fields cut, so there is nobody's details in here.
+
+  n4totalLots and n4totalItems are kept because they are the evidence for what
+  the store directory's number is: BrickLink prints the items figure there, not
+  the lots.
+-->
+<button style="border: 0px; border-radius: 0; background: transparent; padding: 0; cursor: pointer; color: inherit; margin-left: 6px; display:inline-flex; align-items:center; font:inherit;" onClick="javascript:window.gotoReportPage('SellerStore','SellerPrivileges', StoreFront.store.id, 'self')"><i style="margin-right:6px; text-decoration:none;" class="fas fa-flag-swallowtail"></i><span style="text-decoration:underline">Report this store</span></button>
+
+<!-- … most of the page, trimmed … -->
+
+<script>
+		var StoreFront = {};
+
+		StoreFront.store = {
+			name:			'Bunte Steinewelt',
+			username:		'BunteSteinewelt',
+			id: 			1801484,
+			minBuy:			'EUR 20.00',
+			avgLotMinBuy:	'EUR 3.00',
+			sellerLotLimit:	'600',
+			vatPercent:		'0',
+			slogan: 		'Visit us on Facebook and Instagram',
+			date: 			'Nov 04, 2020',
+			stateName: 		'Niedersachsen',
+			stateId:		'23331',
+			countryName: 	'Germany',
+			countryID: 		'DE',
+			n4totalLots: 	6353,
+			n4totalItems: 	21434527,
+			// … the rest of the object, trimmed …
+		};
+</script>

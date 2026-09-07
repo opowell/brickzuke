@@ -22,11 +22,13 @@ import {DataShell,
   serializeQuery} from 'header-content-layout'
 import type { ShellQuery } from 'header-content-layout'
 import 'header-content-layout/style.css'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { refreshCounts } from '../appfr/catalogCounts'
 import { catalogSchema } from '../appfr/catalogSchema'
 import { catalogSource } from '../appfr/catalogSource'
 import { colorItemsNotice } from '../appfr/colorItemsNotice'
+import { storeLotsNotice } from '../appfr/storeLotsNotice'
 import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 
 const router = useRouter()
@@ -43,6 +45,27 @@ const urlEntity = computed(() => {
 })
 
 const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
+
+/**
+ * The home screen's counts, taken every time it is reached.
+ *
+ * Here rather than in the schema because the numbers are read asynchronously
+ * and the schema is a plain computed. The home screen is the URL naming no
+ * type, and it is the only screen that draws these — a table states its own
+ * total in the header — so nothing is counted while someone is inside one.
+ * Coming back out is what picks up whatever that visit fetched.
+ */
+watch(
+  urlEntity,
+  (entity) => {
+    if (!entity) {
+      void refreshCounts()
+    }
+  },
+  {
+    immediate: true
+  }
+)
 
 /**
  * The shell's own writer, so the query it reads back is the query written here
@@ -89,8 +112,9 @@ const plainTokens = {
       @query-change="onQueryChange"
     >
       <!--
-        A colour too long to fetch whole says so beside the count, which is the
-        number it would otherwise be quietly contradicting.
+        A colour or a seller too long to fetch whole says so beside the count,
+        which is the number it would otherwise be quietly contradicting. Never
+        both at once: they are two different tables.
       -->
       <template #actions>
         <span
@@ -98,6 +122,12 @@ const plainTokens = {
           class="items-shell__partial"
           title="This colour runs to more pages than brickzuke fetches at once, so the list below is not all of it."
         >{{ colorItemsNotice }}</span
+        >
+        <span
+          v-if="storeLotsNotice"
+          class="items-shell__partial"
+          title="This seller has more lots than brickzuke fetches at once, so the list below is not all of them."
+        >{{ storeLotsNotice }}</span
         >
       </template>
     </DataShell>
@@ -162,6 +192,23 @@ const plainTokens = {
   opacity: 0.7;
   font-size: 0.85em;
   white-space: nowrap;
+}
+
+/*
+ * The table states a width per column, and the shell then stretches it over
+ * whatever the window is: `width: 100%` with `table-layout: fixed` shares the
+ * slack out among the columns, which is what put a hand's breadth of nothing
+ * between a country's name and its store count.
+ *
+ * `min-content` is the sum of those stated widths — under a fixed layout that
+ * is the whole of what the table asks for — so every column stays exactly as
+ * wide as the schema says and the table ends where its last one does. `auto`
+ * would not do: a fixed layout needs a definite width, so the browser falls
+ * back to sizing each column to the widest cell in it, which drops the
+ * truncation and moves the columns about as the pages turn.
+ */
+.items-shell :deep(.dc-table) {
+  width: min-content;
 }
 
 /* A row is not pressable, so it must not offer itself as one. */

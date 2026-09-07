@@ -6,7 +6,17 @@ import { createIndex, createStore } from './db'
 
 const DB_NAME = 'brickzuke'
 // 19 adds COLOR_SCOPES, which says how much of a colour was fetched.
-const DB_VERSION = 19
+// 20 adds the store directory — regions, countries and the sellers in them —
+// which until now lived only in memory and was re-scraped on every reload.
+// 21 renames a seller's `lots` to `items`, the directory's number being a
+// quantity and not a count of listings.
+// 22 adds STORE_LOTS and the scopes saying how much of a seller's inventory
+// each one holds. A version of its own rather than part of 21, because 21 was
+// written before those stores were: a tab that reloaded in between upgraded to
+// 21 without them, and would never have created them — no upgrade runs for a
+// version already reached. The stores are made in the loop below, which runs on
+// any upgrade, so a number nobody has seen yet is the whole fix.
+const DB_VERSION = 22
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -37,6 +47,19 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           transaction.objectStore(STORES.COLOR_ITEMS.name).clear()
         } catch (e) {
           console.log('Error clearing colour items', e)
+        }
+      }
+      /*
+       * Sellers stored before v21 carry the directory's number under `lots`,
+       * which is not what it counts. Renaming the field in place would leave
+       * those rows reading blank, so they go the way the colour rows above
+       * did: dropped, and re-scraped the next time a country is opened.
+       */
+      if (oldVersion >= 20 && oldVersion < 21) {
+        try {
+          transaction.objectStore(STORES.BRICK_LINK_STORES.name).clear()
+        } catch (e) {
+          console.log('Error clearing sellers', e)
         }
       }
     },

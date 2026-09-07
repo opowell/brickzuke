@@ -3,6 +3,7 @@
 //     math.bignumber(actualPrice),
 
 import type { Sort } from '@/stores/models'
+import type { TableRow } from '../../../types/table'
 
 //   math.bignumber(cheapP)
 interface Breakpoint {
@@ -63,10 +64,19 @@ export function formatInteger(x?: number, breakpoints: Breakpoint[] = defaultBre
   }
 }
 
+/**
+ * The matches for one `begin`/`end` pair, or — when more than one pair is
+ * given — the matches of each pair nested inside the matches of the one before.
+ */
+export type HtmlMatches = (string | HtmlMatches)[]
+
+// The callers each know how deep their own pairs go, and read the result at
+// that depth; `any` is what lets them say so without a cast at every call.
 export function extractValueFromHtml(
   html: string,
   begin: string | string[],
   end: string | string[] = [],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
   let index = 0
   if (!Array.isArray(begin)) {
@@ -164,7 +174,7 @@ export async function getStorageUsage(): Promise<void> {
   console.log(`Usage %: ${percentageUsed}`)
   console.log(`Remaining: ${remaining} GB`)
 }
-export function sortItems(items: { [key: string]: any }[], sorts: Sort[]) {
+export function sortItems(items: TableRow[], sorts: Sort[]) {
   if (sorts.length === 0) {
     return
   }

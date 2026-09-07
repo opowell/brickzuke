@@ -8,6 +8,34 @@ import { ONE_WEEK } from './timesToMs'
 let listening = false
 
 /**
+ * One answer, kept and handed on.
+ *
+ * The key is `callKey` with the extra params, which is the key the three
+ * lookups in make-call read by. Writing it without them — as this did — files
+ * the answer under a name nothing ever asks for, so a call carrying extra
+ * params was re-fetched every time however long it was meant to be held. That
+ * is both of the calls behind an item's lots and its pictures.
+ */
+async function keepAndHandle(detail: {
+  request: { url: string; options: { body?: string }; extraParams?: object; storageTime?: number }
+  response: unknown
+}) {
+  const db = await getDbConnection()
+  const request = detail.request
+  try {
+    await put(db, stores.CALLS, {
+      url: callKey(request.url, request.options, request.extraParams),
+      options: request.options,
+      response: detail.response,
+      expiryTime: Date.now() + (request.storageTime || ONE_WEEK),
+    })
+    handleEvent(detail as Parameters<typeof handleEvent>[0])
+  } finally {
+    db.close()
+  }
+}
+
+/**
  * The half of the bridge that receives: the extension answers a dispatched call
  * with `bzServerToClient`, and this caches the raw response and hands it to
  * whichever store asked for it.
@@ -29,17 +57,16 @@ export function installResponseListener() {
       return
     }
     switch (e.detail.request.type) {
-      case CallType.TEXT: {
-        const db = await getDbConnection()
-        const request = e.detail.request
-        await put(db, stores.CALLS, {
-          url: callKey(request.url, request.options),
-          options: request.options,
-          response: e.detail.response,
-          expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
-        })
-        handleEvent(e.detail)
-        db.close()
+      /*
+       * `json` was not here at all, and it is the type both of an item's own
+       * calls are made with — the lots on offer and the image list. A type
+       * matching no case fell out of the switch: not cached, and never handed
+       * to `handleEvent`, so the handlers that fill those two maps never ran.
+       * The extension had answered; the app dropped it on the floor.
+       */
+      case CallType.TEXT:
+      case CallType.JSON: {
+        await keepAndHandle(e.detail)
         break
       }
       case 'query': {
@@ -47,16 +74,7 @@ export function installResponseListener() {
       }
       case CallType.SCRAPE: {
         console.log('got a scrape response', e.detail.response)
-        const db = await getDbConnection()
-        const request = e.detail.request
-        await put(db, stores.CALLS, {
-          url: callKey(request.url, request.options),
-          options: request.options,
-          response: e.detail.response,
-          expiryTime: Date.now() + (e.detail.request.storageTime || ONE_WEEK),
-        })
-        handleEvent(e.detail)
-        db.close()
+        await keepAndHandle(e.detail)
         break
       }
     }

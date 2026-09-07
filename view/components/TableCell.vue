@@ -1,24 +1,51 @@
 <script setup lang="ts">
 import { formatInteger } from '@/assets/js/utils.ts'
 import type { TableColumn } from './TableComponent.vue'
+import type { ClickValue, TableRow } from '../../types/table'
 import { computed } from 'vue'
 import { processQueue } from '@/assets/js/make-call'
 import { selectedItemType, filters, setCounts } from '../../model'
+import type { Filter } from '../../types/filter'
 const {
   column,
   item,
   setMaxWidth = false,
 } = defineProps<{
   column: TableColumn
-  item: any
+  item: TableRow
   setMaxWidth?: boolean
 }>()
 
+/**
+ * The filter a press stands for.
+ *
+ * A column states either the whole filter or just the value, and a column that
+ * states only a value names the field it belongs to in `clickKey`.
+ */
+function toFilter(value: ClickValue): Filter | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value === 'object') {
+    return value
+  }
+  const key = typeof column.clickKey === 'function' ? column.clickKey(item) : column.clickKey
+  if (!key) {
+    return undefined
+  }
+  return {
+    key,
+    value,
+  }
+}
+
 function handleClick() {
   if (column.clickValue) {
-    // selectedItem.value = column.clickSelection
     // filters.value = filters.value.filter((filter) => filter.key !== key)
-    filters.value.push(column.clickValue(item))
+    const filter = toFilter(column.clickValue(item))
+    if (filter) {
+      filters.value.push(filter)
+    }
     selectedItemType.value = column.clickSelection
     console.log('pushed filter')
     setCounts()

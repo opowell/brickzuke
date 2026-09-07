@@ -8,11 +8,8 @@ import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { ONE_DAY, ONE_WEEK } from '@/assets/js/timesToMs'
 
-interface ImagesResponse extends EventDetail {
-  request: {
-    call: Call
-    url: string
-    options: { body?: string }
+export interface ImagesResponse extends EventDetail {
+  request: EventDetail['request'] & {
     extraParams: {
       itemType: string
     }
@@ -27,11 +24,8 @@ interface ImagesResponse extends EventDetail {
   }
 }
 
-interface InventoriesResponse extends EventDetail {
-  request: {
-    call: Call
-    url: string
-    options: { body?: string }
+export interface InventoriesResponse extends EventDetail {
+  request: EventDetail['request'] & {
     extraParams: {
       itemNumber: string
       itemType: string
@@ -90,6 +84,11 @@ function getOptions(itemType: string, itemId: string) {
   }
 }
 
+export interface ItemImage {
+  id: string
+  image: string
+}
+
 export interface ItemInfo {
   yearReleased?: string
   weight?: string
@@ -112,7 +111,7 @@ export interface StoreInventory {
   itemType: string
   itemNumber: string
   colorId: string
-  itemVariantId: string
+  itemVariantId?: string
 }
 
 interface Item {
@@ -136,7 +135,7 @@ interface Color {
 
 export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
   state: () => ({
-    imagesMap: new Map<string, any>(),
+    imagesMap: new Map<string, ItemImage[]>(),
     inventoriesMap: new Map<string, StoreInventory[]>(),
     itemsMap: new Map<string, Item>(),
     itemVariants: new Map<string, Map<string, Color>>(),
@@ -313,7 +312,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       )
       const itemType = params[1]
       const itemNumber = params[0]
-      let weight = itemInfos[1]
+      let weight: string | undefined = itemInfos[1]
       if (weight === '?') {
         weight = undefined
       }

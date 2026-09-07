@@ -18,6 +18,9 @@ export interface BrickLinkItem {
   Name: string
   Number: string
   itemId: number
+  bzItemId?: number
+  Dimensions?: string
+  'Year Released'?: string
   'Category ID': string
   categoryId?: string
   weight: string
@@ -31,12 +34,15 @@ export interface Item {
 }
 
 export interface UiItem extends Item {
-  score: number
-  image: any
+  score?: number
+  image?: string
   category: string
   name: string
-  itemTypeId: string
+  itemType: string
   itemTypeName: string
+  year?: string
+  weight?: string
+  dimensions?: string
 }
 
 export interface ItemType {
@@ -63,6 +69,7 @@ export interface Color {
 
 export interface Category {
   name?: string
+  score?: number
   brickLinkCategories?: BrickLinkCategory[] | undefined
   id?: number
   items?: number
@@ -133,8 +140,8 @@ function getOptions(itemType: string, viewType: number = 0) {
   }
 }
 
-function itemKey(itemType: string, item: BrickLinkItem) {
-  return itemType + '-' + item.Number
+function itemKey(itemType: string, itemNumber: string) {
+  return itemType + '-' + itemNumber
 }
 
 const itemTypeMap = new Map<string, string>()
@@ -146,7 +153,7 @@ itemTypeMap.set('G', 'Gear')
 itemTypeMap.set('C', 'Catalogs')
 
 export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore', () => {
-  const items = ref(new Map<string, Map<string, any>>())
+  const items = ref(new Map<string, Map<string, BrickLinkItem>>())
   const itemsArray = computed(() => {
     const values = Array.from(items.value.values()).flatMap((map) => Array.from(map.values()))
     return Array.from(values)
@@ -191,11 +198,10 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
               return
             }
           }
-          const keys = Object.keys(item)
-          const dupe = {}
-          keys.forEach((key) => (dupe[key] = item[key]))
-          dupe.image = invItem.itemVariant.thumbnail
-          out.push(dupe)
+          out.push({
+            ...item,
+            image: invItem.itemVariant.thumbnail,
+          })
         })
       }
       // return out;
@@ -221,7 +227,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
             return true
           }
         } else {
-          if (item.Name.toLowerCase().includes(lowerCaseSearch)) {
+          if (lowerCaseSearch && item.Name.toLowerCase().includes(lowerCaseSearch)) {
             return true
           }
         }
@@ -308,13 +314,15 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     bzIdField: string,
     brickLinkObjectIdField: string
   ) {
-    const response = detail.response
-    const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
+    const response: string = detail.response
+    const rows: string[][] = response
+      .split('\n')
+      .map((row: string) => row.replaceAll('\r', '').split('\t'))
     const headers = rows.splice(0, 1)[0]
     const objects = rows
       .filter((row: string[]) => row.length === headers.length)
       .map((row: string[]) => {
-        const out: { [key: string]: string } = {}
+        const out: { [key: string]: string | number } = {}
         headers.forEach((header: string, index: number) => {
           out[header] = row[index]
         })
@@ -327,7 +335,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       const existingBzObject = await get<S>(db, store, id)
       let bzId
       if (existingBzObject) {
-        bzId = existingBzObject[bzIdField]
+        bzId = (existingBzObject as Record<string, unknown>)[bzIdField]
       } else {
         bzId = await put<S>(db, store, {})
       }
@@ -338,7 +346,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
       brickLinkObject[bzIdField] = bzId
       brickLinkObject[idField] = id
       delete brickLinkObject[brickLinkObjectIdField]
-      await put<T>(db, brickLinkStore, brickLinkObject)
+      await put<T>(db, brickLinkStore, brickLinkObject as Partial<T>)
     }
     db.close()
   }
@@ -405,20 +413,22 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     )
   }
   async function handleCatalogItems(detail: EventDetail) {
-    const response = detail.response
-    const rows = response.split('\n').map((row: string) => row.replaceAll('\r', '').split('\t'))
+    const response: string = detail.response
+    const rows: string[][] = response
+      .split('\n')
+      .map((row: string) => row.replaceAll('\r', '').split('\t'))
     const headers = rows.splice(0, 1)[0]
-    const itemType = extractValuesFromHtml(detail.request.options.body, 'itemType=', '&')[0]
+    const itemType = extractValuesFromHtml(detail.request.options.body ?? '', 'itemType=', '&')[0]
     const localItems = rows
       .filter((row) => row.length === headers.length)
       .map((row) => {
-        const out = {
+        const out: Record<string, string> = {
           itemType,
         }
         headers.forEach((header, index) => {
           out[header] = row[index]
         })
-        out.id = itemKey(itemType, out)
+        out.id = itemKey(itemType, out.Number)
         if (itemType === 'S') {
           out.image = `https://img.bricklink.com/ItemImage/${itemType}T/0/${out.Number}.t2.png`
         } else {
@@ -426,9 +436,11 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
         }
         out.weight = out['Weight (in Grams)']
         out.categoryId = out['Category ID']
-        return out
+        // The columns come off a tab-separated download, so every field arrives
+        // as text; the record is a BrickLinkItem once the headers are in place.
+        return out as unknown as BrickLinkItem
       })
-    const map = new Map<string, any>()
+    const map = new Map<string, BrickLinkItem>()
     const db = await getDbConnection()
     for (let i = 0; i < localItems.length; i++) {
       const brickLinkItem = localItems[i]

@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { Call, makeTextCall, processQueue } from '~/assets/js/make-call'
+import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml } from '~/assets/js/utils'
 import { useQueryStore } from '../query'
 import { ONE_YEAR } from '@/assets/js/timesToMs'
@@ -22,14 +22,11 @@ export const useCatalogPageStore = defineStore('catalogPageStore', {
       const {
         s 
       } = storeToRefs(queryStore)
-      const search = s
-      if (!search.value || search.value === '') {
+      const search = s.value
+      if (!search) {
         return state.categories
       }
-      return state.categories.filter((category) => {
-        // @ts-ignore undefined case already handled above
-        return category.name.includes(search.value)
-      })
+      return state.categories.filter((category) => category.name.includes(search))
     },
     categoriesMap: (state) => {
       const map = new Map<string, Category>()

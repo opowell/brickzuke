@@ -105,7 +105,7 @@ export const useModelsStore = defineStore('models', () => {
     clickKey: 'item',
     clickValue: (item: ItemInventory) => item.itemVariant.itemId,
   }
-  const clickCategoryFn = (category: BrickLinkCategory) => {
+  const clickCategoryFn = (_category: BrickLinkCategory) => {
     // selectedItem.value = 'items'
     // filters.value.push({
     //   key: 'category',
@@ -113,7 +113,7 @@ export const useModelsStore = defineStore('models', () => {
     // })
     // search.value = undefined
   }
-  const itemTypes = computed<Table<any>[]>(() => {
+  const itemTypes = computed<Table[]>(() => {
     const catalogDownloadPage = useCatalogDownloadPageStore()
     const catalogItemInvPage = useCatalogItemInvPageStore()
     const catalogListPage = useCatalogListPageStore()
@@ -672,8 +672,8 @@ export const useModelsStore = defineStore('models', () => {
             width: '200px',
           },
           {
-            id: 'lots',
-            label: 'Lots',
+            id: 'items',
+            label: 'Items',
             type: 'number',
             width: '70px',
           },

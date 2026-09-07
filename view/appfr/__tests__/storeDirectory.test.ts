@@ -1,0 +1,488 @@
+/**
+ * The tables brickzuke fills by browsing rather than by downloading: the store
+ * directory, the lots on offer and the two cross-sections over them.
+ *
+ * These are the half of the catalogue that has no bulk download behind it, so
+ * what is asserted here is mostly about where the rows come from — an indexed
+ * lookup per country rather than a filter over every seller, the pinia maps
+ * for what is only ever in memory, and no scrape at all from a table that is
+ * already stored. Getting that wrong is not a wrong number on screen but a
+ * request to BrickLink that should never have been made.
+ */
+import 'fake-indexeddb/auto'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { computed, effectScope, nextTick, ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useResults } from 'header-content-layout'
+import type { ShellQuery } from 'header-content-layout'
+
+vi.mock('../../../model', async () => {
+  const {
+    ref: r
+  } = await import('vue')
+  return {
+    filters: r([]),
+    search: r(undefined),
+    selectedItemType: r(null),
+    itemTypes: r([]),
+    processingCounts: r(false),
+    selectedCounts: r(undefined),
+  }
+})
+
+const {
+  catalogSource
+} = await import('../catalogSource')
+const {
+  catalogSchema
+} = await import('../catalogSchema')
+const {
+  readStores
+} = await import('../storesFetch')
+const {
+  readStoreLots
+} = await import('../storeLotsFetch')
+const {
+  useCatalogItemPageStore
+} = await import('../../stores/bricklink/catalog-item-page')
+const {
+  getDbConnection
+} = await import('../../../idb/idb')
+const {
+  putAll
+} = await import('../../../idb/db')
+const STORES = (await import('../../../idb/stores')).default
+
+const entity = (key: string) => catalogSchema.value.entities.find((e) => e.key === key)!
+
+beforeAll(async () => {
+  setActivePinia(createPinia())
+  const db = await getDbConnection()
+  await putAll(db, STORES.STORE_REGIONS, [
+    {
+      name: 'Europe',
+      countryCount: 2
+    },
+    {
+      name: 'North America',
+      countryCount: 1
+    }
+  ])
+  await putAll(db, STORES.STORE_COUNTRIES, [
+    {
+      regionId: 'Europe',
+      countryCode: 'DE',
+      groupState: 'N',
+      image: 'https://img.example/de.gif',
+      countryName: 'Germany',
+      storeCount: 900
+    },
+    {
+      regionId: 'Europe',
+      countryCode: 'NL',
+      groupState: 'N',
+      image: 'https://img.example/nl.gif',
+      countryName: 'Netherlands',
+      storeCount: 400
+    },
+    {
+      regionId: 'North America',
+      countryCode: 'US',
+      groupState: 'Y',
+      image: 'https://img.example/us.gif',
+      countryName: 'United States',
+      storeCount: 1_200
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_STORES, [
+    {
+      id: 'brickmeister',
+      name: 'Brickmeister',
+      countryID: 'DE',
+      stateName: undefined,
+      items: 12_000,
+      instantCheckout: true
+    },
+    {
+      id: 'steinehaus',
+      name: 'Steinehaus',
+      countryID: 'DE',
+      stateName: 'Bayern',
+      items: 3_000,
+      instantCheckout: false
+    },
+    {
+      id: 'bricksusa',
+      name: 'Bricks USA',
+      countryID: 'US',
+      stateName: 'Ohio',
+      items: 40_000,
+      instantCheckout: false
+    }
+  ])
+  db.close()
+})
+
+/** The shell's own reader, so what is asserted is the contract it implements. */
+function runStream(overrides: Partial<ShellQuery> & { entity: string }) {
+  const query = ref<ShellQuery>({
+    view: 'table',
+    sort: 'name',
+    dir: 'asc',
+    expr: '',
+    facets: {},
+    page: 1,
+    ...overrides,
+  })
+  const scope = effectScope()
+  let state!: ReturnType<typeof useResults>
+  scope.run(() => {
+    state = useResults({
+      source: computed(() => catalogSource),
+      query: computed(() => query.value),
+      schema: computed(() => catalogSchema.value),
+      entity: computed(() => entity(overrides.entity)),
+      limit: computed(() => 50),
+    })
+  })
+  return {
+    state,
+    scope
+  }
+}
+
+/** Waits for a stream that reads IndexedDB and nothing else. */
+async function rowsOf(overrides: Partial<ShellQuery> & { entity: string }) {
+  const {
+    state, scope
+  } = runStream(overrides)
+  for (let i = 0; i < 50 && state.pending.value; i++) {
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+  const rows = state.rows.value.slice()
+  scope.stop()
+  return rows
+}
+
+describe('countries', () => {
+  it('states BrickLink\'s own store count, which is known before any seller is', async () => {
+    const rows = await rowsOf({
+      entity: 'countries'
+    })
+    const germany = rows.find((row) => row.fields.country === 'DE')!
+    expect(germany.fields.name).toBe('Germany')
+    // Off the directory page rather than off the sellers: nobody has fetched a
+    // German store here, and the count is still 900.
+    expect(germany.fields.stores).toBe(900)
+    expect(germany.fields.region).toBe('Europe')
+  })
+
+  it('narrows to one region, the region being a field and not an address', async () => {
+    const rows = await rowsOf({
+      entity: 'countries',
+      expr: 'region:"Europe"'
+    })
+    expect(rows.map((row) => row.fields.country).sort()).toEqual(['DE', 'NL'])
+  })
+})
+
+describe('regions', () => {
+  it('counts the countries under it', async () => {
+    const rows = await rowsOf({
+      entity: 'regions'
+    })
+    expect(rows.find((row) => row.fields.name === 'Europe')!.fields.countries).toBe(2)
+  })
+})
+
+describe('stores', () => {
+  it('reads one country through the index rather than filtering all of them', async () => {
+    // The same answer either way, which is why this asserts the read as well:
+    // a country's page is fetched when that country has no sellers stored, so
+    // an address that quietly matched everything would never fetch anything.
+    expect((await readStores('DE')).map((store) => store.id).sort()).toEqual([
+      'brickmeister',
+      'steinehaus'
+    ])
+    const rows = await rowsOf({
+      entity: 'stores',
+      expr: 'country:"DE"'
+    })
+    expect(rows.map((row) => row.fields.id).sort()).toEqual(['brickmeister', 'steinehaus'])
+  })
+
+  it('carries the directory\'s count under `items`, not under `lots`', async () => {
+    const rows = await rowsOf({
+      entity: 'stores',
+      expr: 'country:"DE"'
+    })
+    // What BrickLink prints after the name is every brick the seller has for
+    // sale, counted one by one — not how many listings they are spread over.
+    // The two are far apart: the biggest German seller states 23,489,659 of
+    // them, more than there are part-and-colour pairs to make lots out of.
+    expect(rows.find((row) => row.fields.id === 'brickmeister')!.fields.items).toBe(12_000)
+    expect(rows.find((row) => row.fields.id === 'brickmeister')!.fields.lots).toBeUndefined()
+  })
+
+  it('draws instant checkout as a word rather than as a boolean', async () => {
+    const rows = await rowsOf({
+      entity: 'stores',
+      expr: 'country:"DE"'
+    })
+    // The original prints the raw flag, which puts `false` in every row that
+    // has not got it. A blank cell is what "not this one" looks like.
+    expect(rows.find((row) => row.fields.id === 'brickmeister')!.fields.instantCheckout)
+      .toBe('Instant')
+    expect(rows.find((row) => row.fields.id === 'steinehaus')!.fields.instantCheckout).toBe('')
+  })
+
+  it('shows what is stored when no country is named, and asks for nothing', async () => {
+    // There is no page stating every seller on BrickLink, so the un-narrowed
+    // table is the countries someone has already asked about — not two hundred
+    // requests fired off because a table was opened.
+    const rows = await rowsOf({
+      entity: 'stores'
+    })
+    expect(rows.length).toBe(3)
+  })
+})
+
+describe('store inventories', () => {
+  const lots = [
+    {
+      invId: 'lot-1',
+      description: 'Red brick, mint',
+      price: 'US $1.20',
+      sellerCountryCode: 'DE',
+      sellerCountryName: 'Germany',
+      sellerStoreName: 'Brickmeister',
+      strSellerUsername: 'brickmeister',
+      condition: 'N',
+      quantity: 40,
+      sellerFeedbackScore: 900,
+      image: 'https://img.example/lot-1.png',
+      itemType: 'P',
+      itemNumber: '3001',
+      colorId: '5'
+    },
+    {
+      invId: 'lot-2',
+      description: 'Red brick, played with',
+      price: 'US $9.00',
+      sellerCountryCode: 'US',
+      sellerCountryName: 'United States',
+      sellerStoreName: 'Bricks USA',
+      strSellerUsername: 'bricksusa',
+      condition: 'U',
+      quantity: 2,
+      sellerFeedbackScore: 40,
+      image: 'https://img.example/lot-2.png',
+      itemType: 'P',
+      itemNumber: '3001',
+      colorId: '5'
+    },
+    {
+      invId: 'lot-3',
+      description: 'Red brick, bulk',
+      price: 'US $10.00',
+      sellerCountryCode: 'DE',
+      sellerCountryName: 'Germany',
+      sellerStoreName: 'Steinehaus',
+      strSellerUsername: 'steinehaus',
+      condition: 'N',
+      quantity: 500,
+      sellerFeedbackScore: 120,
+      image: 'https://img.example/lot-3.png',
+      itemType: 'P',
+      itemNumber: '3001',
+      colorId: '5'
+    }
+  ]
+
+  beforeAll(() => {
+    // Where the original keeps them, and the only place they are: a price is
+    // true while the lot is there and not after, so nothing writes these to
+    // IndexedDB.
+    useCatalogItemPageStore().inventoriesMap.set('P-3001', lots)
+  })
+
+  it('sorts by the number behind the price, not by the string', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      sort: 'priceValue',
+      dir: 'asc'
+    })
+    // As text, `US $10.00` sorts before `US $9.00` — every character matches
+    // until the `1`. As money it does not.
+    expect(rows.map((row) => row.fields.price)).toEqual([
+      'US $1.20',
+      'US $9.00',
+      'US $10.00'
+    ])
+  })
+
+  it('carries the item it is a lot of, under the address the other tables use', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories'
+    })
+    expect(rows.every((row) => row.fields.record === 'P-3001')).toBe(true)
+  })
+
+  it('narrows an item\'s lots to one seller, the store being a field beside the item', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'record:"P-3001" store:"steinehaus"'
+    })
+    // The record is the address — it is what fetched these — and the store
+    // narrows what came back. Named the other way round, with no item at all,
+    // the store becomes the address instead and a different page answers.
+    expect(rows.map((row) => row.fields.id)).toEqual(['lot-3'])
+  })
+})
+
+/**
+ * A seller's own inventory, which is the other page this table is filled from.
+ *
+ * Addressed by the store and nothing else: `record:"P-3001"` is one request to
+ * an item's page, and `store:"steinehaus"` is a walk through the seller's own
+ * front, a hundred lots at a time. Stored rows are the answer here, so these
+ * assert the read rather than the fetch — which is also how the app avoids
+ * scraping a store twice.
+ */
+describe('a seller\'s own lots', () => {
+  beforeAll(async () => {
+    const db = await getDbConnection()
+    await putAll(db, STORES.STORE_LOTS, [
+      {
+        id: '901',
+        store: 'steinehaus',
+        record: 'P-3001',
+        itemType: 'P',
+        itemNumber: '3001',
+        itemName: 'Brick 2 x 4',
+        description: 'Heavy playwear.',
+        condition: 'U',
+        colorId: '5',
+        colorName: 'Red',
+        quantity: 12,
+        price: 'EUR 0.10',
+        image: 'https://img.example/901.png'
+      },
+      {
+        id: '902',
+        store: 'steinehaus',
+        record: 'S-10511-1',
+        itemType: 'S',
+        itemNumber: '10511-1',
+        itemName: 'Sky Police Jet Patrol',
+        description: '',
+        condition: 'N',
+        colorId: '0',
+        colorName: '',
+        quantity: 1,
+        price: 'EUR 24.00'
+      }
+    ])
+    db.close()
+  })
+
+  it('reads the seller through the index rather than filtering every lot', async () => {
+    expect((await readStoreLots('steinehaus')).map((lot) => lot.id).sort()).toEqual(['901', '902'])
+    expect(await readStoreLots('brickmeister')).toEqual([])
+  })
+
+  it('names the item, the seller\'s remark after it where there is one', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    const byId = new Map(rows.map((row) => [row.fields.id, row]))
+    // Every row here is the same seller, so what identifies one is what is for
+    // sale — the other way round from an item's own lots.
+    expect(byId.get('901')!.fields.description).toBe('Brick 2 x 4 — Heavy playwear.')
+    expect(byId.get('902')!.fields.description).toBe('Sky Police Jet Patrol')
+  })
+
+  it('takes the seller and the country off the directory, the front page having neither', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    const lot = rows.find((row) => row.fields.id === '901')!
+    expect(lot.fields.storeName).toBe('Steinehaus')
+    expect(lot.fields.country).toBe('DE')
+    expect(lot.fields.countryName).toBe('Germany')
+    // Neither page states it, and a guess would be worse than a blank.
+    expect(lot.fields.feedback).toBeUndefined()
+  })
+
+  it('carries the address every other table uses for an item', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    expect(rows.map((row) => row.fields.record).sort()).toEqual(['P-3001', 'S-10511-1'])
+  })
+
+  it('still narrows on everything the query names besides the seller', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus" condition:"N"'
+    })
+    expect(rows.map((row) => row.fields.id)).toEqual(['902'])
+  })
+})
+
+describe('conditions', () => {
+  it('names both, and counts the lots of each', async () => {
+    const rows = await rowsOf({
+      entity: 'conditions'
+    })
+    expect(rows.map((row) => row.fields.name).sort()).toEqual(['New', 'Used'])
+    const asNew = rows.find((row) => row.fields.condition === 'N')!
+    expect(asNew.fields.lots).toBe(2)
+    // The quantities behind those lots, which is a different question from how
+    // many lots there are: 40 and 500.
+    expect(asNew.fields.quantity).toBe(540)
+  })
+})
+
+/**
+ * Putting a name to an id, which is what the shell does with the terms these
+ * presses write: `country:"DE"` shows as `country:Germany (DE)`.
+ *
+ * It works by running the term back against the type whose `scope` names the
+ * field, so the name a type declares and the name its rows carry have to be
+ * the same one — and nothing complains when they are not. An unresolvable
+ * field is not a constraint in this language, so a scope naming a field the
+ * rows do not have matches every row, and the header states the first of them
+ * as confidently as it would the right one. Hence a case per type.
+ */
+describe.each([
+  ['countries', 'country', 'DE', 'Germany'],
+  ['regions', 'region', 'Europe', 'Europe'],
+  ['stores', 'store', 'brickmeister', 'Brickmeister'],
+  ['conditions', 'condition', 'N', 'New']
+])('a %s term', (key, field, id, name) => {
+  it('names the one record it points at', async () => {
+    const {
+      cellTextOf, matchesExpression, parseExpression, recordTerm, roleColumn, scopedEntity
+    } = await import('header-content-layout')
+    const type = entity(key)
+    // The field the header starts from: it has the term and has to work out
+    // which type that is about.
+    expect(scopedEntity(catalogSchema.value, field)?.key).toBe(key)
+
+    const rows = await rowsOf({
+      entity: key
+    })
+    const found = rows.filter((row) =>
+      matchesExpression(parseExpression(recordTerm(type, id)!), row, type)
+    )
+    // One, and not the whole table: the count is the half of this that a
+    // misspelled scope would quietly fail.
+    expect(found.length).toBe(1)
+    expect(cellTextOf(roleColumn(type.columns ?? [], 'identity'), found[0]!)).toBe(name)
+  })
+})

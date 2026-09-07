@@ -1,3 +1,5 @@
+import type { TableRow } from './table'
+
 export interface TableComponent {
-  addRow: (item: any, index: number) => void;
+  addRow: (item: TableRow, index: number) => void;
 }

@@ -146,7 +146,7 @@ export interface LegoCategory extends ExternalCategory {
 export interface Item {
   itemId: number
 }
-export interface PartPageCategory extends Category {}
+export type PartPageCategory = Category
 export interface PartButtonPart extends Item {
   externalParts: ExternalItem[]
 }
@@ -288,7 +288,7 @@ export interface UiInvItem extends InvItem {
   colorName: string
 }
 
-export interface PartsPageVariantInvItem extends InvItem {}
+export type PartsPageVariantInvItem = InvItem
 
 export interface StorePageExternalPart extends ExternalItem {
   category: ExternalCategory
@@ -352,7 +352,7 @@ export interface CachedItem extends Item {
   externalParts: CachedExternalItem[]
 }
 
-export interface CachedSearchFilter extends SearchFilter {}
+export type CachedSearchFilter = SearchFilter
 
 export interface CachedSearch extends Search {
   externalCategories: {
@@ -426,7 +426,7 @@ export interface ActiveSearch extends Search {
     excluded: number[]
   }
 }
-export interface CartPageCart extends CartWithItems {}
+export type CartPageCart = CartWithItems
 export interface ActiveCartButtonCart extends Cart {
   totalCost: number
   totalItems: number
@@ -497,7 +497,7 @@ export interface ConditionPriceAdjustment {
   adjustment: number
 }
 
-export interface SearchesPageSearch extends Search {}
+export type SearchesPageSearch = Search
 export interface UiListItem extends ShopListItem {
   item?: UiItem
   colorNames?: Color[]
@@ -518,7 +518,7 @@ export interface Color {
   legoId?: string
 }
 
-export interface CachedColor extends Color {}
+export type CachedColor = Color
 
 export interface RbColor {
   Img: string
@@ -613,7 +613,7 @@ export interface ExternalCategoryPageExternalPart extends ExternalItem {
 }
 
 export interface CategoryPagePart extends Item {
-  variants: any
+  variants: ItemVariant[]
   numInvItems: number
   numVariants: number
   externalParts: ExternalItem[]

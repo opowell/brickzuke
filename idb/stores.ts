@@ -19,6 +19,11 @@ const stores: {
   ITEM_INVENTORIES: StoreDefinition
   COLOR_ITEMS: StoreDefinition
   COLOR_SCOPES: StoreDefinition
+  STORE_REGIONS: StoreDefinition
+  STORE_COUNTRIES: StoreDefinition
+  BRICK_LINK_STORES: StoreDefinition
+  STORE_LOTS: StoreDefinition
+  STORE_LOT_SCOPES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -108,6 +113,57 @@ const stores: {
   COLOR_SCOPES: {
     name: 'colorScopes',
     keyPath: 'scope'
+  },
+  /**
+   * The parts of the world BrickLink groups its sellers by — `Europe`, `Asia`.
+   * One record per region, holding how many countries it lists.
+   */
+  STORE_REGIONS: {
+    name: 'storeRegions',
+    keyPath: 'name'
+  },
+  /**
+   * A country with sellers in it: its code, its flag, the region it sits in
+   * and how many stores BrickLink counts there.
+   *
+   * Kept for the same reason inventories are. The store directory is one page
+   * for every country at once and a page per country for the sellers in it,
+   * and none of it was held anywhere but memory — so every reload asked
+   * BrickLink for the whole world again.
+   */
+  STORE_COUNTRIES: {
+    name: 'storeCountries',
+    keyPath: 'countryCode'
+  },
+  /** One seller, under the country whose page listed it. */
+  BRICK_LINK_STORES: {
+    name: 'brickLinkStores',
+    keyPath: 'id'
+  },
+  /**
+   * One lot a seller has for sale, under the seller who has it.
+   *
+   * Kept, unlike the lots off an item's page, which are held in memory because
+   * a price is only true while the lot is there. The difference is what it
+   * costs to ask: an item's lots are one request, and a store's are one per
+   * hundred of them — sixty for a middling seller. Something that expensive is
+   * not paid twice for the same look.
+   */
+  STORE_LOTS: {
+    name: 'storeLots',
+    keyPath: 'id'
+  },
+  /**
+   * How much of a seller's inventory was fetched: one record per store,
+   * holding the lots BrickLink says it has and the pages actually stored.
+   *
+   * The sibling of COLOR_SCOPES, and kept for the same reason — a store
+   * stopped at the page cap is read back from IndexedDB ever after, and rows
+   * alone cannot say whether three thousand of them is the whole answer.
+   */
+  STORE_LOT_SCOPES: {
+    name: 'storeLotScopes',
+    keyPath: 'store'
   }
 }
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { DataShell, createMemoryAdapter } from 'header-content-layout'
 import type { DataSource, ShellRow } from 'header-content-layout'
@@ -7,10 +8,19 @@ import {catalogSchema,
   categoryColumns,
   colorColumns,
   colorItemColumns,
+  conditionColumns,
+  countryColumns,
+  imageColumns,
   inventoryColumns,
   itemColumns,
+  itemInventoryColumns,
   itemRecordColumns,
-  itemTypeColumns} from '../catalogSchema'
+  itemTypeColumns,
+  itemVariantColumns,
+  regionColumns,
+  storeColumns,
+  storeInventoryColumns,
+  yearColumns} from '../catalogSchema'
 
 vi.mock('../../../model', async () => {
   const {
@@ -74,6 +84,70 @@ function mountShell() {
   })
 }
 
+/**
+ * The category a narrowed query names, as its own table would return it.
+ *
+ * `category` is the field the entity gives as its `scope`, and the field an
+ * item row carries the same id in — one name for one thing, which is what lets
+ * the term be read in both directions.
+ */
+const category: ShellRow = {
+  id: '1',
+  entityKey: 'categories',
+  entityLabel: 'Categories',
+  fields: {
+    id: '1',
+    category: 5,
+    name: 'Brick (1)',
+  },
+}
+
+/**
+ * The items table narrowed to one category, which is what pressing a category
+ * leaves behind: `category:"5"`, and a source that answers for both types —
+ * the rows on screen, and the one record the term names.
+ */
+function mountNarrowed() {
+  return mount(DataShell, {
+    props: {
+      schema: catalogSchema.value,
+      source: {
+        query: (request) =>
+          request.entity?.key === 'categories'
+            ? {
+              rows: [category],
+              total: 1,
+              unfiltered: false 
+            }
+            : {
+              rows: [row],
+              total: 1,
+              unfiltered: false 
+            },
+      } satisfies DataSource,
+      route: createMemoryAdapter('?e=items&v=table&q=category%3A%225%22'),
+      defaults: {
+        landing: 'entity',
+        entity: 'items',
+        view: 'table' 
+      },
+    },
+  })
+}
+
+describe('a query that names a record', () => {
+  it('says which record, and not only its id', async () => {
+    const shell = mountNarrowed()
+    await nextTick()
+    // What appfr 0.13 added: the header runs the term back against the type
+    // the field points at and states what came back. The id stays — it is what
+    // the expression field holds and what a pasted URL carries — but it is no
+    // longer the whole of what the header says.
+    expect(shell.text()).toContain('Brick (1)')
+    expect(shell.text()).toContain('5')
+  })
+})
+
 /** By key, not by position: the schema declares every type brickzuke counts. */
 const itemsEntity = () => catalogSchema.value.entities.find((entity) => entity.key === 'items')!
 
@@ -128,6 +202,15 @@ describe('sortable columns', () => {
       itemRecordColumns,
       inventoryColumns,
       colorItemColumns,
+      itemInventoryColumns,
+      itemVariantColumns,
+      storeInventoryColumns,
+      conditionColumns,
+      yearColumns,
+      regionColumns,
+      countryColumns,
+      storeColumns,
+      imageColumns,
     ]) {
       expect(labelled(columns).filter((column) => !column.sort).map((column) => column.key))
         .toEqual([])
@@ -144,6 +227,100 @@ describe('sortable columns', () => {
         .filter((column) => column.sort && !offered.has(column.sort))
         .map((column) => column.key)
       expect([entity.key, missing]).toEqual([entity.key, []])
+    }
+  })
+})
+
+/**
+ * The home screen is a summary of the catalogue, so a table brickzuke has and
+ * this schema does not name is a line missing from that summary.
+ *
+ * brickzuke keeps two models. `model.ts` counts five types, which is what the
+ * bulk downloads fill and what this schema was first built from;
+ * `view/stores/models.ts` lists nine more — the stores scraped off BrickLink,
+ * the countries and regions they sit in, what a seller has for sale, and the
+ * cross-sections the original slices all of it by. Named rather than counted,
+ * because the assertion is that none of them is missing.
+ */
+describe('the catalogue this summarises', () => {
+  it('names every table brickzuke has', () => {
+    expect(catalogSchema.value.entities.map((entity) => entity.key)).toEqual([
+      'categories',
+      'colors',
+      'itemTypes',
+      'items',
+      'partAndColorCodes',
+      'itemInventories',
+      'itemVariants',
+      'inventories',
+      'conditions',
+      'years',
+      'regions',
+      'countries',
+      'stores',
+      'images',
+    ])
+  })
+
+  it('claims no count for a type nothing counts', () => {
+    // Blank rather than `0`: brickzuke has never counted a country, and a card
+    // reading zero says it counted and found none.
+    const stores = catalogSchema.value.entities.find((entity) => entity.key === 'stores')!
+    expect(stores.count).toBe('')
+  })
+})
+
+/**
+ * A type on the home screen with nothing behind it is a card that leads to an
+ * empty table, which is what all nine of the tables below were until they were
+ * wired up.
+ *
+ * `partAndColorCodes` is the one exception and stays one: brickzuke counts the
+ * codes and stores them, but the original draws no table for them either, so
+ * there are no columns to move.
+ */
+describe('every type on the home screen', () => {
+  it('has columns behind it, bar the one the original never drew', () => {
+    const bare = catalogSchema.value.entities
+      .filter((entity) => !(entity.columns ?? []).length)
+      .map((entity) => entity.key)
+    expect(bare).toEqual(['partAndColorCodes'])
+  })
+
+  it('offers a sort for every table it draws', () => {
+    const unsorted = catalogSchema.value.entities
+      .filter((entity) => (entity.columns ?? []).length && !(entity.sorts ?? []).length)
+      .map((entity) => entity.key)
+    expect(unsorted).toEqual([])
+  })
+})
+
+/**
+ * A `scope` names the field other records carry this type's id in, and nothing
+ * complains when it names one nobody carries — an unresolvable field is not a
+ * constraint in this language, so the term matches every row and the header
+ * states the first of them as confidently as it would the right one.
+ *
+ * So: every scope declared here is a field some type's rows actually hold, and
+ * no two types claim the same one.
+ */
+describe('the scopes this schema declares', () => {
+  it('names one type each', () => {
+    const scopes = catalogSchema.value.entities
+      .map((entity) => entity.scope)
+      .filter((scope): scope is string => !!scope)
+    expect(scopes.length).toBe(new Set(scopes).size)
+  })
+
+  it('names a field the type it points at can be found by', () => {
+    for (const entity of catalogSchema.value.entities) {
+      if (!entity.scope) {
+        continue
+      }
+      // The type has to be able to say which record a term names, which means
+      // a column asked to be the one that says it.
+      const identity = (entity.columns ?? []).find((column) => column.role === 'identity')
+      expect([entity.key, !!identity]).toEqual([entity.key, true])
     }
   })
 })

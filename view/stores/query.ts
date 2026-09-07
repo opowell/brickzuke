@@ -83,7 +83,7 @@ export const useQueryStore = defineStore('queryStore', {
     somethingOpen(): boolean {
       return this.viewsSelected.length > 0 || this.viewsAll.length > 0
     },
-    filtersOfType(state): Function {
+    filtersOfType(state): (type: string) => Filter[] {
       return (type: string) => {
         return state.filters.filter((f) => f.key === type)
       }
@@ -128,7 +128,7 @@ export const useQueryStore = defineStore('queryStore', {
         .filter((entry) => entry[1] === 'all')
         .map((e) => e[0])
     },
-    viewsNoneString(state): string | undefined {
+    viewsNoneString(): string | undefined {
       // vn
       const str = this.viewsNone.join(',')
       if (str === '') {
@@ -136,7 +136,7 @@ export const useQueryStore = defineStore('queryStore', {
       }
       return str
     },
-    viewsSelectedString(state): string | undefined {
+    viewsSelectedString(): string | undefined {
       // vs
       const str = this.viewsSelected.join(',')
       if (str === '') {
@@ -144,7 +144,7 @@ export const useQueryStore = defineStore('queryStore', {
       }
       return str
     },
-    viewsAllString(state): string | undefined {
+    viewsAllString(): string | undefined {
       // va
       const str = this.viewsAll.join(',')
       if (str === '') {
