@@ -8,13 +8,19 @@
  */
 import { computed } from 'vue'
 import type { ComputedRef } from 'vue'
-import { PARAM_ENTITY, PARAM_EXPR, PARAM_PAGE, PARAM_SORT, addTerm } from 'header-content-layout'
+import {PARAM_ENTITY,
+  PARAM_EXPR,
+  PARAM_PAGE,
+  PARAM_SORT,
+  addTerm,
+  parseExpression} from 'header-content-layout'
 import type { ColumnDef, DomainSchema, EntitySchema, ShellRow } from 'header-content-layout'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
 import { itemTypes, processingCounts, selectedCounts } from '../../model'
 import { browsedCounts } from './catalogCounts'
 import CellCount from './CellCount.vue'
+import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
 
 /** Verbatim from the `weight` column in model.ts. */
@@ -723,9 +729,92 @@ export const itemVariantColumns: ColumnDef[] = [
 ]
 
 /**
+ * Which terms leave a column with nothing left to say, by column key.
+ *
+ * A column answers a question, and a query that has already fixed the answer
+ * makes it a column of one repeated value — `Store` under `store:"brick8"`,
+ * `Country` under `country:"DE"`. Those are rows of noise in a table read
+ * across, so the query takes them out.
+ *
+ * Some columns are settled by a term that is not their own. Pinning a seller
+ * pins where they are and what feedback they carry, neither of which varies
+ * over one store's lots; pinning an item pins its name. Hence a list per
+ * column rather than a field per column.
+ */
+const SETTLED_BY: Record<string, string[]> = {
+  item: ['record'],
+  color: ['colorid'],
+  countryName: ['country', 'store'],
+  storeName: ['store'],
+  feedback: ['store'],
+  conditionName: ['condition'],
+  country: ['country'],
+  province: ['province'],
+  region: ['region']
+}
+
+/**
+ * Whether an expression fixes one field to exactly one value.
+ *
+ * Every OR group has to name it, and name it the same, or the rows can still
+ * differ: `store:"a" OR store:"b"` pins nothing, and a group with no term on
+ * the field at all lets everything through.
+ */
+function pinsOneValue(expr: string, field: string): boolean {
+  const groups = parseExpression(expr)
+  if (!groups.length) {
+    return false
+  }
+  let pinned: string | undefined
+  for (const group of groups) {
+    const term = group.find(
+      (one) => one.kind === 'field' && one.field === field && one.comparator === ':'
+    )
+    if (!term) {
+      return false
+    }
+    const value = String((term as { value?: unknown }).value ?? '')
+    if (pinned !== undefined && pinned !== value) {
+      return false
+    }
+    pinned = value
+  }
+  return pinned !== undefined
+}
+
+/**
+ * The columns still worth drawing, given what the query has already settled.
+ *
+ * Promotes an identity where the pinned column was it. The identity is what
+ * names a row wherever the shell is not drawing a table, so dropping it
+ * because the query fixed it would leave nothing naming anything — the next
+ * column carrying text takes the role instead.
+ */
+function informative(columns: ColumnDef[], expr: string): ColumnDef[] {
+  const kept = columns.filter((column) => {
+    const settling = column.key ? SETTLED_BY[column.key] : undefined
+    return !settling?.some((field) => pinsOneValue(expr, field))
+  })
+  if (kept.length === columns.length || kept.some((column) => column.role === 'identity')) {
+    return kept
+  }
+  const at = kept.findIndex((column) => column.kind === undefined && column.label)
+  return at === -1
+    ? kept
+    : kept.map((column, index) => (index === at ? {
+      ...column,
+      role: 'identity' as const
+    } : column))
+}
+
+/** The expression the shell is showing, which is the one in the URL. */
+const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
+
+/**
  * What sellers have on offer — the original's `inventories` columns in its own
- * order: the lot's picture, its price, the seller's description of it, where
- * the seller is, who they are, the condition, how many and their feedback.
+ * order: the lot's picture, its price, what it is, the seller's note on it,
+ * where the seller is, who they are, the condition, how many and their
+ * feedback.
  *
  * Country and store both lead to their own tables, which is what the original
  * does with country and what it never got round to doing with the store.
@@ -745,20 +834,46 @@ export const storeInventoryColumns: ColumnDef[] = [
     height: '50px',
     click: narrowToItem
   },
+  // Drawn by a component so the figure can stand alone while the currencies
+  // stay reachable — see CellPrice. Sorted by that same converted number,
+  // which is the one question a column of prices is asked; sorting the string
+  // answers a different one, `US $10.00` coming before `US $9.00` on every
+  // character that matters.
   {
-    key: 'price',
+    key: 'priceValue',
+    kind: 'component',
+    component: CellPrice,
     label: 'Price',
-    width: '100px',
-    // Sorted by the number behind the string — see `toPrice`. The cell still
-    // shows what BrickLink printed, currency and all.
+    width: '90px',
     sort: 'priceValue'
+  },
+  // What the lot is *of*, and the way through to it. The original had no such
+  // column: every row on an item's page is the same item, so the only thing
+  // worth printing there was the seller's note, and it took the name
+  // `description`. A seller's own lots are the other way round — one seller,
+  // every item they stock — and then the item is the whole of what a row says.
+  {
+    key: 'item',
+    role: 'identity',
+    label: 'Item',
+    width: '280px',
+    sort: 'itemName',
+    value: (row) => row.fields.itemName,
+    click: narrowToItem
   },
   {
     key: 'description',
-    role: 'identity',
-    label: 'Description',
-    width: '300px',
+    label: 'Remark',
+    width: '200px',
     sort: 'description'
+  },
+  {
+    key: 'color',
+    label: 'Color',
+    width: '110px',
+    sort: 'colorName',
+    value: (row) => row.fields.colorName,
+    click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
   },
   {
     key: 'countryName',
@@ -1452,15 +1567,23 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       facets: [],
       tabs: [],
       samples: [],
-      columns: storeInventoryColumns,
+      columns: informative(storeInventoryColumns, openExpr.value),
       sorts: [
         {
           key: 'priceValue',
           label: 'Price'
         },
         {
+          key: 'itemName',
+          label: 'Item'
+        },
+        {
           key: 'description',
-          label: 'Description'
+          label: 'Remark'
+        },
+        {
+          key: 'colorName',
+          label: 'Color'
         },
         {
           key: 'countryName',
@@ -1566,7 +1689,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       facets: [],
       tabs: [],
       samples: [],
-      columns: countryColumns,
+      columns: informative(countryColumns, openExpr.value),
       sorts: [
         {
           key: 'name',
@@ -1592,7 +1715,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       facets: [],
       tabs: [],
       samples: [],
-      columns: storeColumns,
+      columns: informative(storeColumns, openExpr.value),
       sorts: [
         {
           key: 'country',

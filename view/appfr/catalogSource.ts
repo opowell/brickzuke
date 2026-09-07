@@ -348,10 +348,26 @@ async function colorItemRows(request: QueryRequest, fetching = true): Promise<Sh
   return stored.map(toColorItemRow)
 }
 
+/**
+ * The name of an open item, for the lots listed under it.
+ *
+ * A lot off an item's page states everything about the offer and nothing about
+ * the item — the page it came from is the item, so BrickLink has no reason to
+ * repeat it. The name is on that same page's own record, which is where the
+ * Item column gets what it links to.
+ */
+function itemNameFor(record: string): string | undefined {
+  return useCatalogItemPageStore().itemsMap.get(record)?.itemName
+}
+
 /** One lot a seller has on offer, as a row. */
 function toStoreInventoryRow(lot: StoreInventory): ShellRow {
   return {
-    id: lot.invId,
+    // Stringified here as well as at the parse. The shell trims a row's id, so
+    // a number reaches it as a render-time TypeError that empties the table
+    // without emptying the count — too quiet a failure to leave to one caller
+    // remembering.
+    id: String(lot.invId),
     entityKey: 'inventories',
     entityLabel: 'Store inventories',
     fields: {
@@ -365,6 +381,13 @@ function toStoreInventoryRow(lot: StoreInventory): ShellRow {
       // prices is asked and sorting it as text answers a different one:
       // `US $10.00` sorts before `US $9.00` on every character that matters.
       priceValue: toPrice(lot.price),
+      // What the seller charges, in their own currency. `price` above is that
+      // converted for the viewer, which is the figure worth comparing across
+      // sellers and the one the column shows.
+      nativePrice: lot.nativePrice,
+      // The item's page knows its own name; the lots on it do not repeat it.
+      itemName: itemNameFor(`${lot.itemType}-${lot.itemNumber}`),
+      colorName: lot.colorName,
       description: lot.description,
       country: lot.sellerCountryCode,
       countryName: lot.sellerCountryName,
@@ -422,14 +445,16 @@ async function asStoreLotRows(lots: StoredStoreLot[], username: string): Promise
       id: lot.id,
       record: lot.record,
       image: lot.image,
-      price: lot.price,
-      priceValue: toPrice(lot.price),
-      // The identity column, and on this table that has to be the item: every
-      // row is the same seller, so what tells them apart is what is for sale.
-      // An item's own lots are the other way round — every row is the same
-      // item and the seller's remark is what distinguishes them — which is why
-      // the remark goes after the name here rather than instead of it.
-      description: lot.description ? `${lot.itemName} — ${lot.description}` : lot.itemName,
+      // The converted figure BrickLink printed, kept for the hover; the number
+      // beside it is what the column draws and sorts by.
+      price: lot.displayPrice,
+      priceValue: lot.price,
+      nativePrice: lot.nativePrice,
+      itemName: lot.itemName,
+      colorName: lot.colorName,
+      // The seller's own note about this lot, and only that. The item it is a
+      // lot of has a column of its own.
+      description: lot.description,
       country: seller?.countryID,
       countryName: country?.countryName,
       store: lot.store,

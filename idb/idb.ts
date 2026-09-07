@@ -16,7 +16,9 @@ const DB_NAME = 'brickzuke'
 // 21 without them, and would never have created them — no upgrade runs for a
 // version already reached. The stores are made in the loop below, which runs on
 // any upgrade, so a number nobody has seen yet is the whole fix.
-const DB_VERSION = 22
+// 23 changes what a stored lot holds — the item's name and colour, and the
+// price split into the converted number and the seller's own figure.
+const DB_VERSION = 23
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -60,6 +62,23 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           transaction.objectStore(STORES.BRICK_LINK_STORES.name).clear()
         } catch (e) {
           console.log('Error clearing sellers', e)
+        }
+      }
+      /*
+       * Lots stored before v23 carry a price as the string BrickLink printed
+       * and name neither the item nor its colour, so those columns would read
+       * blank for ever: `storeLotsFor` takes stored rows as the answer and
+       * never asks again. Dropped, and re-fetched the next time a seller is
+       * opened — with the scopes, which would otherwise claim a store was
+       * already read.
+       */
+      if (oldVersion >= 22 && oldVersion < 23) {
+        for (const store of [STORES.STORE_LOTS, STORES.STORE_LOT_SCOPES]) {
+          try {
+            transaction.objectStore(store.name).clear()
+          } catch (e) {
+            console.log('Error clearing store lots', store, e)
+          }
         }
       }
     },

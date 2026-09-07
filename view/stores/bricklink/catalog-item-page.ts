@@ -34,7 +34,11 @@ export interface InventoriesResponse extends EventDetail {
   response: {
     list: {
       idColor: string
-      idInv: string
+      /**
+       * A number, whatever the rest of this response looks like — BrickLink
+       * quotes most of its ids and not this one.
+       */
+      idInv: number
       strDesc: string
       mDisplaySalePrice: string
       strStorename: string
@@ -45,6 +49,8 @@ export interface InventoriesResponse extends EventDetail {
       n4Qty: number
       n4SellerFeedbackScore: number
       idInvImg: number
+      mInvSalePrice: string
+      strColor: string
     }[]
   }
 }
@@ -99,7 +105,18 @@ export interface ItemInfo {
 export interface StoreInventory {
   invId: string
   description: string
+  /** Converted to the viewer's currency, as BrickLink prints it — `EUR 0.11`. */
   price: string
+  /**
+   * The same lot in the seller's own currency — `US $0.13`.
+   *
+   * BrickLink converts for the viewer and keeps the seller's figure beside it,
+   * so a price can be read without knowing the rate and still be checked
+   * against what the seller actually charges.
+   */
+  nativePrice: string
+  /** The colour's name, which the lot states and the item's page does not. */
+  colorName: string
   sellerCountryCode: string
   sellerCountryName: string
   sellerStoreName: string
@@ -230,9 +247,15 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           image = 'https://www.bricklink.com/myImg/' + i.idInvImg + '.jpg'
         }
         return {
-          invId: i.idInv,
+          // Stringified at the door. A row's id is the shell's own handle on it
+          // and it trims it, so a number here throws inside the render and the
+          // whole table draws nothing — with the count above it still saying
+          // how many rows there are.
+          invId: String(i.idInv),
           description: i.strDesc,
           price: i.mDisplaySalePrice,
+          nativePrice: i.mInvSalePrice,
+          colorName: i.strColor,
           sellerCountryCode: i.strSellerCountryCode,
           sellerCountryName: i.strSellerCountryName,
           sellerStoreName: i.strStorename,

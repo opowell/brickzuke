@@ -1,0 +1,66 @@
+{
+  "result": {
+    "totalLotCnt": 4996,
+    "foundLotCnt": 4996,
+    "userCurrencySign": "EUR",
+    "sellerCurrencySign": "US $",
+    "currencyConvRate": 1.1621960858,
+    "groups": [
+      {
+        "items": [
+          {
+            "invID": 459422732,
+            "itemName": "Aircraft Fuselage Aft Section Curved Top 6 x 10",
+            "invDescription": "Heavy playwear.",
+            "invNew": "Used",
+            "invQty": 1,
+            "itemType": "P",
+            "itemNo": "87615",
+            "colorID": 1,
+            "colorName": "White",
+            "nativePrice": "US $0.132",
+            "salePrice": "EUR 0.1136",
+            "invPrice": "EUR 0.1136",
+            "rawConvertedPrice": 0.1136,
+            "smallImg": "//img.bricklink.com/ItemImage/PT/1/87615.t1.png"
+          },
+          {
+            "invID": 420378664,
+            "itemName": "Antenna 4H - Flat Top",
+            "invDescription": "",
+            "invNew": "Used",
+            "invQty": 2,
+            "itemType": "P",
+            "itemNo": "3957b",
+            "colorID": 11,
+            "colorName": "Black",
+            "nativePrice": "US $0.034",
+            "salePrice": "EUR 0.0293",
+            "invPrice": "EUR 0.0293",
+            "rawConvertedPrice": 0.0293,
+            "smallImg": "//img.bricklink.com/ItemImage/PT/11/3957b.t1.png"
+          },
+          {
+            "invID": 425374132,
+            "itemName": "Aircraft Fuselage Forward Bottom Curved 6 x 10 with 3 Holes",
+            "invDescription": "",
+            "invNew": "Used",
+            "invQty": 1,
+            "itemType": "P",
+            "itemNo": "87611",
+            "colorID": 63,
+            "colorName": "Dark Blue",
+            "nativePrice": "US $0.11",
+            "salePrice": "EUR 0.0946",
+            "invPrice": "EUR 0.0946",
+            "rawConvertedPrice": 0.0946,
+            "smallImg": "//img.bricklink.com/ItemImage/PT/63/87611.t1.png"
+          }
+        ],
+        "total": 4996
+      }
+    ]
+  },
+  "returnCode": 0,
+  "returnMessage": "OK"
+}

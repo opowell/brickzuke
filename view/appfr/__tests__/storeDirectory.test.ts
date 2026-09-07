@@ -251,7 +251,9 @@ describe('stores', () => {
 describe('store inventories', () => {
   const lots = [
     {
-      invId: 'lot-1',
+      // A number, which is how BrickLink sends `idInv` — the rest of that
+      // response quotes its ids and this one does not.
+      invId: 552481250 as unknown as string,
       description: 'Red brick, mint',
       price: 'US $1.20',
       sellerCountryCode: 'DE',
@@ -305,6 +307,18 @@ describe('store inventories', () => {
     // true while the lot is there and not after, so nothing writes these to
     // IndexedDB.
     useCatalogItemPageStore().inventoriesMap.set('P-3001', lots)
+  })
+
+  it('gives the shell a row id it can handle, BrickLink quoting everything but that', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'record:"P-3001"'
+    })
+    // `idInv` arrives as a number where the rest of the response is strings.
+    // The shell trims a row's id, so one left as a number throws inside the
+    // render and the table draws nothing at all — no rows and no header —
+    // while the count above it goes on reporting them.
+    expect(rows.every((row) => typeof row.id === 'string')).toBe(true)
   })
 
   it('sorts by the number behind the price, not by the string', async () => {
@@ -366,7 +380,9 @@ describe('a seller\'s own lots', () => {
         colorId: '5',
         colorName: 'Red',
         quantity: 12,
-        price: 'EUR 0.10',
+        price: 0.1,
+        displayPrice: 'EUR 0.10',
+        nativePrice: 'US $0.12',
         image: 'https://img.example/901.png'
       },
       {
@@ -381,7 +397,9 @@ describe('a seller\'s own lots', () => {
         colorId: '0',
         colorName: '',
         quantity: 1,
-        price: 'EUR 24.00'
+        price: 24,
+        displayPrice: 'EUR 24.00',
+        nativePrice: 'EUR 24.00'
       }
     ])
     db.close()
@@ -392,16 +410,39 @@ describe('a seller\'s own lots', () => {
     expect(await readStoreLots('brickmeister')).toEqual([])
   })
 
-  it('names the item, the seller\'s remark after it where there is one', async () => {
+  it('names the item apart from the seller\'s remark on it', async () => {
     const rows = await rowsOf({
       entity: 'inventories',
       expr: 'store:"steinehaus"'
     })
     const byId = new Map(rows.map((row) => [row.fields.id, row]))
-    // Every row here is the same seller, so what identifies one is what is for
-    // sale — the other way round from an item's own lots.
-    expect(byId.get('901')!.fields.description).toBe('Brick 2 x 4 — Heavy playwear.')
-    expect(byId.get('902')!.fields.description).toBe('Sky Police Jet Patrol')
+    // Two columns and two questions: what is for sale, and what this seller
+    // says about their copy of it. Most lots answer only the first.
+    expect(byId.get('901')!.fields.itemName).toBe('Brick 2 x 4')
+    expect(byId.get('901')!.fields.description).toBe('Heavy playwear.')
+    expect(byId.get('902')!.fields.itemName).toBe('Sky Police Jet Patrol')
+    expect(byId.get('902')!.fields.description).toBe('')
+  })
+
+  it('shows the converted price and keeps the seller\'s own for the hover', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    const lot = rows.find((row) => row.fields.id === '901')!
+    // The column draws and sorts by the converted number; the two strings are
+    // what the cell says on hover, and neither belongs in a column read down.
+    expect(lot.fields.priceValue).toBe(0.1)
+    expect(lot.fields.price).toBe('EUR 0.10')
+    expect(lot.fields.nativePrice).toBe('US $0.12')
+  })
+
+  it('carries the colour name, which the lot states and the item never did', async () => {
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    expect(rows.find((row) => row.fields.id === '901')!.fields.colorName).toBe('Red')
   })
 
   it('takes the seller and the country off the directory, the front page having neither', async () => {

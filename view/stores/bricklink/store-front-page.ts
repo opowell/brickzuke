@@ -42,8 +42,18 @@ export interface StoredStoreLot {
   colorId?: string
   colorName?: string
   quantity: number
-  /** The price as displayed, `EUR 2.10`. */
-  price: string
+  /**
+   * Converted to the viewer's currency, as a number.
+   *
+   * BrickLink states the converted figure to full precision here and rounds it
+   * only for display, which matters at these prices: a great many lots are
+   * worth less than a cent apiece, and two decimal places make them all nought.
+   */
+  price: number
+  /** What BrickLink printed for that, currency and all — `EUR 0.11`. */
+  displayPrice: string
+  /** The same lot in the seller's own currency — `US $0.13`. */
+  nativePrice: string
   image?: string
 }
 
@@ -230,6 +240,8 @@ export interface StoreItemsResponse extends EventDetail {
           colorName: string
           salePrice: string
           invPrice: string
+          nativePrice: string
+          rawConvertedPrice: number
           smallImg: string
         }[]
       }[]
@@ -312,8 +324,11 @@ export async function handleStoreItemsResponse(detail: StoreItemsResponse) {
         colorName: item.colorName,
         quantity: item.invQty,
         // What the buyer would pay, which is the sale price where there is one
-        // — `invPrice` is the seller's before any discount.
-        price: item.salePrice || item.invPrice,
+        // — `invPrice` is the same figure before any discount. Both are already
+        // converted; `nativePrice` is the one in the seller's own currency.
+        price: item.rawConvertedPrice,
+        displayPrice: item.salePrice || item.invPrice,
+        nativePrice: item.nativePrice,
         // Protocol-relative as BrickLink states it, which resolves to nothing
         // useful in an `<img>` that the app serves over its own origin.
         image: item.smallImg ? 'https:' + item.smallImg : undefined,

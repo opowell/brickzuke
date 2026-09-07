@@ -6,6 +6,11 @@
  * that reads the id, and, far below it, the object that declares one. The JSON
  * is a real `searchitems.ajax` answer, trimmed to three lots.
  *
+ * Two different sellers, deliberately. The JSON is an American store, so its
+ * prices are quoted in dollars and converted into euros, which is the case
+ * that tells the two price fields apart — a German seller's are the same
+ * figure twice and would pin nothing.
+ *
  * The HTML half is the fragile one and the reason it is pinned here: the whole
  * feature rests on that page still printing a numeric id, because the endpoint
  * that lists a store's lots is addressed by it and by nothing else —
@@ -26,7 +31,7 @@ import { getDbConnection } from '../../../../idb/idb'
 import indices from '../../../../idb/indices'
 import STORES from '../../../../idb/stores'
 import FRONT from './fixtures/storeFront-BunteSteinewelt.html?raw'
-import ITEMS from './fixtures/storeItems-BunteSteinewelt.json'
+import ITEMS from './fixtures/storeItems-TeDE.json'
 
 function frontDetail(username: string, response: string) {
   return {
@@ -57,6 +62,16 @@ function itemsDetail(username: string, page: number, response: unknown) {
     },
     response,
   } as unknown as StoreItemsResponse
+}
+
+/** The lots filed under one seller, read back through the index they are stored by. */
+async function storedFor(username: string): Promise<StoredStoreLot[]> {
+  const db = await getDbConnection()
+  try {
+    return (await getAllFromIndex<StoredStoreLot>(db, indices.STORE_LOTS_BY_STORE, username))!
+  } finally {
+    db.close()
+  }
 }
 
 beforeEach(() => {
@@ -100,57 +115,64 @@ describe('a page of lots', () => {
   })
 
   it('stores each lot under the seller, addressed the way every table names an item', async () => {
-    await handleStoreItemsResponse(itemsDetail('BunteSteinewelt', 1, ITEMS))
-    const db = await getDbConnection()
-    const stored = (await getAllFromIndex<StoredStoreLot>(
-      db,
-      indices.STORE_LOTS_BY_STORE,
-      'BunteSteinewelt',
-    ))!
-    db.close()
+    await handleStoreItemsResponse(itemsDetail('TeDE', 1, ITEMS))
+    const stored = await storedFor('TeDE')
     expect(stored.length).toBe(3)
-    const lot = stored.find((one) => one.id === '399584205')!
-    expect(lot.record).toBe('M-hp462')
-    expect(lot.itemName).toBe('Aberforth Dumbledore - Plain Legs')
-    expect(lot.description).toBe('Bagged, unopened.')
-    expect(lot.quantity).toBe(333)
-    expect(lot.price).toBe('EUR 2.10')
+    const lot = stored.find((one) => one.id === '459422732')!
+    expect(lot.record).toBe('P-87615')
+    expect(lot.itemName).toBe('Aircraft Fuselage Aft Section Curved Top 6 x 10')
+    expect(lot.description).toBe('Heavy playwear.')
+    expect(lot.colorName).toBe('White')
+    expect(lot.quantity).toBe(1)
     // Protocol-relative as BrickLink states it, which resolves to nothing in an
     // `<img>` the app serves from its own origin.
-    expect(lot.image).toBe('https://img.bricklink.com/ItemImage/MT/0/hp462.t1.png')
+    expect(lot.image).toBe('https://img.bricklink.com/ItemImage/PT/1/87615.t1.png')
+  })
+
+  it('keeps the converted price apart from what the seller charges', async () => {
+    await handleStoreItemsResponse(itemsDetail('TeDE', 1, ITEMS))
+    const lot = (await storedFor('TeDE')).find((one) => one.id === '459422732')!
+    // An American seller read by a European: the number worth comparing across
+    // stores is the converted one, and the seller's own figure is the one that
+    // can be checked against their shop.
+    expect(lot.price).toBe(0.1136)
+    expect(lot.displayPrice).toBe('EUR 0.1136')
+    expect(lot.nativePrice).toBe('US $0.132')
+  })
+
+  it('keeps the precision that two decimal places would throw away', async () => {
+    await handleStoreItemsResponse(itemsDetail('TeDE', 1, ITEMS))
+    const lot = (await storedFor('TeDE')).find((one) => one.id === '420378664')!
+    // Under three cents. Most of a bulk seller's inventory is priced like this,
+    // and rounding it for storage would make a whole table read `0.00`.
+    expect(lot.price).toBe(0.0293)
   })
 
   it('writes the condition as the code the rest of the app compares against', async () => {
-    await handleStoreItemsResponse(itemsDetail('BunteSteinewelt', 1, ITEMS))
-    const db = await getDbConnection()
-    const stored = (await getAllFromIndex<StoredStoreLot>(
-      db,
-      indices.STORE_LOTS_BY_STORE,
-      'BunteSteinewelt',
-    ))!
-    db.close()
-    // The front spells it out where an item's lots give `N`; the conditions
+    await handleStoreItemsResponse(itemsDetail('TeDE', 1, ITEMS))
+    const stored = await storedFor('TeDE')
+    // The front spells it out where an item's lots give `U`; the conditions
     // table is keyed by the code, so one shape has to win and it is the code.
-    expect(new Set(stored.map((one) => one.condition))).toEqual(new Set(['N']))
+    expect(new Set(stored.map((one) => one.condition))).toEqual(new Set(['U']))
   })
 
   it('records how far up the store it got, against how far it goes', async () => {
-    await handleStoreItemsResponse(itemsDetail('BunteSteinewelt', 1, ITEMS))
+    await handleStoreItemsResponse(itemsDetail('TeDE', 1, ITEMS))
     const db = await getDbConnection()
-    const scope = await get<StoredStoreScope>(db, STORES.STORE_LOT_SCOPES, 'BunteSteinewelt')
+    const scope = await get<StoredStoreScope>(db, STORES.STORE_LOT_SCOPES, 'TeDE')
     db.close()
-    // 6,254 on offer and three read: the gap is the whole reason this is
+    // 4,996 on offer and three read: the gap is the whole reason this is
     // written down rather than counted off the rows.
-    expect(scope!.lots).toBe(6254)
+    expect(scope!.lots).toBe(4996)
     expect(scope!.fetchedLots).toBe(3)
-    expect(storeLotCounts.get('BunteSteinewelt')).toBe(6254)
+    expect(storeLotCounts.get('TeDE')).toBe(4996)
   })
 
   it('does not let a replayed page make the store look shorter than it is', async () => {
-    await handleStoreItemsResponse(itemsDetail('BunteSteinewelt', 3, ITEMS))
-    await handleStoreItemsResponse(itemsDetail('BunteSteinewelt', 1, ITEMS))
+    await handleStoreItemsResponse(itemsDetail('TeDE', 3, ITEMS))
+    await handleStoreItemsResponse(itemsDetail('TeDE', 1, ITEMS))
     const db = await getDbConnection()
-    const scope = await get<StoredStoreScope>(db, STORES.STORE_LOT_SCOPES, 'BunteSteinewelt')
+    const scope = await get<StoredStoreScope>(db, STORES.STORE_LOT_SCOPES, 'TeDE')
     db.close()
     // Page three reached lot 203; page one arriving afterwards — off the call
     // cache, say — must not roll that back to three.
