@@ -28,11 +28,21 @@ self.onmessage = async (e: MessageEvent) => {
   } = e.data
 
   try {
-    const bzDb = await openDB('brickzuke', 16, {
-      upgrade() {
-        console.log('upgrade db')
-      },
-    })
+    /*
+     * No version, deliberately. This counts what is already stored and has no
+     * business migrating it, and naming a number is what broke it: the 16 here
+     * stayed put while the schema went to 22, and opening below the current
+     * version throws VersionError — so every count this worker was asked for
+     * failed before it read a row.
+     *
+     * Naming the current version instead would be worse than leaving it wrong.
+     * The upgrade callback that stood here created nothing, so a worker that
+     * won the race on the next bump would carry the database to that version
+     * with none of its new stores in it — which is exactly the state v22
+     * exists to repair. Version-less opens whatever is there and can upgrade
+     * nothing, which is the only safe thing for a reader to do.
+     */
+    const bzDb = await openDB('brickzuke')
 
     if (!bzDb) {
       console.log('Worker could not get DB connection')

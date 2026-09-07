@@ -28,11 +28,10 @@ self.onmessage = async (e: MessageEvent) => {
   } = e.data
 
   try {
-    const bzDb = await openDB('brickzuke', 16, {
-      upgrade() {
-        console.log('upgrade db')
-      },
-    })
+    // No version, for the reason itemCounter states at length: a reader must
+    // not be able to migrate the schema, and a pinned number goes stale and
+    // throws VersionError the moment the schema moves past it.
+    const bzDb = await openDB('brickzuke')
 
     if (!bzDb) {
       console.log('Worker could not get DB connection')

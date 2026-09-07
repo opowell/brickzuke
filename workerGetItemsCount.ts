@@ -40,11 +40,10 @@ export default async function workerGetItemsCount(
       throw new Error('idb not available in worker')
     }
   }
-  const bzDb = await openDB('brickzuke', 16, {
-    upgrade() {
-      console.log('upgrade db')
-    },
-  })
+  // No version, as in workers/itemCounter — a reader must not be able to
+  // migrate the schema, and the 16 that stood here threw VersionError against
+  // every version the app has had since.
+  const bzDb = await openDB('brickzuke')
   if (!bzDb) {
     console.log('Worker could not get DB connection')
     return 0
