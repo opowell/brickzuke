@@ -236,6 +236,23 @@ const plainTokens = { '--dc-accent': 'currentColor' }
 }
 
 /*
+ * Except a button that is nothing but a picture, which takes no padding at
+ * all.
+ *
+ * The room above is measured for a word — a name in a cell, a count on a bar —
+ * and a picture is not one: it has its own edges and needs no room made around
+ * them. Three pixels one way and eight the other put a frame around every
+ * thumbnail in the app, and on the home screen's walls of them the frames were
+ * more of the screen than the pictures were.
+ *
+ * `:only-child` is what says "on its own": a card whose press holds a picture
+ * *and* a name still wants the room, the name being the part that needs it.
+ */
+.items-shell :deep(button:has(> img:only-child)) {
+  padding: 0;
+}
+
+/*
  * And no underline on the way past. That is a link's manner, and these are
  * buttons — they have edges to say what they are, which a link has not.
  */

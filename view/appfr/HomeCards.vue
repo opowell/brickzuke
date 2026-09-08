@@ -317,7 +317,6 @@ watch(
 .home__tile {
   display: block;
   min-width: 0;
-  padding: 2px;
   border: none;
   border-radius: var(--dc-radius-sm);
   background: transparent;
