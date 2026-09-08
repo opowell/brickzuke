@@ -16,7 +16,7 @@
 import type { ShellRow } from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import { getAll, getAllFromIndex } from '../../idb/db'
-import { loadCategory } from '../../idb/category'
+import { loadCategories } from '../../idb/category'
 import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
 import indices from '../../idb/indices'
 import stores from '../../idb/stores'
@@ -53,13 +53,26 @@ function toNumber(value?: string): number | undefined {
 async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const categories = (await getAll<{ id?: number }>(db, stores.CATEGORIES)) ?? []
   const rows: ShellRow[] = []
-  for (const stored of categories) {
-    if (stored.id === undefined) {
-      continue
-    }
-    const category = await loadCategory(db, stored.id)
+  // Joined in one pass rather than one lookup per category: see
+  // [loadCategories] for why a couple of thousand round trips here is the home
+  // screen's problem and not just this table's.
+  const joined = await loadCategories(
+    db,
+    categories.flatMap((stored) => (stored.id === undefined ? [] : [stored.id]))
+  )
+  for (const category of joined) {
+    // BrickLink's category id — the number an item row carries in `category`,
+    // and so the number a `category:` term holds. It is the row's `id` because
+    // that is what the shell looks a named record up by: it runs the term back
+    // against this type and picks out the row that *has* the id, so a row
+    // keyed by brickzuke's own `category.id` is a row the header can never
+    // find, and `category:5` goes back to showing the bare 5.
+    const brickLinkId = toNumber(category.brickLinkCategories?.[0]?.categoryId)
     rows.push({
-      id: String(category.id),
+      // A category with no BrickLink category under it has no id anything can
+      // name it by. It keeps brickzuke's own key, marked as brickzuke's, so it
+      // cannot land on top of a real BrickLink id that reads the same.
+      id: brickLinkId === undefined ? `bz${category.id}` : String(brickLinkId),
       entityKey: 'categories',
       entityLabel: 'Categories',
       fields: {
@@ -79,7 +92,7 @@ async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
         // is also the field the header reads a `category:` term back through
         // to put a name to the id, and a substring match would name category
         // 50 as the one someone asked 5 about.
-        category: toNumber(category.brickLinkCategories?.[0]?.categoryId),
+        category: brickLinkId,
         // The one-letter code an item carries in its own `type`. `type` above
         // is every BrickLink category's `catType` joined, which is a label;
         // this is the first of them, which is the one a term can be written
@@ -103,8 +116,16 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
     const years = joined
       .flatMap((c) => [toNumber(c['Year From']), toNumber(c['Year To'])])
       .filter((year): year is number => year !== undefined && year > 0)
+    // BrickLink's own colour id, which is what the inventory and colour-item
+    // rows are addressed by and what a `colorid:` term holds. The row's `id`
+    // for the reason a category's is: the header names a record by running the
+    // term back and finding the row that has that id, and brickzuke's
+    // auto-increment key is a different number entirely.
+    const brickLinkId = toNumber(joined.find((c) => c.colorId)?.colorId)
     rows.push({
-      id: String(color.id),
+      // As with a category: a colour BrickLink has no id for keeps brickzuke's
+      // own key, marked, since no term can name it either way.
+      id: brickLinkId === undefined ? `bz${color.id}` : String(brickLinkId),
       entityKey: 'colors',
       entityLabel: 'Colors',
       fields: {
@@ -122,7 +143,7 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
         // rows already hold it: those two tables are addressed by this term,
         // and it is the entity's `scope`, so it is what the header looks a
         // colour up by when it names one.
-        colorid: toNumber(joined.find((c) => c.colorId)?.colorId),
+        colorid: brickLinkId,
         name: color.name ?? joined.find((c) => c['Color Name'])?.['Color Name'],
         image: joined.find((c) => c.image)?.image,
         // `countItems` is the sum of `Parts`, exactly as `setColors` computes it.
@@ -149,7 +170,10 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
 async function itemTypeRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const itemTypes = await loadItemTypes(db)
   return itemTypes.map((itemType) => ({
-    id: String(itemType.id),
+    // The one-letter code, for the third time and the same reason: it is what
+    // a `type:` term holds, so it is what the header has to find here to say
+    // that `type:P` means Part.
+    id: itemTypeCode(itemType) ?? `bz${itemType.id}`,
     entityKey: 'itemTypes',
     entityLabel: 'Item types',
     fields: {

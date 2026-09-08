@@ -18,6 +18,7 @@ import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-p
 import { getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
+import { notePartCount } from './partCounts'
 
 /**
  * How long to wait for the extension before saying so.
@@ -47,16 +48,33 @@ function splitRecord(record: string): { type: string; number: string } | undefin
   }
 }
 
+/**
+ * Whether this record is made of anything — the question a Parts cell asks
+ * before it draws itself.
+ *
+ * Same rule as the fetch below, stated once: a part, an instruction sheet and
+ * an empty box list nothing, so a column of parts counts leaves their cells
+ * blank rather than offering a listing that would come back empty.
+ */
+export function hasInventory(record: string): boolean {
+  const parts = splitRecord(record)
+  return !!parts && HAS_INVENTORY.has(parts.type)
+}
+
 export async function readInventory(record: string): Promise<StoredItemInventory[]> {
   const db = await getDbConnection()
   try {
-    return (
+    const stored =
       (await getAllFromIndex<StoredItemInventory>(
         db,
         indices.ITEM_INVENTORIES_BY_RECORD,
         record
       )) ?? []
-    )
+    // Every read of a set's parts passes through here — the poll below, the
+    // inventory table, and the home screen's cards — so this is the one place
+    // that has to tell [partCounts] what a set turned out to be made of.
+    notePartCount(record, stored)
+    return stored
   } finally {
     db.close()
   }
@@ -64,6 +82,17 @@ export async function readInventory(record: string): Promise<StoredItemInventory
 
 /** One fetch per record at a time: two views of one set are not two scrapes. */
 const inFlight = new Map<string, Promise<StoredItemInventory[]>>()
+
+/**
+ * How many sets are being fetched right now.
+ *
+ * Read by the background fill, which is the one caller here with nothing
+ * waiting on it: a set someone has opened is worth more than a column someone
+ * has merely looked at, and both go down the same queue. See [partsFill].
+ */
+export function fetchesInFlight(): number {
+  return inFlight.size
+}
 
 async function scrape(record: string): Promise<StoredItemInventory[]> {
   const parts = splitRecord(record)

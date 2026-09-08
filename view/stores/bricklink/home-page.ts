@@ -10,13 +10,57 @@ interface ItemTypeSummary {
   image?: string
 }
 
+/**
+ * What the front page counts, keyed by the code the catalogue carries for it.
+ *
+ * MOCs are counted there beside the catalogue's own types and have no
+ * one-letter code of their own, so they are keyed by name.
+ */
+const HOME_PAGE_ITEM_TYPES: {
+  id: string
+  label: string
+}[] = [
+  {
+    id: 'S',
+    label: 'Sets'
+  },
+  {
+    id: 'P',
+    label: 'Parts'
+  },
+  {
+    id: 'M',
+    label: 'Minifigures'
+  },
+  {
+    id: 'MOC',
+    label: 'MOCs'
+  },
+]
+
+/**
+ * The number the front page states beside one type's name.
+ *
+ * Absent rather than zero when the page states none: a type the page has
+ * stopped listing is not a type with nothing in it.
+ */
+function countOf(response: string, label: string): number | undefined {
+  const found = extractValueFromHtml(
+    response,
+    [`<span class="p-name">${label}</span>`, '<span class="p-meta">'],
+    ' items',
+  )
+  const stated = found?.[0]?.[0]
+  if (!stated) {
+    return undefined
+  }
+  const count = Number.parseInt(stated.replaceAll(',', ''))
+  return Number.isFinite(count) ? count : undefined
+}
+
 export const useHomePageStore = defineStore('homePageStore', {
   state: () => ({
     itemTypes: new Map<string, ItemTypeSummary>(),
-    sets: 0,
-    parts: 0,
-    minifigures: 0,
-    MOCs: 0,
     loaded: false,
   }),
   actions: {
@@ -51,30 +95,17 @@ export const useHomePageStore = defineStore('homePageStore', {
       )
     },
     handleFetchResponse(response: string) {
-      const sets = extractValueFromHtml(
-        response,
-        ['<span class="p-name">Sets</span>', '<span class="p-meta">'],
-        ' items',
-      )
-      this.sets = Number.parseInt(sets[0][0].replace(',', ''))
-      const parts = extractValueFromHtml(
-        response,
-        ['<span class="p-name">Parts</span>', '<span class="p-meta">'],
-        ' items',
-      )
-      this.parts = Number.parseInt(parts[0][0].replace(',', ''))
-      const minifigures = extractValueFromHtml(
-        response,
-        ['<span class="p-name">Minifigures</span>', '<span class="p-meta">'],
-        ' items',
-      )
-      this.minifigures = Number.parseInt(minifigures[0][0].replace(',', ''))
-      const MOCs = extractValueFromHtml(
-        response,
-        ['<span class="p-name">MOCs</span>', '<span class="p-meta">'],
-        ' items',
-      )
-      this.MOCs = Number.parseInt(MOCs[0][0].replace(',', ''))
+      HOME_PAGE_ITEM_TYPES.forEach((itemType) => {
+        const count = countOf(response, itemType.label)
+        if (count === undefined) {
+          return
+        }
+        this.itemTypes.set(itemType.id, {
+          id: itemType.id,
+          label: itemType.label,
+          count,
+        })
+      })
       this.loaded = true
     },
   },

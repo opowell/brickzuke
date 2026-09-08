@@ -154,6 +154,60 @@ describe('catalog source, streaming', () => {
     scope.stop()
   }, 60_000)
 
+  it('gives the second page the second fifty, not the first fifty again', async () => {
+    const first = runStream()
+    await settle(first.state)
+    const one = first.state.rows.value.map((row) => String(row.fields.name))
+    first.scope.stop()
+
+    const second = runStream({
+      page: 2
+    })
+    await settle(second.state)
+    const two = second.state.rows.value.map((row) => String(row.fields.name))
+    second.scope.stop()
+
+    expect(two).toHaveLength(50)
+    // The page a `query` would have returned for this offset: rows 50 to 99 of
+    // the same ordering, which shares nothing with rows 0 to 49.
+    expect(two).toEqual([...two].sort())
+    expect(two[0] >= one[one.length - 1]).toBe(true)
+    expect(two.filter((name) => one.includes(name))).toEqual([])
+    // Paging changes which rows, never how many there are.
+    expect(second.state.total.value).toBe(SEEDED)
+  }, 60_000)
+
+  it('answers a page the same whether the shell queries or streams it', async () => {
+    // The two halves of the source used to disagree twice over: `query` paged
+    // the scan order rather than the sorted order, and `stream` did not page
+    // at all. Which rows a page holds cannot depend on which method the shell
+    // happened to call, so they are built from one page now — this is what
+    // says so.
+    for (const page of [1, 2, 5]) {
+      const expr = 'category:"37"'
+      const streamed = runStream({
+        expr,
+        page
+      })
+      await settle(streamed.state)
+      const fromStream = streamed.state.rows.value.map((row) => row.id)
+      streamed.scope.stop()
+
+      const base = request()
+      const answered = await catalogSource.query({
+        ...base,
+        query: {
+          ...base.query,
+          expr,
+          page
+        },
+        offset: (page - 1) * base.limit
+      })
+      expect(answered.rows.map((row) => row.id)).toEqual(fromStream)
+      expect(answered.total).toBe(streamed.state.total.value)
+    }
+  }, 60_000)
+
   it('reverses when the query does', async () => {
     const {
       state, scope 
@@ -203,24 +257,105 @@ describe('catalog source, streaming', () => {
     scope.stop()
   }, 60_000)
 
+  /*
+   * The home screen names no type, and brickzuke draws it with HomeCards — the
+   * shell's results area is replaced there, so nothing reads the rows and the
+   * one thing read off this stream is the number beside `Everything`. Scanning
+   * the catalogue for it queued every card's own read behind a pass over two
+   * hundred thousand records.
+   */
+  it('counts Everything without scanning for it', async () => {
+    const inserts: number[] = []
+    const result = await new Promise<{ rows: unknown[]; total?: number }>((resolve) => {
+      catalogSource.stream!(
+        {
+          ...request(),
+          entity: undefined,
+          query: {
+            ...request().query,
+            entity: null
+          }
+        },
+        {
+          get open() {
+            return true
+          },
+          insert(rows) {
+            inserts.push(Array.isArray(rows) ? rows.length : 1)
+          },
+          set(next) {
+            resolve(next as { rows: unknown[]; total?: number })
+          },
+          close() {},
+          fail(thrown) {
+            throw thrown
+          }
+        }
+      )
+    })
+    expect(result.total).toBe(SEEDED)
+    expect(result.rows).toEqual([])
+    expect(inserts).toEqual([])
+  }, 60_000)
+
+  it('still scans when Everything is narrowed', async () => {
+    // A filtered count is a question nothing but the scan can answer, so the
+    // rows still come in one at a time — which is what counts them.
+    let found = 0
+    await new Promise<void>((resolve) => {
+      catalogSource.stream!(
+        {
+          ...request(),
+          entity: undefined,
+          query: {
+            ...request().query,
+            entity: null,
+            // 37 rather than 7: matching is substring, so "7" keeps 17 and 27.
+            expr: 'category:"37"'
+          }
+        },
+        {
+          get open() {
+            return true
+          },
+          insert() {},
+          // The scan states the page and the running count rather than
+          // inserting at a position — a row's place in the whole match is not
+          // a place in the page. So what it found is the last total it said.
+          set(update) {
+            found = update.total ?? found
+          },
+          close() {
+            resolve()
+          },
+          fail(thrown) {
+            throw thrown
+          }
+        }
+      )
+    })
+    expect(found).toBeGreaterThan(0)
+    expect(found).toBeLessThan(SEEDED)
+  }, 60_000)
+
   it('pushes rows in as it finds them rather than once at the end', async () => {
     // Driven at the sink rather than through a clock: what makes a source
     // streaming is that it inserts many times before it closes, which is true
     // however fast the scan happens to be.
-    const inserts: number[] = []
+    const pushes: number[] = []
     let closed = 0
-    let insertsBeforeClose = 0
+    let pushesBeforeClose = 0
     await new Promise<void>((resolve) => {
       catalogSource.stream!(request(), {
         get open() {
           return true
         },
-        insert(rows) {
-          inserts.push(Array.isArray(rows) ? rows.length : 1)
+        insert() {},
+        set(update) {
+          pushes.push(update.total ?? 0)
         },
-        set() {},
         close() {
-          insertsBeforeClose = inserts.length
+          pushesBeforeClose = pushes.length
           closed++
           resolve()
         },
@@ -229,8 +364,8 @@ describe('catalog source, streaming', () => {
         },
       })
     })
-    expect(inserts.length).toBeGreaterThan(1)
-    expect(insertsBeforeClose).toBe(inserts.length)
+    expect(pushes.length).toBeGreaterThan(1)
+    expect(pushesBeforeClose).toBe(pushes.length)
     expect(closed).toBe(1)
   }, 60_000)
 
@@ -246,14 +381,14 @@ describe('catalog source, streaming', () => {
         get open() {
           return open
         },
-        insert() {
+        insert() {},
+        set() {
           seen++
           if (seen >= STOP_AFTER) {
             open = false
             setTimeout(resolve, 200)
           }
         },
-        set() {},
         close: () => resolve(),
         fail: (thrown) => {
           throw thrown

@@ -13,12 +13,15 @@ import type {DataSource,
   QuerySink,
   ShellRow} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
-import { getAllFromIndex } from '../../idb/db'
+import { count, get, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
+// `dbStores` rather than `stores`, that name being taken here by a seller.
+import dbStores from '../../idb/stores'
 import { inventoryFields, rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { inventoryFor, readInventory } from './inventoryFetch'
+import { ensurePartCounts, partsOf } from './partCounts'
 import { colorItemsFor, readColorItems } from './colorItemsFetch'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
@@ -84,6 +87,16 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[]): ShellRow {
       category: first['Category ID'],
       categoryName: brickLinkItems.map((bi) => bi['Category Name']).join(', '),
       image: brickLinkItems.find((bi) => bi.image)?.image,
+      // The BrickLink id an inventory is keyed by — `S-10511-1`. An item is
+      // one line over however many records, and the first is the one the
+      // other single-record fields above already read, so it is the one a
+      // Parts cell counts and opens.
+      record: first.id,
+      // The count for that record as the scan found it, which is what sorting
+      // by Parts compares. The cell reads the live map instead, so a set
+      // opened after the scan shows its number without another scan — see
+      // [partCounts].
+      parts: partsOf(first.id)?.parts,
       year: raw['Year Released'],
       // A number, not the stored string: sorting a column of weights
       // lexicographically puts 10g before 9g. Absent rather than NaN when there
@@ -135,6 +148,59 @@ function positionFor(rows: readonly ShellRow[], row: ShellRow, sort: string, des
 }
 
 /**
+ * One page of a scan, in the query's order.
+ *
+ * A scan reads the index by item id, so rows arrive in no order the query
+ * asked for: the row that sorts first may be the last one found, and the page
+ * is not known until the whole catalogue has been looked at. What is *not*
+ * needed is the whole catalogue kept — only the rows that could still make the
+ * page, which is `offset + limit` of them. Anything sorting past that end is
+ * counted and dropped, so a scan of 199,000 items holds fifty.
+ *
+ * Both halves of the source build one of these, which is the point of it.
+ * `query` and `stream` answer the same request and have to answer it the same
+ * way: they used to disagree twice over — `query` paged the scan order rather
+ * than the sorted order, and `stream` did not page at all — and a page's
+ * contents should not depend on which method the shell happened to call.
+ */
+interface Page {
+  /** Takes one matching row. True when the page itself changed. */
+  take(row: ShellRow): boolean
+  /** The page as it now stands, at most `limit` long. */
+  rows(): ShellRow[]
+  /** How many rows have matched, whether or not they made the page. */
+  total(): number
+}
+
+function pageOf(request: QueryRequest): Page {
+  const sort = request.query.sort
+  const desc = request.query.dir === 'desc'
+  const from = request.offset
+  const keep = request.offset + request.limit
+  const held: ShellRow[] = []
+  let total = 0
+  return {
+    take(row) {
+      total++
+      const at = positionFor(held, row, sort, desc)
+      // Past the end of what the page could hold: it counts, and nothing else.
+      if (at >= keep) {
+        return false
+      }
+      held.splice(at, 0, row)
+      if (held.length > keep) {
+        held.pop()
+      }
+      // A row landing before the page moves the window along by one, so this
+      // is a change to what is shown even when the row itself is not shown.
+      return true
+    },
+    rows: () => held.slice(from),
+    total: () => total
+  }
+}
+
+/**
  * Records pulled per round trip.
  *
  * The join used to be one indexed lookup per item, which is one IndexedDB
@@ -160,6 +226,9 @@ async function scan(
 ): Promise<void> {
   const index = indices.BRICK_LINK_ITEMS_BY_ITEM_ID
   const matches = matcherFor(request)
+  // Before the first row, so every row carries the parts count it sorts by.
+  // One pass over the sets already opened, held for the session.
+  await ensurePartCounts()
   // Records with no `bzItemId` are not in the index at all, which is the same
   // exclusion model.ts makes by hand.
   let range: IDBKeyRange | null = null
@@ -226,7 +295,19 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
       // The item these records belong to, which is what the term addresses.
       item: String(itemId),
       id: String(brickLinkItem.id),
-      name: brickLinkItem.Name + ' (' + brickLinkItem.id + ')',
+      // The same id again, under the name the Parts column reads it by on
+      // both tables: a record *is* what an inventory is keyed by. It is also
+      // what the Record column states, this table having one where the items
+      // table has a Type — see [catalogSchema].
+      record: String(brickLinkItem.id),
+      parts: partsOf(String(brickLinkItem.id))?.parts,
+      // The name and nothing else, where the items table writes the id after
+      // it. That table collapses every record of an item into one line and the
+      // id is what tells them apart in it; here each record has a line and a
+      // column of its own. It is also the name the header puts to
+      // `record:"S-75884-1"`, and the header states the id itself — see the
+      // `scope` on `itemRecords`.
+      name: brickLinkItem.Name,
       type: brickLinkItem.itemType,
       typeId: brickLinkItem.itemType,
       category: brickLinkItem['Category ID'],
@@ -361,7 +442,7 @@ function itemNameFor(record: string): string | undefined {
 }
 
 /** One lot a seller has on offer, as a row. */
-function toStoreInventoryRow(lot: StoreInventory): ShellRow {
+function toStoreInventoryRow(lot: StoreInventory, regions: Map<string, string>): ShellRow {
   return {
     // Stringified here as well as at the parse. The shell trims a row's id, so
     // a number reaches it as a render-time TypeError that empties the table
@@ -391,6 +472,9 @@ function toStoreInventoryRow(lot: StoreInventory): ShellRow {
       description: lot.description,
       country: lot.sellerCountryCode,
       countryName: lot.sellerCountryName,
+      // The part of the world that country is in, which a lot never states
+      // and the directory does — see [countryRegions].
+      region: regions.get(lot.sellerCountryCode ?? ''),
       store: lot.strSellerUsername,
       storeName: lot.sellerStoreName,
       // BrickLink's own code, `N` or `U`, which is what the conditions table
@@ -457,6 +541,9 @@ async function asStoreLotRows(lots: StoredStoreLot[], username: string): Promise
       description: lot.description,
       country: seller?.countryID,
       countryName: country?.countryName,
+      // As on the item's own lots: the region is the directory's, not the
+      // lot's, and here the country record it comes off is already in hand.
+      region: country?.regionId,
       store: lot.store,
       // The trading name where the directory has it, and the username where it
       // does not: a blank cell in the column that says whose lot this is would
@@ -537,7 +624,7 @@ function toCountryRow(country: Country): ShellRow {
 }
 
 /** One seller, as a row. */
-function toStoreRow(store: Store): ShellRow {
+function toStoreRow(store: Store, regions: Map<string, string>): ShellRow {
   return {
     id: store.id,
     entityKey: 'stores',
@@ -547,6 +634,12 @@ function toStoreRow(store: Store): ShellRow {
       store: store.id,
       name: store.name,
       country: store.countryID,
+      // A seller states the country it is in and never the region, so
+      // `region:"Europe"` would have matched every store there is — an
+      // unresolvable field matching every row, which is the one way this
+      // language fails quietly. Carried here so the term narrows sellers the
+      // same way it narrows the countries they are in.
+      region: regions.get(store.countryID),
       province: store.stateName,
       items: store.items,
       // A flag rather than a number, and drawn as the word or nothing: the
@@ -577,14 +670,43 @@ async function inventoryRows(
   return stored.map(toInventoryRow)
 }
 
+/**
+ * One record, addressed by its own BrickLink id.
+ *
+ * `item:` is how anyone reaches this table — an item opened shows the records
+ * it collapsed. This is the same type asked the other question, and it is the
+ * header that asks it: `record:"S-75884-1"` is the address of a set's parts,
+ * its lots and its pictures, and none of those three tables holds the record
+ * itself, so nothing on screen says which set it is. The header reads the term
+ * back against the type that declares the field and shows what that record is
+ * called — see the `scope` on `itemRecords` in [catalogSchema].
+ *
+ * One lookup and no index, `S-75884-1` being the key path of the store itself.
+ */
+async function namedRecordRows(request: QueryRequest): Promise<ShellRow[]> {
+  const record = termValue(request, 'record')
+  if (!record) {
+    return []
+  }
+  const db = await getDbConnection()
+  try {
+    const stored = await get<JoinedItem>(db, dbStores.BRICK_LINK_ITEMS, record)
+    return stored ? [toRecordRow(stored.bzItemId, stored)] : []
+  } finally {
+    db.close()
+  }
+}
+
 /** The records behind one item, ordered the way the query asks. */
 async function recordRows(request: QueryRequest): Promise<ShellRow[]> {
   const itemId = openItemId(request)
-  // No item named is not an error: it is the address of nothing, and the shell
-  // draws an empty table rather than the whole catalogue.
+  // No item named is not an error: a record named on its own is the other way
+  // in, and neither named is the address of nothing — the shell draws an empty
+  // table rather than the whole catalogue.
   if (itemId === undefined) {
-    return []
+    return namedRecordRows(request)
   }
+  await ensurePartCounts()
   const db = await getDbConnection()
   try {
     const records = (await getAllFromIndex<JoinedItem>(
@@ -623,7 +745,8 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
     return await asStoreLotRows(lots, store)
   }
   const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
-  return lots.map(toStoreInventoryRow)
+  const regions = await countryRegions()
+  return lots.map((lot) => toStoreInventoryRow(lot, regions))
 }
 
 /** The pictures of the item a query names, or every one loaded so far. */
@@ -675,6 +798,37 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
   })
 }
 
+/**
+ * Which region each country is in, as one map.
+ *
+ * The directory is the only place that says so: a region lists its countries,
+ * a country carries its region, and everything below a country — a seller, a
+ * lot — states the country alone. So a `region:` term reaches those two tables
+ * through this, and reaches them at all.
+ *
+ * Held for the session once there is something to hold. A directory that has
+ * not been fetched is an empty map and is not kept, an empty answer here being
+ * "nobody has asked for the countries yet" rather than "there are none".
+ */
+let regionByCountry: Promise<Map<string, string>> | undefined
+
+function countryRegions(): Promise<Map<string, string>> {
+  regionByCountry ??= readCountries()
+    .then((countries) => {
+      const held = new Map(countries.map((country) => [country.countryCode, country.regionId]))
+      if (!held.size) {
+        regionByCountry = undefined
+      }
+      return held
+    })
+    .catch((thrown) => {
+      // A failed read must not be the answer forever.
+      regionByCountry = undefined
+      throw thrown
+    })
+  return regionByCountry
+}
+
 /** Every region BrickLink groups its sellers into. */
 async function regionRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
   const regions = fetching ? await regionsFor() : await readRegions()
@@ -691,7 +845,8 @@ async function countryRows(request: QueryRequest, fetching = true): Promise<Shel
 async function storeRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
   const country = termValue(request, 'country')
   const stores = fetching ? await storesFor(country) : await readStores(country)
-  return stores.map(toStoreRow)
+  const regions = await countryRegions()
+  return stores.map((store) => toStoreRow(store, regions))
 }
 
 /**
@@ -783,6 +938,7 @@ export async function yearCount(): Promise<number> {
 /** Drops the held years, for when an update run has rewritten the catalogue. */
 export function forgetScannedRows() {
   years = undefined
+  regionByCountry = undefined
 }
 
 /**
@@ -813,7 +969,10 @@ const fetched: Record<string, Fetched> = {
     rows: inventoryRows
   },
   itemRecords: {
-    addresses: ['item'],
+    // The item is what fetched the rows, so it does not filter them again. A
+    // record on its own fetched the one record instead, and is then the
+    // address — which is the lookup the header's names are made of.
+    addresses: (request) => (termValue(request, 'item') ? ['item'] : ['item', 'record']),
     rows: recordRows
   },
   colorItems: {
@@ -858,24 +1017,52 @@ function entityKey(request: QueryRequest): string | null {
   return request.entity?.key ?? null
 }
 
+/**
+ * Every row a type has, read from what is already stored and asked of nothing.
+ *
+ * `query` and `stream` answer a question someone asked, with an expression, an
+ * address and a page. This answers the home screen's, which is "what is in
+ * here": no narrowing, and `fetching` false throughout, so a card never sends
+ * brickzuke to BrickLink. `undefined` where the type has no rows to read
+ * without one — the codes, and the items table, which is a scan.
+ */
+export function storedRows(entityKey: string): Promise<ShellRow[]> | undefined {
+  const source = fetched[entityKey]
+  if (source) {
+    return source.rows(everything, false)
+  }
+  return rowsFor(entityKey, getDbConnection)
+}
+
+/**
+ * Rows in the order a query asks for, as a copy — the held rows are shared
+ * with whatever else is reading them and are not a caller's to reorder.
+ *
+ * Exported because the home screen's cards ask the same question of the same
+ * rows: the first few of a type, in the order that type opens in.
+ */
+export function sorted(
+  rows: readonly ShellRow[],
+  sort: string,
+  dir: string | undefined
+): ShellRow[] {
+  const desc = dir === 'desc'
+  return rows.slice().sort((a, b) => {
+    const left = sortValue(a, sort)
+    const right = sortValue(b, sort)
+    if (left === right) return 0
+    const before = left < right ? -1 : 1
+    return desc ? -before : before
+  })
+}
+
 /** The small types, filtered and ordered the way the shell asked for them. */
 function present(
   rows: readonly ShellRow[],
   request: QueryRequest,
   matches: (row: ShellRow) => boolean = matcherFor(request)
 ): ShellRow[] {
-  const desc = request.query.dir === 'desc'
-  const sort = request.query.sort
-  return rows
-    .filter(matches)
-    .slice()
-    .sort((a, b) => {
-      const left = sortValue(a, sort)
-      const right = sortValue(b, sort)
-      if (left === right) return 0
-      const before = left < right ? -1 : 1
-      return desc ? -before : before
-    })
+  return sorted(rows.filter(matches), request.query.sort, request.query.dir)
 }
 
 export const catalogSource: DataSource = {
@@ -935,12 +1122,10 @@ export const catalogSource: DataSource = {
     }
 
     const db = await getDbConnection()
-    const rows: ShellRow[] = []
-    let total = 0
+    const page = pageOf(request)
     try {
       await scan(db, request, (row) => {
-        total++
-        if (total > request.offset && rows.length < request.limit) rows.push(row)
+        page.take(row)
         return true
       })
     } finally {
@@ -950,8 +1135,8 @@ export const catalogSource: DataSource = {
       db.close()
     }
     return {
-      rows,
-      total,
+      rows: page.rows(),
+      total: page.total(),
       unfiltered
     }
   },
@@ -1023,19 +1208,79 @@ export const catalogSource: DataSource = {
       return
     }
 
-    const rows: ShellRow[] = []
-    const desc = request.query.dir === 'desc'
+    /*
+     * No type named is the home screen, and the home screen is HomeCards: the
+     * shell's results area is replaced there, so every row this pushes is
+     * thrown away and the one thing read off the stream is the number beside
+     * `Everything`. Un-narrowed, that number is how many items the catalogue
+     * holds, which the items store already knows — one count, against a pass
+     * over every BrickLink record there is.
+     *
+     * That pass is what this is really for. It ran on the main thread, held a
+     * connection open for the whole of it, and sorted two hundred thousand
+     * rows into an array nobody was going to look at — on the one screen where
+     * every card has its own read to get through first. The category pictures
+     * are an indexed read each, and they were queued behind all of it, so they
+     * landed when `Everything` finished counting rather than when they were
+     * ready.
+     *
+     * A narrowed query still scans, because a filtered count is a question
+     * nothing else here can answer.
+     */
+    if (key === null && !request.query.expr.trim()) {
+      void (async () => {
+        const db = await getDbConnection()
+        try {
+          const total = await count(db, dbStores.ITEMS)
+          if (cancelled || !sink.open) return
+          sink.set({
+            rows: [],
+            total
+          })
+          sink.close()
+        } catch (thrown) {
+          sink.fail(thrown)
+        } finally {
+          db.close()
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    /*
+     * The same page `query` builds, filled by the same scan — see [pageOf].
+     *
+     * What this cannot do is `insert`. That method puts a row into the *page*,
+     * not into the result — "the way it would never have been returned by a
+     * `query` for this page", as the shell says — so a position in the whole
+     * match is not a position it can be given. On page two every row found
+     * sorts somewhere in the first fifty of a list the page does not start at,
+     * and inserting them there filled page two with page one. Which is exactly
+     * what it showed: the same seven sets, under ordinals 51 to 57.
+     *
+     * So it says the page as it now stands instead, which is what `set` is for.
+     */
+    const page = pageOf(request)
 
     void (async () => {
       const db = await getDbConnection()
       try {
         await scan(db, request, (row) => {
           if (cancelled || !sink.open) return false
-          const at = positionFor(rows, row, request.query.sort, desc)
-          rows.splice(at, 0, row)
-          // The shell drops what this pushes past the page end — that row is
-          // page two's — while the total goes on counting.
-          sink.insert(row, at)
+          // A row sorting past the end of the page changes the count and
+          // nothing that is on screen.
+          sink.set(
+            page.take(row)
+              ? {
+                rows: page.rows(),
+                total: page.total()
+              }
+              : {
+                total: page.total()
+              }
+          )
           return true
         })
         sink.close()

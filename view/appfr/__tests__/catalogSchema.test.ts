@@ -92,7 +92,12 @@ function mountShell() {
  * the term be read in both directions.
  */
 const category: ShellRow = {
-  id: '1',
+  // The BrickLink id the term names, which is what the row is keyed by —
+  // appfr 0.15 picks the record out of what matched by finding the row that
+  // *has* the id, rather than taking the first row back. `fields.id` stays
+  // brickzuke's own key, that being what the categories table narrows itself
+  // by; the two numbers are different and both are in use.
+  id: '5',
   entityKey: 'categories',
   entityLabel: 'Categories',
   fields: {
@@ -152,16 +157,30 @@ describe('a query that names a record', () => {
 const itemsEntity = () => catalogSchema.value.entities.find((entity) => entity.key === 'items')!
 
 describe('items schema', () => {
-  it('states the population the way brickzuke states it', () => {
-    // formatInteger's default breakpoints, not a raw integer — and never the
-    // bare 0 a hardcoded count showed.
-    expect(itemsEntity().count).toBe('10.0k')
-    expect(mountShell().text()).toContain('10.0k')
+  it('states the population the way the shell states its own', () => {
+    // Grouped through appfr's `formatCount`, not abbreviated through
+    // brickzuke's `formatInteger` — and never the bare 0 a hardcoded count
+    // showed. The list of types puts this beside a live count of its own on
+    // the type in force, and that one is formatted the shell's way and not
+    // offered as a choice, so `9,988` here is what keeps the two halves of
+    // that control writing numbers the same way.
+    expect(itemsEntity().count).toBe('9,988')
+    expect(mountShell().text()).toContain('9,988')
   })
 
-  it('draws the seven columns the table has today', () => {
+  it('draws the seven columns the table has today, and the parts count beside them', () => {
     const headers = mountShell().findAll('th').map((th) => th.text().replace(/[↑↓]\s*$/, '').trim())
-    expect(headers).toEqual(['#', '', 'Type', 'Name', 'Category', 'Year', 'Weight', 'Dimensions'])
+    expect(headers).toEqual([
+      '#',
+      '',
+      'Type',
+      'Name',
+      'Category',
+      'Year',
+      'Parts',
+      'Weight',
+      'Dimensions'
+    ])
   })
 
   it('renders the image column as a picture, not text', () => {

@@ -13,6 +13,7 @@ import {PARAM_ENTITY,
   PARAM_PAGE,
   PARAM_SORT,
   addTerm,
+  formatCount,
   parseExpression} from 'header-content-layout'
 import type { ColumnDef, DomainSchema, EntitySchema, ShellRow } from 'header-content-layout'
 import router from '@/router'
@@ -22,6 +23,7 @@ import { browsedCounts } from './catalogCounts'
 import CellCount from './CellCount.vue'
 import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
+import CellParts from './CellParts.vue'
 
 /** Verbatim from the `weight` column in model.ts. */
 const weightBreakpoints = [
@@ -79,13 +81,39 @@ function narrowBy(field: string, value: string) {
  * another's. The sort goes for the same reason — the type on the far side
  * declares its own, and the shell falls back to it when the URL names none.
  */
-function narrowTo(entity: string, field: string, value: string) {
+export function narrowTo(entity: string, field: string, value: string) {
   if (!value) {
     return
   }
+  openWith(entity, `${field}:"${value}"`)
+}
+
+/**
+ * One type opened on a stated expression, which is what the two presses that
+ * take more than one term do — a colour is a colour and a catalogue type, and
+ * a picture is a part and the colour it is moulded in.
+ */
+function openWith(entity: string, expr: string) {
   const params = new URLSearchParams(window.location.search)
   params.set(PARAM_ENTITY, entity)
-  params.set(PARAM_EXPR, `${field}:"${value}"`)
+  params.set(PARAM_EXPR, expr)
+  params.delete(PARAM_SORT)
+  params.delete(PARAM_PAGE)
+  router.push('/?' + params.toString())
+}
+
+/**
+ * One type, opened on nothing at all — the press a home-screen card's heading
+ * makes.
+ *
+ * The same navigation as `openWith` minus the term, and for the same reasons:
+ * an expression belongs to the type it was written against, and the sort goes
+ * so the type opens in the order `openingOrder` says it does.
+ */
+export function openType(entity: string) {
+  const params = new URLSearchParams(window.location.search)
+  params.set(PARAM_ENTITY, entity)
+  params.delete(PARAM_EXPR)
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
@@ -110,6 +138,32 @@ function narrowToItem(row: ShellRow) {
 }
 
 /**
+ * The part in the colour the picture is a picture of.
+ *
+ * A thumbnail on any of these tables is never of the catalogue part on its
+ * own — it is that part moulded in one colour, and pressing it to be shown the
+ * colourless catalogue entry throws away half of what was pressed. So it
+ * states both terms: `record` addresses the item, which is what fetches the
+ * lots, and `colorid` narrows them to the colour on the row. What comes back
+ * is BrickLink's part-and-colour page — every seller with that part in that
+ * colour — with the item and the colour columns dropped, both being settled by
+ * the query.
+ *
+ * A row with no colour is an item and nothing more, and falls back to the
+ * catalogue entry rather than to a table it cannot address.
+ */
+function narrowToVariant(row: ShellRow) {
+  const type = String(row.fields.type ?? '')
+  const number = String(row.fields.itemId ?? '')
+  const colorId = String(row.fields.colorid ?? '')
+  if (!type || !number || !colorId) {
+    narrowToItem(row)
+    return
+  }
+  openWith('inventories', `record:"${type}-${number}" colorid:"${colorId}"`)
+}
+
+/**
  * "Show me those 82."
  *
  * Two terms rather than one, because a colour is not a question on its own:
@@ -121,19 +175,24 @@ function narrowToItem(row: ShellRow) {
  * has to be BrickLink's too. brickzuke's own key for Aqua is 2, and
  * BrickLink's colour 2 is Tan.
  */
-function narrowToColor(catType: string, row: ShellRow) {
+export function narrowToColor(catType: string, row: ShellRow) {
   const colorId = String(row.fields.colorid ?? '')
   if (!colorId) {
     return
   }
-  const params = new URLSearchParams(window.location.search)
-  params.set(PARAM_ENTITY, 'colorItems')
-  params.set(PARAM_EXPR, `colorid:"${colorId}" type:"${catType}"`)
-  params.delete(PARAM_SORT)
-  params.delete(PARAM_PAGE)
-  router.push('/?' + params.toString())
+  openWith('colorItems', `colorid:"${colorId}" type:"${catType}"`)
 }
 
+/*
+ * A width has to hold the heading as well as the value, and three of these are
+ * headed by a longer word than anything under them: `S` under Type, a dash or
+ * three digits under Weight, `2 x 4` under Dimensions. Those three are sized
+ * for the label rather than for the column, because a table whose headings are
+ * cut short cannot say what it is showing — and the headings are set in
+ * brickzuke's own type size now that the shell takes it, which is wider than
+ * the size these widths were first measured against. `itemRecordColumns` below
+ * is the same table for one item, and carries the same three widths.
+ */
 export const itemColumns: ColumnDef[] = [
   {
     key: 'ordinal',
@@ -159,7 +218,7 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'type',
     label: 'Type',
-    width: '60px',
+    width: '95px',
     sort: 'type',
     click: (row) => narrowBy('type', String(row.fields.typeId ?? ''))
   },
@@ -187,14 +246,35 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'year',
     label: 'Year',
-    width: '70px',
+    width: '95px',
     sort: 'year',
     click: (row) => narrowBy('year', String(row.fields.year ?? ''))
+  },
+  /**
+   * What the set is made of, and the way into the list of it.
+   *
+   * The one column here whose number is not in any bulk download: BrickLink
+   * states an inventory a page at a time, so this reads as a dash until
+   * somebody opens the set — and stays pressable meanwhile, that press being
+   * how the number gets known at all. See CellParts.
+   *
+   * Pressing it opens the `inventory` type on this record, which is the same
+   * place a record's name leads: every part of the set, its colour and how
+   * many.
+   */
+  {
+    key: 'parts',
+    label: 'Parts',
+    kind: 'component',
+    component: CellParts,
+    width: '100px',
+    sort: 'parts',
+    click: (row) => narrowTo('inventory', 'record', String(row.fields.record ?? ''))
   },
   {
     key: 'weight',
     label: 'Weight',
-    width: '75px',
+    width: '110px',
     sort: 'weight',
     // Held in grams, read in whatever unit the number is actually in.
     value: (row) => Number(row.fields.weight) * 100,
@@ -209,7 +289,7 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'dimensions',
     label: 'Dimensions',
-    width: '115px',
+    width: '150px',
     sort: 'dimensions',
     // Every other part the same shape — pressing `2 x 4` is the one question a
     // dimension answers.
@@ -219,8 +299,13 @@ export const itemColumns: ColumnDef[] = [
 
 /**
  * One opened item: the BrickLink records the items table collapses into a
- * line, drawn with the same seven columns so opening one changes what is
- * listed and nothing about how it looks.
+ * line, drawn in the same order and to the same widths so opening one changes
+ * what is listed and nothing about how it looks.
+ *
+ * One column says something else. The items table heads its second with the
+ * type, which is all a collapsed line can say about however many records it
+ * holds; a record has a line of its own, so that column states the record —
+ * `S-75884-1`, the type letter still in front of it.
  *
  * Every press here leads back out to the items table, because a record is the
  * end of the road — there is nothing below it to open.
@@ -242,11 +327,20 @@ export const itemRecordColumns: ColumnDef[] = [
     // thing on the row to press for what is in it.
     click: (row) => narrowTo('inventory', 'record', String(row.fields.id ?? ''))
   },
+  /*
+   * Where the items table has a Type, this has the record itself — `S-75884-1`
+   * rather than `S`. The type is still in it, being the first character of it,
+   * and the press is still the type's: what is added is the id, which on this
+   * table is what tells one record of an item from another. It sits here
+   * rather than after the name because the name is what the header says a
+   * record is called, and the header states the id after it already.
+   */
   {
-    key: 'type',
-    label: 'Type',
-    width: '60px',
-    sort: 'type',
+    key: 'record',
+    label: 'Record',
+    width: '150px',
+    mono: true,
+    sort: 'record',
     click: (row) => narrowTo('items', 'type', String(row.fields.typeId ?? ''))
   },
   // Pressing a record's name opens what it is made of.
@@ -271,14 +365,25 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'year',
     label: 'Year',
-    width: '70px',
+    width: '95px',
     sort: 'year',
     click: (row) => narrowTo('items', 'year', String(row.fields.year ?? ''))
+  },
+  // As on the items table, so opening an item changes what is listed and
+  // nothing about how it looks.
+  {
+    key: 'parts',
+    label: 'Parts',
+    kind: 'component',
+    component: CellParts,
+    width: '100px',
+    sort: 'parts',
+    click: (row) => narrowTo('inventory', 'record', String(row.fields.record ?? ''))
   },
   {
     key: 'weight',
     label: 'Weight',
-    width: '75px',
+    width: '110px',
     sort: 'weight',
     value: (row) => Number.parseFloat(String(row.fields.weight)) * 100,
     format: (value) =>
@@ -289,7 +394,7 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'dimensions',
     label: 'Dimensions',
-    width: '115px',
+    width: '150px',
     sort: 'dimensions',
     click: (row) => narrowTo('items', 'dimensions', String(row.fields.dimensions ?? ''))
   }
@@ -322,12 +427,12 @@ export const inventoryColumns: ColumnDef[] = [
     label: 'Variant',
     width: '100px',
     height: '60px',
-    click: narrowToItem
+    click: narrowToVariant
   },
   {
     key: 'type',
     label: 'Type',
-    width: '60px',
+    width: '95px',
     sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
   },
@@ -337,8 +442,9 @@ export const inventoryColumns: ColumnDef[] = [
     label: 'Item',
     width: '300px',
     sort: 'name',
-    // Out to the catalogue entry for this part, which is the same press the
-    // picture beside it makes.
+    // Out to the catalogue entry for this part, colour and all. The picture
+    // beside it keeps the colour, this being the row's two questions: what
+    // part is that, and who sells it in that colour.
     click: narrowToItem
   },
   {
@@ -352,7 +458,7 @@ export const inventoryColumns: ColumnDef[] = [
   {
     key: 'color',
     label: 'Color',
-    width: '90px',
+    width: '100px',
     sort: 'color',
     // The one place in the catalogue a colour is a thing rows carry, so it is
     // the one place a colour narrows: pressing it leaves the parts of this set
@@ -363,14 +469,14 @@ export const inventoryColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
-    width: '90px',
+    width: '125px',
     sort: 'quantity',
     format: counted
   }
 ]
 
 /** A count, or an empty cell when the catalogue never stored the number. */
-function counted(value: unknown): string {
+export function counted(value: unknown): string {
   if (value === null || value === undefined || value === '') {
     return ''
   }
@@ -385,9 +491,10 @@ function counted(value: unknown): string {
  * item rather than on the colour's listing of it, and a column that is always
  * blank is not a wired-up column.
  *
- * Both presses lead back into the items table, this being the end of the road:
- * a colour's listing says which items, and the items table is where an item
- * is.
+ * The name leads back into the items table, this being the end of the road
+ * for the item itself: a colour's listing says which items, and the items
+ * table is where an item is. The picture leads to that item in this colour,
+ * which is the pair the listing is of.
  */
 export const colorItemColumns: ColumnDef[] = [
   {
@@ -402,7 +509,7 @@ export const colorItemColumns: ColumnDef[] = [
     component: CellImage,
     width: '120px',
     height: '70px',
-    click: narrowToItem
+    click: narrowToVariant
   },
   {
     key: 'number',
@@ -436,7 +543,7 @@ export const categoryColumns: ColumnDef[] = [
   {
     key: 'type',
     label: 'Type',
-    width: '60px',
+    width: '95px',
     sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.typeId ?? ''))
   },
@@ -445,7 +552,7 @@ export const categoryColumns: ColumnDef[] = [
     label: 'Items',
     kind: 'component',
     component: CellCount,
-    width: '80px',
+    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
@@ -506,7 +613,7 @@ export const colorColumns: ColumnDef[] = [
     label: 'Parts',
     kind: 'component',
     component: CellCount,
-    width: '90px',
+    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowToColor('P', row)
@@ -524,27 +631,27 @@ export const colorColumns: ColumnDef[] = [
   {
     key: 'wanted',
     label: 'Wanted',
-    width: '90px',
+    width: '120px',
     sort: 'wanted',
     format: counted
   },
   {
     key: 'forSale',
     label: 'For sale',
-    width: '90px',
+    width: '120px',
     sort: 'forSale',
     format: counted
   },
   {
     key: 'yearFrom',
     label: 'Year from',
-    width: '90px',
+    width: '135px',
     sort: 'yearFrom'
   },
   {
     key: 'yearTo',
     label: 'Year to',
-    width: '90px',
+    width: '115px',
     sort: 'yearTo'
   }
 ]
@@ -584,7 +691,7 @@ export const itemTypeColumns: ColumnDef[] = [
     label: 'Categories',
     kind: 'component',
     component: CellCount,
-    width: '110px',
+    width: '145px',
     sort: 'categories',
     format: counted,
     click: (row) => narrowTo('categories', 'type', String(row.fields.type ?? ''))
@@ -613,12 +720,12 @@ export const itemInventoryColumns: ColumnDef[] = [
     label: 'Variant',
     width: '100px',
     height: '60px',
-    click: narrowToItem
+    click: narrowToVariant
   },
   {
     key: 'type',
     label: 'Type',
-    width: '60px',
+    width: '95px',
     sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
   },
@@ -651,14 +758,14 @@ export const itemInventoryColumns: ColumnDef[] = [
   {
     key: 'color',
     label: 'Color',
-    width: '90px',
+    width: '100px',
     sort: 'color',
     click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
   },
   {
     key: 'quantity',
     label: 'Quantity',
-    width: '90px',
+    width: '125px',
     sort: 'quantity',
     format: counted
   }
@@ -686,12 +793,12 @@ export const itemVariantColumns: ColumnDef[] = [
     label: 'Variant',
     width: '100px',
     height: '60px',
-    click: narrowToItem
+    click: narrowToVariant
   },
   {
     key: 'type',
     label: 'Type',
-    width: '60px',
+    width: '95px',
     sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
   },
@@ -714,14 +821,14 @@ export const itemVariantColumns: ColumnDef[] = [
   {
     key: 'color',
     label: 'Color',
-    width: '90px',
+    width: '100px',
     sort: 'color',
     click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
   },
   {
     key: 'sets',
     label: 'Sets',
-    width: '70px',
+    width: '90px',
     sort: 'sets',
     format: counted,
     click: (row) => narrowTo('itemInventories', 'variant', String(row.fields.variant ?? ''))
@@ -832,7 +939,10 @@ export const storeInventoryColumns: ColumnDef[] = [
     component: CellImage,
     width: '70px',
     height: '50px',
-    click: narrowToItem
+    // The lot's own part and colour, out across every seller of it — a lot is
+    // of a coloured part, and so is the picture. The Item column beside it is
+    // the way to the catalogue entry.
+    click: narrowToVariant
   },
   // Drawn by a component so the figure can stand alone while the currencies
   // stay reachable — see CellPrice. Sorted by that same converted number,
@@ -844,7 +954,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellPrice,
     label: 'Price',
-    width: '90px',
+    width: '95px',
     sort: 'priceValue'
   },
   // What the lot is *of*, and the way through to it. The original had no such
@@ -879,7 +989,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'countryName',
     role: 'reference',
     label: 'Country',
-    width: '110px',
+    width: '120px',
     sort: 'countryName',
     click: (row) => narrowBy('country', String(row.fields.country ?? ''))
   },
@@ -894,21 +1004,21 @@ export const storeInventoryColumns: ColumnDef[] = [
   {
     key: 'conditionName',
     label: 'Condition',
-    width: '100px',
+    width: '130px',
     sort: 'conditionName',
     click: (row) => narrowBy('condition', String(row.fields.condition ?? ''))
   },
   {
     key: 'quantity',
     label: 'Quant.',
-    width: '80px',
+    width: '110px',
     sort: 'quantity',
     format: counted
   },
   {
     key: 'feedback',
     label: 'Feedback',
-    width: '100px',
+    width: '135px',
     sort: 'feedback',
     format: counted
   }
@@ -932,7 +1042,7 @@ export const conditionColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Condition',
-    width: '120px',
+    width: '130px',
     sort: 'name',
     click: (row) => narrowTo('inventories', 'condition', String(row.fields.condition ?? ''))
   },
@@ -947,7 +1057,7 @@ export const conditionColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
-    width: '100px',
+    width: '125px',
     sort: 'quantity',
     format: counted
   }
@@ -971,7 +1081,7 @@ export const yearColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Year',
-    width: '90px',
+    width: '95px',
     sort: 'year',
     click: (row) => narrowTo('items', 'year', String(row.fields.name ?? ''))
   },
@@ -1004,7 +1114,7 @@ export const regionColumns: ColumnDef[] = [
   {
     key: 'countries',
     label: 'Countries',
-    width: '100px',
+    width: '135px',
     sort: 'countries',
     format: counted,
     click: (row) => narrowTo('countries', 'region', String(row.fields.region ?? ''))
@@ -1048,7 +1158,7 @@ export const countryColumns: ColumnDef[] = [
   {
     key: 'stores',
     label: 'Stores',
-    width: '90px',
+    width: '110px',
     sort: 'stores',
     format: counted,
     click: (row) => narrowTo('stores', 'country', String(row.fields.country ?? ''))
@@ -1079,14 +1189,14 @@ export const storeColumns: ColumnDef[] = [
     key: 'country',
     role: 'reference',
     label: 'Country',
-    width: '90px',
+    width: '120px',
     sort: 'country',
     click: (row) => narrowTo('countries', 'country', String(row.fields.country ?? ''))
   },
   {
     key: 'province',
     label: 'Province',
-    width: '120px',
+    width: '125px',
     sort: 'province',
     click: (row) => narrowBy('province', String(row.fields.province ?? ''))
   },
@@ -1107,7 +1217,7 @@ export const storeColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
-    width: '90px',
+    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowTo('inventories', 'store', String(row.fields.store ?? ''))
@@ -1115,7 +1225,7 @@ export const storeColumns: ColumnDef[] = [
   {
     key: 'instantCheckout',
     label: 'Instant Checkout',
-    width: '120px',
+    width: '190px',
     sort: 'instantCheckout'
   }
 ]
@@ -1154,16 +1264,31 @@ export const imageColumns: ColumnDef[] = [
 ]
 
 /**
- * A population, stated the way `getTableLabel` states it: abbreviated through
- * `formatInteger`, and absent rather than zero while the worker is still
- * counting — so a card reads `Colors` until the number is real, never
- * `Colors 0`.
+ * A population: how many records of a type there are, which is what
+ * `entity.count` holds and the only number the shell formats a version of
+ * itself.
+ *
+ * Grouped through the shell's own `formatCount` rather than abbreviated
+ * through brickzuke's `formatInteger`, because these do not appear alone. The
+ * list of types states the population of every type except the one in force,
+ * and states that one as how many rows matched — and that half is the shell's,
+ * formatted its way and not offered as a choice. Publishing `3.2k` here put
+ * `Items · 342,118` beside `Categories · 1.2k` in one control the moment a
+ * query narrowed. Two ways of writing a number in one line is a worse fault
+ * than a long number, so the count that has to move is this one.
+ *
+ * A cell is a different matter and stays abbreviated: `items` on a category
+ * row is how many things are in that category, not how many categories there
+ * are, and nothing of the shell's is written beside it.
+ *
+ * Absent rather than zero while the worker is still counting — so a card reads
+ * `Colors` until the number is real, never `Colors 0`.
  */
 function population(value?: number): string {
   if (processingCounts.value || !value) {
     return ''
   }
-  return String(formatInteger(value) ?? '')
+  return formatCount(value)
 }
 
 /**
@@ -1179,13 +1304,13 @@ function tableCount(id: string): number | undefined {
  * A population of one of the browse-filled types, as [catalogCounts] counts
  * them.
  *
- * Stated on the same terms `population` states the bulk five — abbreviated, and
+ * Stated on the same terms `population` states the bulk five — grouped, and
  * absent rather than zero — but not gated on `processingCounts`, that being the
  * bulk downloads' own counting run and nothing to do with these.
  */
 function browsed(key: string): string {
   const value = browsedCounts.value[key]
-  return value ? String(formatInteger(value) ?? '') : ''
+  return value ? formatCount(value) : ''
 }
 
 /**
@@ -1207,12 +1332,44 @@ function browsed(key: string): string {
  */
 const openEntity = computed(() => router.currentRoute.value.query[PARAM_ENTITY])
 const openItemRecords = computed(() => openEntity.value === 'itemRecords')
+
+/**
+ * Whether a `record:` term is in force under an open type.
+ *
+ * The header puts names to the ids a query narrows by, and it does that by
+ * reading the term back against the type that declares the field — which for
+ * `record:` is `itemRecords`. So a set's inventory, an item's lots and its
+ * pictures each need that type declared while they are up, none of them being
+ * that type themselves.
+ *
+ * Under an open type only, because the home screen draws a card per declared
+ * type and an item's records are a detail rather than a population — the same
+ * reason the three below are declared exactly while they are being looked at.
+ */
+const recordNamed = computed(() => {
+  const expr = router.currentRoute.value.query[PARAM_EXPR]
+  if (!openEntity.value || typeof expr !== 'string') {
+    return false
+  }
+  return parseExpression(expr).some((group) =>
+    group.some((term) => term.kind === 'field' && term.field === 'record')
+  )
+})
 const openInventory = computed(() => openEntity.value === 'inventory')
 const openColorItems = computed(() => openEntity.value === 'colorItems')
 
 const itemRecordsEntity: EntitySchema = {
   key: 'itemRecords',
   label: 'Item records',
+  // The field every other table carries a BrickLink record's id in — what a
+  // part of a set, a lot on offer and a picture all hold in `record`, and what
+  // pressing a set writes. Declaring it is what lets the header say
+  // `record:1968 Ford Mustang Fastback (S-75884-1)` where the query says
+  // `record:"S-75884-1"`: the shell reads the term back through this field,
+  // against this type, and shows what the record is called. An id is a join
+  // key, and a set's inventory is the one table that says nothing about the
+  // set it is of.
+  scope: 'record',
   // Counted by what comes back, not by the catalogue: this is one item.
   count: '',
   facets: [],
@@ -1221,8 +1378,8 @@ const itemRecordsEntity: EntitySchema = {
   columns: itemRecordColumns,
   sorts: [
     {
-      key: 'type',
-      label: 'Type'
+      key: 'record',
+      label: 'Record'
     },
     {
       key: 'name',
@@ -1235,6 +1392,10 @@ const itemRecordsEntity: EntitySchema = {
     {
       key: 'year',
       label: 'Year'
+    },
+    {
+      key: 'parts',
+      label: 'Parts'
     },
     {
       key: 'weight',
@@ -1444,6 +1605,13 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'year',
           label: 'Year'
+        },
+        // Sorted over what was known when the scan ran, which is the sets
+        // opened so far — the rest have no number to compare and sort as an
+        // empty cell does.
+        {
+          key: 'parts',
+          label: 'Parts'
         },
         {
           key: 'weight',
@@ -1754,7 +1922,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         }
       ]
     },
-    ...(openItemRecords.value ? [itemRecordsEntity] : []),
+    ...(openItemRecords.value || recordNamed.value ? [itemRecordsEntity] : []),
     ...(openInventory.value ? [inventoryEntity] : []),
     ...(openColorItems.value ? [colorItemsEntity] : [])
   ]

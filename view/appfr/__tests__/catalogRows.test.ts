@@ -328,6 +328,14 @@ describe.each([
     // One, and not the whole table: the count is the half of this that a
     // misspelled scope would quietly fail.
     expect(found.length).toBe(1)
+    // And the row that *has* the id, which is how appfr 0.15 picks the record
+    // out of what matched — it takes a window of rows rather than the first
+    // one back, so a row keyed by anything other than the id its scope field
+    // holds is a row the header cannot find. brickzuke keys categories,
+    // colours and item types by BrickLink's id for exactly this reason; the
+    // auto-increment key they used to carry left every one of these terms
+    // showing as a bare id again, and nothing failed to say so.
+    expect(found[0]!.id).toBe(id)
     expect(cellTextOf(roleColumn(entity.columns ?? [], 'identity'), found[0]!)).toBe(name)
   })
 })

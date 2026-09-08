@@ -237,6 +237,19 @@ describe('stores', () => {
     expect(rows.find((row) => row.fields.id === 'steinehaus')!.fields.instantCheckout).toBe('')
   })
 
+  it('carries the region its country is in, so a region term narrows sellers', async () => {
+    // A seller states its country and never its region — and an unresolvable
+    // field in this language matches every row rather than none, so without
+    // the region on the row `region:"Europe"` listed every store on BrickLink
+    // under a heading saying Europe.
+    const rows = await rowsOf({
+      entity: 'stores',
+      expr: 'region:"Europe"'
+    })
+    expect(rows.map((row) => row.fields.id).sort()).toEqual(['brickmeister', 'steinehaus'])
+    expect(rows.every((row) => row.fields.region === 'Europe')).toBe(true)
+  })
+
   it('shows what is stored when no country is named, and asks for nothing', async () => {
     // There is no page stating every seller on BrickLink, so the un-narrowed
     // table is the countries someone has already asked about — not two hundred
@@ -341,6 +354,16 @@ describe('store inventories', () => {
       entity: 'inventories'
     })
     expect(rows.every((row) => row.fields.record === 'P-3001')).toBe(true)
+  })
+
+  it('narrows to a region, which a lot knows only through its country', async () => {
+    // As on the stores table: the lot states the seller's country, and the
+    // directory is the only thing that says which region that country is in.
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'record:"P-3001" region:"Europe"'
+    })
+    expect(rows.map((row) => row.id).sort()).toEqual(['552481250', 'lot-3'])
   })
 
   it('narrows an item\'s lots to one seller, the store being a field beside the item', async () => {
