@@ -87,11 +87,23 @@ export function openingOrderFor(entity: string | null | undefined): OpeningOrder
  * The shell's query defaults while that type is the one in the URL. `landing`
  * and `entity` are brickzuke's own: the empty URL is the home screen, and the
  * type the query panel configures from there is the items table.
+ *
+ * The view is here for the same reason the sort is: brickzuke draws a list of
+ * one type as a table, and its home screen is the cards view of every type —
+ * which is one setting only while the defaults are one set. They are a set per
+ * type, so each says what it means, and a URL naming a type but no view opens
+ * as a table without anyone having to rewrite it afterwards.
+ *
+ * Saying it here rather than in {@link openedQuery} is what makes the view
+ * someone picks stick: a value that differs from the default for the type in
+ * force is a value the shell writes to the URL, so `cards` over a table is a
+ * query that survives being read back.
  */
 export function shellDefaultsFor(entity: string | null | undefined): ShellQueryDefaults {
   return {
     landing: 'home',
     entity: 'items',
+    view: entity ? 'table' : 'cards',
     ...openingOrderFor(entity)
   }
 }
@@ -99,25 +111,40 @@ export function shellDefaultsFor(entity: string | null | undefined): ShellQueryD
 /**
  * The query the URL should hold, given the type that was up before it.
  *
- * Two things the shell leaves to the host. A type opens in its own order, and
- * arriving at one is where that is said — the sort someone picks while a type
- * is up is theirs, and only arriving somewhere new sets one. And brickzuke
- * draws a list as a table: that cannot go in `defaults`, because the home
- * screen *is* the `cards` view with no type selected, so one setting would
- * serve as both the landing view and the list view and pinning it to `table`
- * would cost the summary.
+ * Two things the shell leaves to the host, and both are about arriving. A type
+ * opens in its own order, and a type opens as a table — brickzuke drawing a
+ * list of one type that way — so arriving at one is where each is said. What
+ * someone picks while a type is up is theirs either way: a sort, and a view
+ * too, which is why `cards` over a table is left standing here rather than
+ * rewritten back on the next query change. A URL that names a type and no view
+ * still opens as a table, from the defaults that type is read with — see
+ * {@link shellDefaultsFor}.
+ *
+ * Naming no type is the third case, and the one that had nowhere to land. The
+ * shell's Everything is a table across every type at once, which brickzuke has
+ * no source for — pressing it from inside a table left `v=table` standing with
+ * no type under it, and a screen reading "Nothing matches this query" over a
+ * catalogue of two hundred thousand items. brickzuke's everything is the home
+ * screen, which is the cards view, so clearing the type goes there.
  *
  * The same query back when there is nothing to say, so the caller can tell a
  * rewrite from a query already as it should be.
  */
 export function openedQuery(query: ShellQuery, shownEntity: string | null): ShellQuery {
   if (!query.entity) {
-    return query
+    return query.view === 'cards'
+      ? query
+      : {
+          ...query,
+          view: 'cards',
+          page: 1
+        }
   }
-  const order = query.entity === shownEntity ? undefined : openingOrderFor(query.entity)
+  const arriving = query.entity !== shownEntity
+  const order = arriving ? openingOrderFor(query.entity) : undefined
   const next: ShellQuery = {
     ...query,
-    view: 'table',
+    view: arriving ? 'table' : query.view,
     sort: order?.sort ?? query.sort,
     dir: order?.dir ?? query.dir
   }
