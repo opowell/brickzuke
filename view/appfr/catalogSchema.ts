@@ -203,8 +203,14 @@ export const itemColumns: ColumnDef[] = [
   // No label: a column of pictures says what it is. Drawn by a component
   // rather than by the `image` kind, because the picture is a button here and
   // the kind presses the `<img>` itself.
+  //
+  // `role: 'image'` is on every one of these, and is what carries the picture
+  // out of the table: a card draws it beside the name and a tile draws it
+  // behind the caption, a catalogue record being what it looks like before it
+  // is anything else.
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '180px',
@@ -319,6 +325,7 @@ export const itemRecordColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '180px',
@@ -422,6 +429,7 @@ export const inventoryColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     label: 'Variant',
@@ -505,6 +513,7 @@ export const colorItemColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '120px',
@@ -591,6 +600,7 @@ export const colorColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '100px',
@@ -715,6 +725,7 @@ export const itemInventoryColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     label: 'Variant',
@@ -788,6 +799,7 @@ export const itemVariantColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     label: 'Variant',
@@ -935,6 +947,7 @@ export const storeInventoryColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '70px',
@@ -1141,6 +1154,7 @@ export const countryColumns: ColumnDef[] = [
   // first, so 40px of them leaves a flag no wider than a line.
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '80px',
@@ -1246,6 +1260,7 @@ export const imageColumns: ColumnDef[] = [
   },
   {
     key: 'image',
+    role: 'image',
     kind: 'component',
     component: CellImage,
     width: '200px',
