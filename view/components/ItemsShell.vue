@@ -40,6 +40,7 @@ import 'header-content-layout/style.css'
 import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { refreshCounts } from '../appfr/catalogCounts'
+import { startHomeFill, stopHomeFill } from '../appfr/homeFill'
 import { catalogSchema } from '../appfr/catalogSchema'
 import { catalogSource } from '../appfr/catalogSource'
 import { colorItemsNotice } from '../appfr/colorItemsNotice'
@@ -82,7 +83,15 @@ watch(
   (entity) => {
     if (entity) {
       rememberType(entity)
+      // Nothing is fetched on brickzuke's behalf while somebody is inside a
+      // table: the table is fetching for itself, and the store directory has
+      // waited this long.
+      stopHomeFill()
     } else {
+      // Before the counts, so the pass over the years is started by the fill
+      // and reports its progress to it — both ask for the same held pass, and
+      // it is the first of them that gets to listen to it.
+      startHomeFill()
       void refreshCounts()
     }
   },
@@ -124,7 +133,9 @@ onMounted(() => {
   onQueryChange(parseQuery(window.location.search, catalogSchema.value, shellDefaults.value))
 })
 
-const plainTokens = { '--dc-accent': 'currentColor' }
+const plainTokens = {
+  '--dc-accent': 'currentColor' 
+}
 </script>
 
 <template>

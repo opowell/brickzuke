@@ -16,10 +16,11 @@
  * owns still looks like the one it replaced.
  */
 import { computed, ref, watch } from 'vue'
-import { formatCount } from 'header-content-layout'
+import { formatInteger } from '@/assets/js/utils'
 import { catalogSchema, openType } from './catalogSchema'
-import { previewFor } from './catalogPreviews'
+import { forgetPreview, previewFor } from './catalogPreviews'
 import type { Preview, PreviewTile } from './catalogPreviews'
+import { FILLED, LOADING, filled } from './homeFill'
 import { byRecency } from './recentTypes'
 
 const props = defineProps<{
@@ -53,9 +54,15 @@ const cards = computed(() =>
   byRecency(catalogSchema.value.entities).map((entity) => {
     const preview = previews.value[entity.key]
     const tiles = preview?.tiles.length ? preview.tiles : undefined
+    const count = countOf(entity.count, preview)
     return {
       entity,
-      count: countOf(entity.count, preview),
+      count,
+      // Drawn quieter than a number, and the reason the placeholder is a
+      // character rather than a word: a card still being fetched should be
+      // legible as such at a glance across the wall, without any of them
+      // changing size when the number lands.
+      waiting: count === LOADING,
       pictures: preview?.kind === 'pictures' ? tiles : undefined,
       pills: preview?.kind === 'pills' ? tiles : undefined
     }
@@ -67,9 +74,8 @@ const cards = computed(() =>
  * where the read could say, and the population the schema publishes where it
  * could not.
  *
- * Grouped the way `population` groups a population, these two numbers standing
- * in the same place on the same wall — see the note there on why the count a
- * card carries is not abbreviated.
+ * Abbreviated the way `population` abbreviates a population, these two numbers
+ * standing in the same place on the same wall — see the note there.
  *
  * A type the schema states no population for keeps its silence. A card reading
  * `0` for a country list nobody has fetched says brickzuke looked and found
@@ -80,7 +86,11 @@ function countOf(population: string, preview: Preview | undefined): string {
   if (preview?.count === undefined || !population) {
     return population
   }
-  return formatCount(preview.count)
+  // The `~` the schema writes on a population it is still fetching, said here
+  // about the narrowed number for the same reason: see [homeFill]. The two
+  // stand in the same place on the same wall and must not disagree about what
+  // a tilde means.
+  return (preview.estimated ? '~' : '') + String(formatInteger(preview.count) ?? '')
 }
 
 /**
@@ -128,34 +138,57 @@ let reading = 0
  * Re-read whenever the query changes, because that is what a card says: the
  * head of this type as its own table would open under this query.
  */
+function read(asked: string): void {
+  const token = ++reading
+  // In the order the cards are drawn in, so the ones nearest the top are the
+  // ones read first: IndexedDB answers these one at a time whatever order
+  // they are asked in, and the card someone is looking at should not be last.
+  for (const entity of byRecency(catalogSchema.value.entities)) {
+    void previewFor(entity.key, asked).then((preview) => {
+      if (token !== reading) {
+        return
+      }
+      previews.value = {
+        ...previews.value,
+        [entity.key]: preview
+      }
+    })
+  }
+}
+
 watch(
   expr,
   (asked) => {
-    const token = ++reading
     // Cleared rather than left standing: the tiles on screen are the answer to
     // the query before this one, and a card holding them while the new answer
     // is read is a card stating something false. The count under each falls
     // back to the population meanwhile, which is true of every query.
     previews.value = {}
-    // In the order the cards are drawn in, so the ones nearest the top are the
-    // ones read first: IndexedDB answers these one at a time whatever order
-    // they are asked in, and the card someone is looking at should not be last.
-    for (const entity of byRecency(catalogSchema.value.entities)) {
-      void previewFor(entity.key, asked).then((preview) => {
-        if (token !== reading) {
-          return
-        }
-        previews.value = {
-          ...previews.value,
-          [entity.key]: preview
-        }
-      })
-    }
+    read(asked)
   },
   {
     immediate: true
   }
 )
+
+/**
+ * The same read again, when a background fill has added to one of the types.
+ *
+ * The counts are refs and redraw themselves; a preview is read once and held,
+ * so a card whose type has just grown is holding an answer that was true a
+ * country ago — see [forgetPreview].
+ *
+ * Nothing is cleared here, and that is the difference from the watch above. A
+ * fill lands beside what is on screen rather than replacing it: the sellers
+ * already drawn are still sellers, and blanking the wall every time a country
+ * arrives would flicker it two hundred times.
+ */
+watch(filled, () => {
+  for (const entity of FILLED) {
+    forgetPreview(entity)
+  }
+  read(expr.value)
+})
 </script>
 
 <template>
@@ -172,7 +205,9 @@ watch(
       <section v-for="card in cards" :key="card.entity.key" class="home__card">
         <button type="button" class="home__head" @click="openType(card.entity.key)">
           <span class="home__name">{{ card.entity.label }}</span>
-          <span class="home__count">{{ card.count }}</span>
+          <span class="home__count" :class="{ 'home__count--waiting': card.waiting }">{{
+            card.count
+          }}</span>
           <span class="home__go" aria-hidden="true">→</span>
           <span class="home__sr">Show only {{ card.entity.label.toLowerCase() }}</span>
         </button>
@@ -278,6 +313,31 @@ watch(
   color: var(--dc-fg-3);
 }
 
+/*
+ * The placeholder, breathing. A type still being fetched is the one thing on
+ * this wall that will change on its own, and a still ellipsis reads as a
+ * truncation rather than as something in progress.
+ */
+.home__count--waiting {
+  animation: home-waiting 1.4s ease-in-out infinite;
+}
+
+@keyframes home-waiting {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home__count--waiting {
+    animation: none;
+  }
+}
+
 /* The arrow is the shell's: present on the card, plain until it is reached. */
 .home__go {
   opacity: 0;
@@ -308,7 +368,7 @@ watch(
  */
 .home__pictures {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   place-items: center;
   gap: 4px;
   padding: 12px 16px;
@@ -332,35 +392,49 @@ watch(
 .home__picture {
   display: block;
   max-width: 100%;
-  height: 30px;
+  height: 45px;
   object-fit: contain;
 }
 
 /*
  * The records of a type that has no pictures of them, as their names.
  *
- * A dozen names and their numbers, wrapped: the same look inside a card as the
+ * A few names and their numbers, stacked: the same look inside a card as the
  * pictures are, for the types where what there is to see is what a record is
  * called and how much of it there is.
+ *
+ * Stacked rather than wrapped, and each pill the width of the card. Wrapped,
+ * the pills ended wherever their names did, so the numbers landed in a
+ * different place on every line and nothing could be read down the card — and
+ * a long name and a short one side by side made a ragged edge out of what is
+ * a list. One to a line puts every count under the last, which is what makes
+ * the four of them comparable at a glance.
  */
 .home__pills {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
   padding: 12px 16px;
 }
 
+/*
+ * The name at one end and the number at the other, with the gap between them
+ * taking whatever the card is wider than the pair — so the count sits on the
+ * card's right edge whatever the name beside it is called.
+ */
 .home__pill {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  max-width: 100%;
-  padding: 3px 10px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 12px;
   border: 1px solid var(--dc-line);
   border-radius: 999px;
   background: transparent;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -368,7 +442,10 @@ watch(
   background: var(--dc-bg-2);
 }
 
+/* Given the room, and made to give it back: a name too long for the pill is
+   cut rather than pushing the number off the end of it. */
 .home__label {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -376,6 +453,7 @@ watch(
 }
 
 .home__detail {
+  flex: none;
   color: var(--dc-fg-3);
 }
 

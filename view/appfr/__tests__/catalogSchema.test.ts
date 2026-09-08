@@ -157,15 +157,41 @@ describe('a query that names a record', () => {
 const itemsEntity = () => catalogSchema.value.entities.find((entity) => entity.key === 'items')!
 
 describe('items schema', () => {
-  it('states the population the way the shell states its own', () => {
-    // Grouped through appfr's `formatCount`, not abbreviated through
-    // brickzuke's `formatInteger` — and never the bare 0 a hardcoded count
-    // showed. The list of types puts this beside a live count of its own on
-    // the type in force, and that one is formatted the shell's way and not
-    // offered as a choice, so `9,988` here is what keeps the two halves of
-    // that control writing numbers the same way.
-    expect(itemsEntity().count).toBe('9,988')
-    expect(mountShell().text()).toContain('9,988')
+  it('abbreviates the population the way brickzuke writes every count', () => {
+    // Through brickzuke's own `formatInteger`, not grouped through appfr's
+    // `formatCount` — and never the bare 0 a hardcoded count showed. A
+    // population is read for its size, and `10.0k` is the same abbreviation
+    // the counts in the cells beside it are written in.
+    expect(itemsEntity().count).toBe('10.0k')
+    expect(mountShell().text()).toContain('10.0k')
+  })
+
+  it('has the shell write its own live count the same way', async () => {
+    // The list of types states the population of every type and, on the one in
+    // force under a narrowed query, how many rows matched — and that number is
+    // the shell's own. `formatCount` on the schema is what hands it brickzuke's
+    // hand to write it in; without it the control read `Items · 198,689` beside
+    // the abbreviated populations of everything else on the list.
+    const shell = mount(DataShell, {
+      props: {
+        schema: catalogSchema.value,
+        source: {
+          query: () => ({
+            rows: [row],
+            total: 198689,
+            unfiltered: false
+          })
+        } satisfies DataSource,
+        route: createMemoryAdapter('?e=items&v=table&q=brick'),
+        defaults: {
+          landing: 'entity',
+          entity: 'items',
+          view: 'table'
+        }
+      }
+    })
+    await nextTick()
+    expect(shell.find('option[value="items"]').text()).toBe('Items · 199k')
   })
 
   it('draws the seven columns the table has today, and the parts count beside them', () => {

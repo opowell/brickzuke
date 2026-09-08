@@ -8,6 +8,7 @@
  */
 import { matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
+  EntitySchema,
   QueryRequest,
   QueryResult,
   QuerySink,
@@ -37,7 +38,7 @@ import {imagesFor,
   readImages,
   readStoreInventories,
   storeInventoriesFor} from './itemPageFetch'
-import { readStoreLots, storeLotsFor } from './storeLotsFetch'
+import { readAllStoreLots, readStoreLots, storeLotsFor } from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import type { ItemImage } from './itemPageFetch'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -508,7 +509,7 @@ function toPrice(value: string | undefined): number | undefined {
 }
 
 /**
- * The lots one seller has, as rows of the same table an item's lots fill.
+ * Lots off a seller's own front, as rows of the same table an item's lots fill.
  *
  * They arrive from a different page and so carry different things. A store's
  * own front never repeats who the seller is — every row on it has the same one
@@ -516,47 +517,88 @@ function toPrice(value: string | undefined): number | undefined {
  * instead, and the feedback score, which appears on neither, is left blank
  * rather than guessed at.
  */
-async function asStoreLotRows(lots: StoredStoreLot[], username: string): Promise<ShellRow[]> {
-  const seller = (await readStores()).find((store) => store.id === username)
-  const country = seller
-    ? (await readCountries()).find((one) => one.countryCode === seller.countryID)
-    : undefined
-  return lots.map((lot) => ({
-    id: lot.id,
-    entityKey: 'inventories',
-    entityLabel: 'Store inventories',
-    fields: {
+async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
+  // By the seller each lot names rather than by one seller passed in: this
+  // answers the un-narrowed table too, where the lots are whoever has been
+  // opened. Two maps read once, not a directory search per lot.
+  const sellers = new Map((await readStores()).map((store) => [store.id, store]))
+  const countries = new Map((await readCountries()).map((one) => [one.countryCode, one]))
+  return lots.map((lot) => {
+    const seller = sellers.get(lot.store)
+    const country = seller ? countries.get(seller.countryID) : undefined
+    return {
       id: lot.id,
-      record: lot.record,
-      image: lot.image,
-      // The converted figure BrickLink printed, kept for the hover; the number
-      // beside it is what the column draws and sorts by.
-      price: lot.displayPrice,
-      priceValue: lot.price,
-      nativePrice: lot.nativePrice,
-      itemName: lot.itemName,
-      colorName: lot.colorName,
-      // The seller's own note about this lot, and only that. The item it is a
-      // lot of has a column of its own.
-      description: lot.description,
-      country: seller?.countryID,
-      countryName: country?.countryName,
-      // As on the item's own lots: the region is the directory's, not the
-      // lot's, and here the country record it comes off is already in hand.
-      region: country?.regionId,
-      store: lot.store,
-      // The trading name where the directory has it, and the username where it
-      // does not: a blank cell in the column that says whose lot this is would
-      // be the one thing this table cannot leave unanswered.
-      storeName: seller?.name ?? lot.store,
-      condition: lot.condition,
-      conditionName: conditionName(lot.condition),
-      quantity: lot.quantity,
-      type: lot.itemType,
-      itemId: lot.itemNumber,
-      colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
+      entityKey: 'inventories',
+      entityLabel: 'Store inventories',
+      fields: {
+        id: lot.id,
+        record: lot.record,
+        image: lot.image,
+        // The converted figure BrickLink printed, kept for the hover; the
+        // number beside it is what the column draws and sorts by.
+        price: lot.displayPrice,
+        priceValue: lot.price,
+        nativePrice: lot.nativePrice,
+        itemName: lot.itemName,
+        colorName: lot.colorName,
+        // The seller's own note about this lot, and only that. The item it is
+        // a lot of has a column of its own.
+        description: lot.description,
+        country: seller?.countryID,
+        countryName: country?.countryName,
+        // As on the item's own lots: the region is the directory's, not the
+        // lot's, and here the country record it comes off is already in hand.
+        region: country?.regionId,
+        store: lot.store,
+        // The trading name where the directory has it, and the username where
+        // it does not: a blank cell in the column that says whose lot this is
+        // would be the one thing this table cannot leave unanswered.
+        storeName: seller?.name ?? lot.store,
+        condition: lot.condition,
+        conditionName: conditionName(lot.condition),
+        quantity: lot.quantity,
+        type: lot.itemType,
+        itemId: lot.itemNumber,
+        colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
+      }
     }
-  }))
+  })
+}
+
+/**
+ * The lots a cross-section over them should count, which is the ones the query
+ * matches rather than every one loaded.
+ *
+ * Without this the conditions table read `New 3.0k` beside a lots table
+ * showing none: a region nobody sells from narrowed the lots and left the
+ * summary of them standing.
+ *
+ * Three fields are not filters here. `record` and `store` are what fetched the
+ * lots, and `condition` is what these rows partition by — the table states
+ * both conditions whichever one is asked about, each saying how much of it
+ * there is. Everything else narrows: a region, a country, a colour.
+ *
+ * Matched against the lot's own fields and no columns, which is the whole
+ * vocabulary a lot has: these are lots being counted, not the rows of the
+ * table whose request this is.
+ */
+const LOT_FIELDS = {
+  facets: [],
+  columns: []
+} as unknown as EntitySchema
+
+function lotsMatching(request: QueryRequest, lots: ShellRow[]): ShellRow[] {
+  const groups = parseExpression(request.query.expr).map((group) =>
+    group.filter(
+      (term) =>
+        !(term.kind === 'field' && ['record', 'store', 'condition'].includes(term.field))
+    )
+  )
+  // A group left with no terms constrains nothing, so it matches every lot.
+  if (!groups.length || groups.some((group) => !group.length)) {
+    return lots
+  }
+  return lots.filter((lot) => matchesExpression(groups, lot, LOT_FIELDS))
 }
 
 /** The two conditions BrickLink sells in, under the codes a lot carries. */
@@ -742,11 +784,26 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
   const store = termValue(request, 'store')
   if (!record && store) {
     const lots = fetching ? await storeLotsFor(store) : await readStoreLots(store)
-    return await asStoreLotRows(lots, store)
+    return await asStoreLotRows(lots)
   }
   const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
   const regions = await countryRegions()
-  return lots.map((lot) => toStoreInventoryRow(lot, regions))
+  const rows = lots.map((lot) => toStoreInventoryRow(lot, regions))
+  if (record) {
+    return rows
+  }
+  /*
+   * Un-narrowed, which is both pages at once.
+   *
+   * An item's lots are held in the item page store and go stale with the
+   * prices on them, so they are what this session has read; a seller's own
+   * lots cost a request per hundred and are kept. The table said only the
+   * first of those while its count said both — the card read `3,002` over a
+   * screen that was empty after a reload, and a query over it narrowed a set
+   * that was not there. [catalogCounts] counts the two together, so the table
+   * shows the two together.
+   */
+  return [...rows, ...(await asStoreLotRows(await readAllStoreLots()))]
 }
 
 /** The pictures of the item a query names, or every one loaded so far. */
@@ -776,8 +833,9 @@ async function imageRows(request: QueryRequest, fetching = true): Promise<ShellR
  */
 async function conditionRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
   const lots = await storeInventoryRows(request, fetching)
+  const narrowed = lotsMatching(request, lots)
   return Object.entries(CONDITIONS).map(([code, name]) => {
-    const mine = lots.filter((lot) => lot.fields.condition === code)
+    const mine = narrowed.filter((lot) => lot.fields.condition === code)
     return {
       id: code,
       entityKey: 'conditions',
@@ -788,7 +846,10 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
         name,
         // Blank rather than nought where nothing is loaded: no lots read is
         // not the same claim as no lots on offer, which is the distinction
-        // `total` in catalogRows exists to keep.
+        // `total` in catalogRows exists to keep. Gated on what was read rather
+        // than on what matched, those being the two different questions — a
+        // query that matches none of the lots brickzuke holds is a nought, and
+        // holding none at all is still a blank.
         lots: lots.length ? mine.length : undefined,
         quantity: lots.length
           ? mine.reduce((sum, lot) => sum + Number(lot.fields.quantity ?? 0), 0)
@@ -864,11 +925,30 @@ async function storeRows(request: QueryRequest, fetching = true): Promise<ShellR
  */
 let years: Promise<ShellRow[]> | undefined
 
-function scanYears(): Promise<ShellRow[]> {
+/**
+ * How often the pass says how far it has got, in items.
+ *
+ * The pass is the one thing on the home screen that takes a visible moment,
+ * and the card over it read nothing at all until it finished. A count every
+ * five thousand items is a number that moves while somebody is watching it and
+ * costs one call per twenty batches.
+ */
+const YEARS_REPORTED_EVERY = 5_000
+
+/**
+ * Told how many distinct years the pass has seen, while it is still running.
+ *
+ * A floor rather than a projection, and the caller says so — see [fillYears]
+ * in homeFill, which is what puts the `~` on it.
+ */
+export type YearProgress = (seen: number) => void
+
+function scanYears(report?: YearProgress): Promise<ShellRow[]> {
   return (async () => {
     const db = await getDbConnection()
     const counts = new Map<string, number>()
     try {
+      let seen = 0
       // Every item, whatever the query says: the query narrows the years, not
       // the catalogue they are counted from — a year stating how many items it
       // holds must not restate the filter that is already on screen.
@@ -876,6 +956,9 @@ function scanYears(): Promise<ShellRow[]> {
         const year = String(row.fields.year ?? '').trim()
         if (year) {
           counts.set(year, (counts.get(year) ?? 0) + 1)
+        }
+        if (report && ++seen % YEARS_REPORTED_EVERY === 0) {
+          report(counts.size)
         }
         return true
       })
@@ -913,14 +996,21 @@ const everything = {
   }
 } as unknown as QueryRequest
 
-function yearRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+function yearRows(
+  request: QueryRequest,
+  fetching = true,
+  report?: YearProgress
+): Promise<ShellRow[]> {
   // The home screen runs one query per type every time it is drawn, and a
   // summary card is no reason to walk two hundred thousand items. Once the
   // table itself has been opened the answer is held, and the card is free.
   if (!fetching && !years) {
     return Promise.resolve([])
   }
-  years ??= scanYears()
+  // The progress goes to whoever starts the pass and nobody else: it is one
+  // pass however many asked for it, so a second caller arriving halfway
+  // through is handed the held promise and hears nothing until it resolves.
+  years ??= scanYears(report)
   return years
 }
 
@@ -931,8 +1021,8 @@ function yearRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
  * no number on it is the thing being fixed. It is the same held promise, so the
  * pass happens once a session whether it was the card or the table that asked.
  */
-export async function yearCount(): Promise<number> {
-  return (await yearRows(everything, true)).length
+export async function yearCount(report?: YearProgress): Promise<number> {
+  return (await yearRows(everything, true, report)).length
 }
 
 /** Drops the held years, for when an update run has rewritten the catalogue. */
@@ -1026,10 +1116,18 @@ function entityKey(request: QueryRequest): string | null {
  * brickzuke to BrickLink. `undefined` where the type has no rows to read
  * without one — the codes, and the items table, which is a scan.
  */
-export function storedRows(entityKey: string): Promise<ShellRow[]> | undefined {
+export function storedRows(entityKey: string, expr = ''): Promise<ShellRow[]> | undefined {
   const source = fetched[entityKey]
   if (source) {
-    return source.rows(everything, false)
+    // The expression goes in so a type whose rows are *derived* is derived
+    // under it: the conditions are a count over the lots, and filtering the
+    // two rows that come back cannot narrow the numbers written on them.
+    // Every other type here is filtered by the caller either way.
+    return source.rows(expr ? {
+      query: {
+        expr
+      }
+    } as unknown as QueryRequest : everything, false)
   }
   return rowsFor(entityKey, getDbConnection)
 }

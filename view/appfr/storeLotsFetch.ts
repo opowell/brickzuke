@@ -21,7 +21,7 @@ import {PAGE_SIZE,
   storeLotCounts} from '../stores/bricklink/store-front-page'
 import type {StoredStoreLot,
   StoredStoreScope} from '../stores/bricklink/store-front-page'
-import { get, getAllFromIndex } from '../../idb/db'
+import { get, getAll, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
 import STORES from '../../idb/stores'
@@ -49,6 +49,23 @@ const MAX_PAGES = 30
 const MISSING_EXTENSION =
   'No answer from the BrickZuke extension. It fetches BrickLink pages on the ' +
   "app's behalf — check it is installed and that you are signed in to BrickLink."
+
+/**
+ * Every lot stored, whoever is selling it.
+ *
+ * What the lots table shows when no seller and no item narrows it. A seller's
+ * front is fetched one at a time and kept, so this is the sellers somebody has
+ * already opened — the same records [catalogCounts] counts the card by, which
+ * is why the table has to read them rather than only the session's own.
+ */
+export async function readAllStoreLots(): Promise<StoredStoreLot[]> {
+  const db = await getDbConnection()
+  try {
+    return (await getAll<StoredStoreLot>(db, STORES.STORE_LOTS)) ?? []
+  } finally {
+    db.close()
+  }
+}
 
 /** The lots stored for one seller. */
 export async function readStoreLots(username: string): Promise<StoredStoreLot[]> {

@@ -14,10 +14,10 @@
  *
  * Bounded reads only. The home screen is reached between every other screen,
  * so nothing here fetches: `storedRows` reads what is already held, the small
- * types are already in memory, and the two sets of pictures that are not — a
- * category's and an item's — are indexed reads with a count on them, never a
- * pass over the catalogue. Narrowed, the items card is the one exception, and
- * says why at [narrowedItems].
+ * types are already in memory, and the pictures that are not — the items' — are
+ * an indexed read with a count on it, never a pass over the catalogue.
+ * Narrowed, the items card is the one exception, and says why at
+ * [narrowedItems].
  */
 import { cellText, cellValue, matchesExpression, parseExpression, roleColumn } from 'header-content-layout'
 import type { ColumnDef, EntitySchema, ShellRow } from 'header-content-layout'
@@ -27,6 +27,7 @@ import indices from '../../idb/indices'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 import { catalogSchema, counted, narrowTo, narrowToColor } from './catalogSchema'
 import { catalogSource, sorted, storedRows } from './catalogSource'
+import { awaitedStores } from './homeFill'
 import { openingOrderFor } from './openingOrder'
 
 /** One record, as a card shows it: a picture of it, or its name. */
@@ -61,16 +62,32 @@ export interface Preview {
    * list — the part and colour codes, which are a count and no rows at all.
    */
   count?: number
+  /**
+   * Whether that count is a projection rather than a tally.
+   *
+   * Set only by the types [homeFill] is still fetching, and written with a `~`
+   * in front of it wherever it is shown. A card under `region:"Americas"` is
+   * the case this exists for: two of that region's countries are in the
+   * directory, neither has been fetched, and the sellers in them are a number
+   * BrickLink has already stated — so the card can say roughly how many there
+   * are long before it can list one.
+   */
+  estimated?: boolean
 }
 
 /**
- * How much of a type a card shows. The pictures are three whole rows of the
- * eight the stylesheet lays them out in, so that a card ends on a full row
- * rather than with a hole in the corner of it; a pill is wider than a picture
- * and wraps, so it is simply a dozen.
+ * How much of a type a card shows. The pictures are two whole rows of the five
+ * the stylesheet lays them out in, so that a card ends on a full row rather
+ * than with a hole in the corner of it.
+ *
+ * A pill is a line to itself, so its number is a card's height rather than its
+ * width: four of them stands beside two rows of pictures, where a dozen made
+ * the categories card three times the height of everything on the wall beside
+ * it. A card is a look inside a type, and the type's own table is one press
+ * away for anyone who wants the rest.
  */
-const PICTURES_SHOWN = 24
-const PILLS_SHOWN = 12
+const PICTURES_SHOWN = 10
+const PILLS_SHOWN = 4
 
 /**
  * Brick 2 x 2 — the piece a colour is worth seeing, and the one BrickLink has
@@ -95,6 +112,12 @@ interface Read {
   rows: ShellRow[]
   /** As {@link Preview.count} — absent where the read cannot say. */
   count?: number
+  /**
+   * How many stored records matched, said whether or not it is worth
+   * publishing — the projection adds what has not been fetched to this, and
+   * needs the number even where a card on its own would keep quiet about it.
+   */
+  matched: number
 }
 
 /**
@@ -136,19 +159,31 @@ async function opening(
   expr: string,
   keep: (row: ShellRow) => boolean = () => true
 ): Promise<Read> {
-  const held = storedRows(entity)
+  const held = storedRows(entity, expr)
   if (!held) {
     return {
-      rows: []
+      rows: [],
+      matched: 0
     }
   }
-  const matched = (await held).filter(matching(entity, expr))
+  const all = await held
+  const matched = all.filter(matching(entity, expr))
   const order = openingOrderFor(entity)
   return {
     rows: sorted(matched.filter(keep), order.sort, order.dir).slice(0, shown),
     // An untouched query leaves the count to the schema, which has counted the
     // catalogue already and did not have to read it to do so.
-    count: expr.trim() ? matched.length : undefined
+    //
+    // So does a read that came back with nothing at all, and that is the
+    // distinction the whole number turns on: `storedRows` answers a card
+    // without fetching, so a type nobody has opened yet reads as no rows —
+    // the years before their pass has run, a seller's lots before one is
+    // asked for. None of that is "the query matched none of them", and
+    // reporting it as such put `Years 0` over a catalogue covering eighty-one
+    // of them. Nought is only ever said about records brickzuke has actually
+    // read.
+    count: expr.trim() && all.length ? matched.length : undefined,
+    matched: matched.length
   }
 }
 
@@ -198,64 +233,6 @@ async function colorTiles(shown: number, expr: string): Promise<Preview> {
       ]
     })
   }
-}
-
-/**
- * Categories, as a part from the category. The name and the count are the
- * hover, and the press is the one the table's own name and count make, which
- * is to those items.
- */
-async function categoryTiles(shown: number, expr: string): Promise<Preview> {
-  const read = await opening('categories', shown, expr)
-  const images = await categoryImages(read.rows)
-  return {
-    kind: 'pictures',
-    count: read.count,
-    tiles: read.rows.map((row) => ({
-      key: row.id,
-      label: String(row.fields.name ?? ''),
-      detail: counted(row.fields.items),
-      image: images.get(row.id),
-      press: () => narrowTo('items', 'category', String(row.fields.category ?? ''))
-    }))
-  }
-}
-
-/**
- * One picture per category, read with a count of one.
- *
- * The index is by BrickLink's category id, which is what a category row
- * carries in `category` and holds as a number — the key is stored as the text
- * the download states it in, so it is asked for as text.
- *
- * Whichever item the index hands back first: a card is showing what is in the
- * category, not making a case for a particular part.
- */
-async function categoryImages(rows: readonly ShellRow[]): Promise<Map<string, string>> {
-  const images = new Map<string, string>()
-  const db = await getDbConnection()
-  try {
-    for (const row of rows) {
-      const category = row.fields.category
-      if (category === undefined || category === null) {
-        continue
-      }
-      const found =
-        (await getAllFromIndex<BrickLinkItem>(
-          db,
-          indices.BRICK_LINK_ITEMS_BY_BRICK_LINK_CATEGORY_ID,
-          String(category),
-          1
-        )) ?? []
-      const image = found[0]?.image
-      if (image) {
-        images.set(row.id, image)
-      }
-    }
-  } finally {
-    db.close()
-  }
-  return images
 }
 
 /**
@@ -435,16 +412,24 @@ function tileFor(row: ShellRow, columns: ColumnDef[]): PreviewTile {
  * whose rows do not is shown as its records' names, each with whatever number
  * the type counts them by.
  *
- * Read as pictures either way — a wall of them is the more of a type — and cut
- * back to the dozen a card of names has room for.
+ * Read whichever of the two is the more — which of them a card is is not known
+ * until the rows are in hand — and cut back to the dozen a card of names has
+ * room for.
  */
 async function fromRows(entityKey: string, expr: string): Promise<Preview> {
-  const read = await opening(entityKey, PICTURES_SHOWN, expr)
+  return asPreview(entityKey, await opening(entityKey, ROWS_READ, expr))
+}
+
+/** As many rows as either look could want, which of the two not yet being known. */
+const ROWS_READ = Math.max(PICTURES_SHOWN, PILLS_SHOWN)
+
+/** The rows read, as the card drawn from them. */
+function asPreview(entityKey: string, read: Read): Preview {
   const columns = shownColumns(
     catalogSchema.value.entities.find((entity) => entity.key === entityKey)
   )
   const pictures = read.rows.some((row) => row.fields.image)
-  const shown = pictures ? read.rows : read.rows.slice(0, PILLS_SHOWN)
+  const shown = read.rows.slice(0, pictures ? PICTURES_SHOWN : PILLS_SHOWN)
   return {
     kind: pictures ? 'pictures' : 'pills',
     count: read.count,
@@ -453,21 +438,71 @@ async function fromRows(entityKey: string, expr: string): Promise<Preview> {
 }
 
 /**
- * The three types whose pictures are not on their rows.
+ * The two fields a country can answer, and so the two a projection can survive.
  *
- * A colour has no picture stored at all and a category has no picture of its
- * own, so both are addressed rather than read; and the items table is a scan,
- * which a card makes only when a query has asked something no index answers.
- * Everything else falls to `fromRows`.
+ * `region:` and `country:` narrow the sellers by narrowing the countries they
+ * are in, which is exactly what the directory is a list of — so the sellers
+ * waiting in the countries the query names can be added up without fetching
+ * one of them. Any other term is about the sellers themselves: `Instant`, a
+ * province, a name. The directory says nothing about those, so a projection
+ * over them would be the whole world's sellers offered as an answer to a
+ * question that will match three, and the card keeps to what it has read.
+ */
+const COUNTRY_TERMS = ['region', 'country']
+
+function onlyCountryTerms(expr: string): boolean {
+  return parseExpression(expr).every((group) =>
+    group.every((term) => term.kind === 'field' && COUNTRY_TERMS.includes(term.field))
+  )
+}
+
+/**
+ * The sellers: the ones stored, and how many more the directory is still
+ * holding.
+ *
+ * The one card whose number is worth stating before the records behind it
+ * exist. Sellers arrive a country at a time and there are two hundred
+ * countries — see [homeFill] — so for most of a fill this card is a handful of
+ * real rows over a total nobody has reached yet, and the total is the thing
+ * being asked for.
+ */
+async function storeTiles(shown: number, expr: string): Promise<Preview> {
+  const read = await opening('stores', shown, expr)
+  const preview = asPreview('stores', read)
+  if (!onlyCountryTerms(expr)) {
+    return preview
+  }
+  const held = storedRows('countries', expr)
+  const countries = held ? (await held).filter(matching('countries', expr)) : []
+  const waiting = awaitedStores(
+    countries.map((row) => ({
+      code: String(row.fields.country ?? ''),
+      stores: Number(row.fields.stores)
+    }))
+  )
+  if (!waiting) {
+    return preview
+  }
+  return {
+    ...preview,
+    count: read.matched + waiting,
+    estimated: true
+  }
+}
+
+/**
+ * The two types whose pictures are not on their rows.
+ *
+ * A colour has no picture stored at all, so it is addressed rather than read;
+ * and the items table is a scan, which a card makes only when a query has
+ * asked something no index answers. Everything else falls to `fromRows`,
+ * categories included — a category has no picture of its own, and the one
+ * borrowed off a part in it said less about the category than its name does.
  */
 const specs: Record<
   string,
   { shown: number; read: (shown: number, expr: string) => Promise<Preview> }
 > = {
-  categories: {
-    shown: PICTURES_SHOWN,
-    read: categoryTiles
-  },
   colors: {
     shown: PICTURES_SHOWN,
     read: colorTiles
@@ -475,6 +510,10 @@ const specs: Record<
   items: {
     shown: PICTURES_SHOWN,
     read: itemTiles
+  },
+  stores: {
+    shown: ROWS_READ,
+    read: storeTiles
   }
 }
 
@@ -527,4 +566,20 @@ export function previewFor(entity: string, expr = ''): Promise<Preview> {
 /** Drops the held previews, for when an update run has rewritten the catalogue. */
 export function forgetPreviews() {
   cache.clear()
+}
+
+/**
+ * Drops one type's, for when a background fill has just added to it.
+ *
+ * One type rather than all of them: a country landing changes the sellers and
+ * nothing else, and clearing the wall would have every other card re-read
+ * itself two hundred times over on the way to the same answer.
+ */
+export function forgetPreview(entity: string) {
+  const prefix = entity + '\n'
+  for (const key of [...cache.keys()]) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key)
+    }
+  }
 }

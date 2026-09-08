@@ -496,6 +496,23 @@ describe('a seller\'s own lots', () => {
     })
     expect(rows.map((row) => row.fields.id)).toEqual(['902'])
   })
+
+  it('is in the table when nothing narrows it, which is what the card counts', async () => {
+    // An item's lots are held for the session and a seller's are kept, and the
+    // card counts the two together — so a table reading only the first said
+    // `3,002` over a screen that was empty after a reload, and a query over it
+    // narrowed a set that was not there.
+    const rows = await rowsOf({
+      entity: 'inventories'
+    })
+    expect(rows.map((row) => row.id).sort()).toEqual([
+      '552481250',
+      '901',
+      '902',
+      'lot-2',
+      'lot-3'
+    ])
+  })
 })
 
 describe('conditions', () => {
@@ -505,10 +522,39 @@ describe('conditions', () => {
     })
     expect(rows.map((row) => row.fields.name).sort()).toEqual(['New', 'Used'])
     const asNew = rows.find((row) => row.fields.condition === 'N')!
-    expect(asNew.fields.lots).toBe(2)
+    // Over every lot the table itself shows, which is both pages: the two New
+    // ones read off an item's page this session, and the one stored off a
+    // seller's own front. Counting only the first was how this table came to
+    // disagree with the one it is a cross-section of.
+    expect(asNew.fields.lots).toBe(3)
     // The quantities behind those lots, which is a different question from how
-    // many lots there are: 40 and 500.
-    expect(asNew.fields.quantity).toBe(540)
+    // many lots there are: 40, 500 and 1.
+    expect(asNew.fields.quantity).toBe(541)
+  })
+
+  it('counts the lots the query matches, not every lot loaded', async () => {
+    // A cross-section over the lots has to narrow with them. Without this the
+    // card read `New 3.0k` beside a lots table showing none, the region having
+    // narrowed the lots and left the summary of them standing.
+    const rows = await rowsOf({
+      entity: 'conditions',
+      expr: 'region:"North America"'
+    })
+    const asNew = rows.find((row) => row.fields.condition === 'N')!
+    expect(asNew.fields.lots).toBe(0)
+    expect(rows.find((row) => row.fields.condition === 'U')!.fields.lots).toBe(1)
+  })
+
+  it('keeps its own count whole when the query names the condition itself', async () => {
+    // `condition:` picks which of the two rows is listed. It is not a second
+    // filter over the lots underneath — each row already counts its own code,
+    // so a New row under `condition:"N"` still states every New lot there is.
+    const rows = await rowsOf({
+      entity: 'conditions',
+      expr: 'condition:"N"'
+    })
+    expect(rows.map((row) => row.fields.name)).toEqual(['New'])
+    expect(rows[0].fields.lots).toBe(3)
   })
 })
 

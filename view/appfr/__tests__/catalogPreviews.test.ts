@@ -4,9 +4,9 @@
  * The two things worth pinning are the same two the rows are: which id goes to
  * BrickLink, and where a number comes from. A colour's brick is fetched from
  * BrickLink by BrickLink's colour id, so a card that sends brickzuke's shows a
- * wall of confidently wrong colours — Aqua drawn in Tan. And a category's
- * picture is one of its own items, found through the BrickLink category id the
- * row carries rather than through brickzuke's.
+ * wall of confidently wrong colours — Aqua drawn in Tan. And which of the two
+ * looks a card takes follows from the records: a category has no picture of
+ * its own, so it is named and counted rather than illustrated.
  */
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, vi } from 'vitest'
@@ -176,11 +176,15 @@ describe('colour previews', () => {
 })
 
 describe('category previews', () => {
-  it('shows an item from the category, and how many are in it', async () => {
-    const brick = (await tiles('categories'))?.[0]
-    expect(brick?.label).toBe('Brick (1)')
-    expect(brick?.image).toBe('https://img.example/3001.png')
-    expect(brick?.detail).toBe('4.0k')
+  it('is the category’s own name and count, not a part borrowed from it', async () => {
+    const preview = await previewFor('categories')
+    expect(preview.kind).toBe('pills')
+    const brick = preview.tiles[0]
+    expect(brick.label).toBe('Brick (1)')
+    expect(brick.detail).toBe('4.0k')
+    expect(brick.image).toBeUndefined()
+    // And it leads where the table's own name cell leads: the items in it.
+    expect(typeof brick.press).toBe('function')
   })
 })
 

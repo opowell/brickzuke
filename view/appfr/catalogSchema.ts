@@ -13,13 +13,13 @@ import {PARAM_ENTITY,
   PARAM_PAGE,
   PARAM_SORT,
   addTerm,
-  formatCount,
   parseExpression} from 'header-content-layout'
 import type { ColumnDef, DomainSchema, EntitySchema, ShellRow } from 'header-content-layout'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
 import { itemTypes, processingCounts, selectedCounts } from '../../model'
 import { browsedCounts } from './catalogCounts'
+import { LOADING, fills } from './homeFill'
 import CellCount from './CellCount.vue'
 import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
@@ -1283,18 +1283,19 @@ export const imageColumns: ColumnDef[] = [
  * `entity.count` holds and the only number the shell formats a version of
  * itself.
  *
- * Grouped through the shell's own `formatCount` rather than abbreviated
- * through brickzuke's `formatInteger`, because these do not appear alone. The
- * list of types states the population of every type except the one in force,
- * and states that one as how many rows matched — and that half is the shell's,
- * formatted its way and not offered as a choice. Publishing `3.2k` here put
- * `Items · 342,118` beside `Categories · 1.2k` in one control the moment a
- * query narrowed. Two ways of writing a number in one line is a worse fault
- * than a long number, so the count that has to move is this one.
+ * Abbreviated through brickzuke's own `formatInteger` — `1.7k`, `199k`,
+ * `23.5m` — because a population is read for its size and not for its digits.
+ * Nobody reaches the home screen to learn that there are 198,689 items; they
+ * reach it to see which types are big, and eleven cards of grouped six-figure
+ * numbers make that harder to see rather than easier.
  *
- * A cell is a different matter and stays abbreviated: `items` on a category
- * row is how many things are in that category, not how many categories there
- * are, and nothing of the shell's is written beside it.
+ * It was grouped through the shell's own `formatCount` up to here, to keep the
+ * list of types writing its numbers one way: that control states the
+ * population of every type except the one in force, and states that one as how
+ * many rows matched, which is the shell's own number. That is settled the
+ * other way round now — `formatCount` on the schema below hands the shell this
+ * same hand to write its live count in — so the whole list reads alike without
+ * brickzuke having to give up the abbreviation.
  *
  * Absent rather than zero while the worker is still counting — so a card reads
  * `Colors` until the number is real, never `Colors 0`.
@@ -1303,7 +1304,19 @@ function population(value?: number): string {
   if (processingCounts.value || !value) {
     return ''
   }
-  return formatCount(value)
+  return abbreviate(value)
+}
+
+/**
+ * One count, written the way brickzuke writes every count: `29`, `1.7k`,
+ * `199k`, `23.5m`.
+ *
+ * `formatInteger` hands back `string | number | undefined`, none of which a
+ * count on a card can be — the value is known to be a number by the time it
+ * reaches here, and the callers want a string. This is the cast, in one place.
+ */
+function abbreviate(value: number): string {
+  return String(formatInteger(value) ?? '')
 }
 
 /**
@@ -1319,13 +1332,24 @@ function tableCount(id: string): number | undefined {
  * A population of one of the browse-filled types, as [catalogCounts] counts
  * them.
  *
- * Stated on the same terms `population` states the bulk five — grouped, and
- * absent rather than zero — but not gated on `processingCounts`, that being the
- * bulk downloads' own counting run and nothing to do with these.
+ * Stated on the same terms `population` states the bulk five — abbreviated,
+ * and absent rather than zero — but not gated on `processingCounts`, that being
+ * the bulk downloads' own counting run and nothing to do with these.
+ *
+ * A type being filled in the background answers ahead of what is stored, and
+ * that is the whole of the ordering here: while sellers are arriving a country
+ * at a time, the count of the ones that have arrived is the least useful of
+ * the three numbers available — it is true, it is on screen, and it is not
+ * what anyone reading `Stores` wants to know. See [homeFill] for the two that
+ * stand in front of it.
  */
 function browsed(key: string): string {
+  const fill = fills.value[key]
+  if (fill) {
+    return fill.estimate === undefined ? LOADING : '~' + abbreviate(fill.estimate)
+  }
   const value = browsedCounts.value[key]
-  return value ? formatCount(value) : ''
+  return value ? abbreviate(value) : ''
 }
 
 /**
@@ -1487,6 +1511,14 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
   label: 'Brickzuke',
   kicker: 'BrickLink catalogue',
   placeholder: 'brick OR plate year>=1988',
+  /*
+   * The one count the shell works out for itself — how many rows matched, said
+   * on the type in force and on `Everything` — written in brickzuke's hand,
+   * which is `population`'s hand and the cells' hand. Without it the list of
+   * types read `Items · 199k` beside `Everything · 198,689`. Added to appfr in
+   * 0.18.0 for exactly this.
+   */
+  formatCount: abbreviate,
   entities: [
     {
       key: 'categories',
