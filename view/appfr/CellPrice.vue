@@ -42,19 +42,24 @@ const props = defineProps({
 })
 
 /**
- * Two decimals, or four for the ones that would otherwise read as nothing.
+ * Enough places to keep two figures, and never more than four.
  *
- * Most of a bulk seller's inventory is worth well under a cent a piece, and
- * `toFixed(2)` prints every one of those as `0.00` — a column of noughts that
- * sorts perfectly and says nothing. Below a cent the extra places are the
- * whole content of the number.
+ * Most of a bulk seller's inventory is worth a fraction of a cent a piece, and
+ * two decimals round all of that to a handful of values — `0.02` for anything
+ * from 0.015 to 0.025, `0.00` for everything under half a cent. A column of
+ * those sorts perfectly and says nothing, because the figure that separates
+ * one lot from the next has been rounded off. Each tenth of the way down, one
+ * more place goes on, so the second figure of the price survives however small
+ * it is: `0.016`, not `0.02`.
  */
 const text = computed(() => {
   const amount = Number(props.value)
   if (!Number.isFinite(amount)) {
     return ''
   }
-  return amount.toFixed(amount !== 0 && Math.abs(amount) < 0.01 ? 4 : 2)
+  const size = Math.abs(amount)
+  const places = size === 0 || size >= 0.1 ? 2 : size >= 0.01 ? 3 : 4
+  return amount.toFixed(places)
 })
 
 /** What was converted, and what the seller asks — the same thing said once. */

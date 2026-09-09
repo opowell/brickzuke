@@ -256,6 +256,29 @@ describe('a card under a query', () => {
     expect(preview.count).toBe(3)
   })
 
+  it('is left off the wall when the query has already picked its one record', async () => {
+    // `category:"5"` is Brick, and Brick is the only category left: the card
+    // would be the term in the header drawn a second time a little lower down.
+    const preview = await previewFor('categories', 'category:"5"')
+    expect(preview.count).toBe(1)
+    expect(preview.pinned).toBe(true)
+  })
+
+  it('stays where its one record is the answer rather than the question', async () => {
+    // One category again, and this time nobody has named it — the card is
+    // what says which one `name:"Brick"` found.
+    const preview = await previewFor('categories', 'name:"Brick"')
+    expect(preview.count).toBe(1)
+    expect(preview.pinned).toBe(false)
+  })
+
+  it('reads the naming term however it was spelled', async () => {
+    // A term is quoted where it has to be and bare where it does not, and the
+    // same narrowing is written both ways by the two things that write it —
+    // so what decides this is the parsed term, not its text.
+    expect((await previewFor('categories', 'category:5')).pinned).toBe(true)
+  })
+
   it('reads the items table through the query rather than off the head of the index', async () => {
     // The one card that costs a pass over the catalogue, and the only way to
     // answer this: no index states which items are plates.

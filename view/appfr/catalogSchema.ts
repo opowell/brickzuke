@@ -13,17 +13,23 @@ import {PARAM_ENTITY,
   PARAM_PAGE,
   PARAM_SORT,
   addTerm,
-  parseExpression} from 'header-content-layout'
+  formatExpression,
+  parseExpression,
+  scopeTermFor,
+  scopedEntity} from 'header-content-layout'
 import type { ColumnDef, DomainSchema, EntitySchema, ShellRow } from 'header-content-layout'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
 import { itemTypes, processingCounts, selectedCounts } from '../../model'
 import { browsedCounts } from './catalogCounts'
 import { LOADING, fills } from './homeFill'
+import { priceCurrency } from './priceCurrency'
 import CellCount from './CellCount.vue'
 import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
 import CellParts from './CellParts.vue'
+import CellSetting from './CellSetting.vue'
+import { SETTINGS } from './settings'
 
 /** Verbatim from the `weight` column in model.ts. */
 const weightBreakpoints = [
@@ -66,10 +72,41 @@ function narrowBy(field: string, value: string) {
   if (!value) {
     return
   }
+  narrowByTerm(`${field}:"${value}"`)
+}
+
+/**
+ * The same narrowing, given the term already written.
+ *
+ * What is *not* touched is as much of this as what is: the type stays, the view
+ * stays, and so the screen someone is on is the screen they stay on with one
+ * more constraint over it. That is what makes it usable from the home screen,
+ * where the type is nothing and the view is the cards.
+ */
+function narrowByTerm(term: string) {
   const params = new URLSearchParams(window.location.search)
-  params.set(PARAM_EXPR, addTerm(params.get(PARAM_EXPR) ?? '', `${field}:"${value}"`))
+  params.set(PARAM_EXPR, addTerm(params.get(PARAM_EXPR) ?? '', term))
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
+}
+
+/**
+ * Narrowing the screen to one record — the press a row makes, for a host
+ * drawing records somewhere the shell is not.
+ *
+ * appfr 0.21.0 made a press on a row mean this, and the home screen's tiles are
+ * the records of a type drawn brickzuke's own way: a tile is a row, so a press
+ * on one is the press on a row. Undefined where the record's type declares no
+ * `scope` — nothing carries its id, and an unresolvable field is *true* in this
+ * language, so a term written anyway would narrow to everything.
+ *
+ * `scopeTermFor` rather than a term built here, so the text is the one the
+ * shell would have written: the same field, the same quoting, and so the same
+ * term `addTerm` recognises when it is already in the query.
+ */
+export function narrowingTo(row: ShellRow): (() => void) | undefined {
+  const term = scopeTermFor(catalogSchema.value, row)
+  return term ? () => narrowByTerm(term) : undefined
 }
 
 /**
@@ -103,17 +140,56 @@ function openWith(entity: string, expr: string) {
 }
 
 /**
- * One type, opened on nothing at all — the press a home-screen card's heading
- * makes.
+ * The terms of an expression that name a record, which are the ones that go on
+ * meaning something against another type.
  *
- * The same navigation as `openWith` minus the term, and for the same reasons:
- * an expression belongs to the type it was written against, and the sort goes
- * so the type opens in the order `openingOrder` says it does.
+ * `region:"Europe"` is a reference: brickzuke puts the field on a country, a
+ * seller and a lot so that the one term reaches all three — see `toStoreRow`.
+ * `name:"brick"` is not; it is a question about a value, and asked of the
+ * countries it finds nothing. `scopedEntity` is the difference, a field being a
+ * reference exactly where some type declares it as its `scope`.
+ *
+ * A group left with nothing in it is dropped rather than kept, which
+ * `formatExpression` does: an alternative with no terms matches every row, so
+ * keeping it would widen the query rather than carry part of it over.
+ */
+function recordTerms(expr: string): string {
+  if (!expr.trim()) {
+    return ''
+  }
+  return formatExpression(
+    parseExpression(expr).map((group) =>
+      group.filter(
+        (term) => term.kind === 'field' && Boolean(scopedEntity(catalogSchema.value, term.field))
+      )
+    )
+  )
+}
+
+/**
+ * One type, opened on whatever of the query still applies to it — the press a
+ * home-screen card's heading makes.
+ *
+ * The same navigation as `openWith`, and the sort goes for the same reason: the
+ * type on the far side declares its own, and the shell falls back to it when
+ * the URL names none.
+ *
+ * What it keeps is the record the screen is narrowed to. This used to clear the
+ * expression outright, on the argument that an expression belongs to the type
+ * it was written against — true of the questions someone types, and false of a
+ * record: since the home screen's tiles narrow rather than pivot, `Europe` is
+ * how a reader gets *to* this wall, and a card reading `Countries 29` that
+ * opened all forty of them contradicted the number it was pressed by.
  */
 export function openType(entity: string) {
   const params = new URLSearchParams(window.location.search)
   params.set(PARAM_ENTITY, entity)
-  params.delete(PARAM_EXPR)
+  const kept = recordTerms(params.get(PARAM_EXPR) ?? '')
+  if (kept) {
+    params.set(PARAM_EXPR, kept)
+  } else {
+    params.delete(PARAM_EXPR)
+  }
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
@@ -224,6 +300,7 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'type',
     label: 'Type',
+    hint: 'Which of BrickLink’s kinds of thing this is — a set, a part, a minifigure, a gear',
     width: '95px',
     sort: 'type',
     click: (row) => narrowBy('type', String(row.fields.typeId ?? ''))
@@ -271,6 +348,7 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'parts',
     label: 'Parts',
+    hint: 'How many pieces the set is made of — a dash until somebody opens it, BrickLink stating an inventory only a page at a time',
     kind: 'component',
     component: CellParts,
     width: '100px',
@@ -280,6 +358,7 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'weight',
     label: 'Weight',
+    hint: 'What the whole item weighs, read in whatever unit the figure lands in — cg, g or kg',
     width: '110px',
     sort: 'weight',
     // Held in grams, read in whatever unit the number is actually in.
@@ -295,6 +374,7 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'dimensions',
     label: 'Dimensions',
+    hint: 'The footprint BrickLink records for the part, in studs',
     width: '150px',
     sort: 'dimensions',
     // Every other part the same shape — pressing `2 x 4` is the one question a
@@ -345,6 +425,7 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'record',
     label: 'Record',
+    hint: 'BrickLink’s own id for this one record, its type letter in front of it',
     width: '150px',
     mono: true,
     sort: 'record',
@@ -381,6 +462,7 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'parts',
     label: 'Parts',
+    hint: 'How many pieces the set is made of — a dash until somebody opens it, BrickLink stating an inventory only a page at a time',
     kind: 'component',
     component: CellParts,
     width: '100px',
@@ -390,6 +472,7 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'weight',
     label: 'Weight',
+    hint: 'What the whole item weighs, read in whatever unit the figure lands in — cg, g or kg',
     width: '110px',
     sort: 'weight',
     value: (row) => Number.parseFloat(String(row.fields.weight)) * 100,
@@ -401,6 +484,7 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'dimensions',
     label: 'Dimensions',
+    hint: 'The footprint BrickLink records for the part, in studs',
     width: '150px',
     sort: 'dimensions',
     click: (row) => narrowTo('items', 'dimensions', String(row.fields.dimensions ?? ''))
@@ -433,6 +517,7 @@ export const inventoryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellImage,
     label: 'Variant',
+    hint: 'The part in the one colour this row is about, which is what a variant is',
     width: '100px',
     height: '60px',
     click: narrowToVariant
@@ -440,6 +525,7 @@ export const inventoryColumns: ColumnDef[] = [
   {
     key: 'type',
     label: 'Type',
+    hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
     width: '95px',
     sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
@@ -477,6 +563,7 @@ export const inventoryColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
+    hint: 'How many of this part the set contains',
     width: '125px',
     sort: 'quantity',
     format: counted
@@ -523,6 +610,7 @@ export const colorItemColumns: ColumnDef[] = [
   {
     key: 'number',
     label: 'No.',
+    hint: 'BrickLink’s catalogue number for the item',
     width: '110px',
     mono: true,
     sort: 'number'
@@ -559,6 +647,7 @@ export const categoryColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
+    hint: 'How many catalogue items are filed under this category',
     kind: 'component',
     component: CellCount,
     width: '100px',
@@ -621,6 +710,7 @@ export const colorColumns: ColumnDef[] = [
     // sort the entity declares.
     key: 'items',
     label: 'Parts',
+    hint: 'Distinct part designs catalogued in this colour, off BrickLink’s own colour guide',
     kind: 'component',
     component: CellCount,
     width: '100px',
@@ -631,6 +721,7 @@ export const colorColumns: ColumnDef[] = [
   {
     key: 'sets',
     label: 'Sets',
+    hint: 'Sets holding at least one piece in this colour',
     kind: 'component',
     component: CellCount,
     width: '90px',
@@ -641,6 +732,7 @@ export const colorColumns: ColumnDef[] = [
   {
     key: 'wanted',
     label: 'Wanted',
+    hint: 'Lots of this colour on other people’s wanted lists — buyers, not catalogue items',
     width: '120px',
     sort: 'wanted',
     format: counted
@@ -648,6 +740,7 @@ export const colorColumns: ColumnDef[] = [
   {
     key: 'forSale',
     label: 'For sale',
+    hint: 'Lots of this colour sellers have on offer — stock, not catalogue items',
     width: '120px',
     sort: 'forSale',
     format: counted
@@ -655,12 +748,14 @@ export const colorColumns: ColumnDef[] = [
   {
     key: 'yearFrom',
     label: 'Year from',
+    hint: 'The first year anything was made in this colour',
     width: '135px',
     sort: 'yearFrom'
   },
   {
     key: 'yearTo',
     label: 'Year to',
+    hint: 'The last year anything was made in it, which for a colour still in use is this one',
     width: '115px',
     sort: 'yearTo'
   }
@@ -689,6 +784,7 @@ export const itemTypeColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
+    hint: 'How many catalogue items are of this type',
     kind: 'component',
     component: CellCount,
     width: '100px',
@@ -699,6 +795,7 @@ export const itemTypeColumns: ColumnDef[] = [
   {
     key: 'categories',
     label: 'Categories',
+    hint: 'How many categories hold items of this type',
     kind: 'component',
     component: CellCount,
     width: '145px',
@@ -729,6 +826,7 @@ export const itemInventoryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellImage,
     label: 'Variant',
+    hint: 'The part in the one colour this row is about, which is what a variant is',
     width: '100px',
     height: '60px',
     click: narrowToVariant
@@ -736,6 +834,7 @@ export const itemInventoryColumns: ColumnDef[] = [
   {
     key: 'type',
     label: 'Type',
+    hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
     width: '95px',
     sort: 'type',
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
@@ -752,6 +851,7 @@ export const itemInventoryColumns: ColumnDef[] = [
     key: 'record',
     role: 'reference',
     label: 'Set',
+    hint: 'The set this part came out of, by BrickLink’s id for it',
     width: '110px',
     mono: true,
     sort: 'record',
@@ -776,6 +876,7 @@ export const itemInventoryColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
+    hint: 'How many of this part the set contains',
     width: '125px',
     sort: 'quantity',
     format: counted
@@ -926,6 +1027,25 @@ function informative(columns: ColumnDef[], expr: string): ColumnDef[] {
     } : column))
 }
 
+/**
+ * The price column, told which currency the figures under it are in.
+ *
+ * The currency is the viewer's own BrickLink setting, so it is not a thing
+ * this app knows until a converted price has been read off a lot — see
+ * [priceCurrency]. Before then the header says what the column is without
+ * naming it, which is true at every moment rather than true once the lots
+ * land.
+ */
+function pricedIn(columns: ColumnDef[], currency: string): ColumnDef[] {
+  if (!currency) {
+    return columns
+  }
+  return columns.map((column) => (column.key === 'priceValue' ? {
+    ...column,
+    hint: `What one piece costs in ${currency}, converted from what the seller charges`
+  } : column))
+}
+
 /** The expression the shell is showing, which is the one in the URL. */
 const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
 
@@ -967,6 +1087,9 @@ export const storeInventoryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellPrice,
     label: 'Price',
+    // Named without the currency, which no column can state until a price has
+    // been read — see [pricedIn], which puts it in once one has.
+    hint: 'What one piece costs, converted into your own currency',
     width: '95px',
     sort: 'priceValue'
   },
@@ -987,6 +1110,7 @@ export const storeInventoryColumns: ColumnDef[] = [
   {
     key: 'description',
     label: 'Remark',
+    hint: 'The seller’s own note on this lot, which is theirs to write and often empty',
     width: '200px',
     sort: 'description'
   },
@@ -1002,6 +1126,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'countryName',
     role: 'reference',
     label: 'Country',
+    hint: 'Where the seller is, which is where the parcel comes from',
     width: '120px',
     sort: 'countryName',
     click: (row) => narrowBy('country', String(row.fields.country ?? ''))
@@ -1017,6 +1142,7 @@ export const storeInventoryColumns: ColumnDef[] = [
   {
     key: 'conditionName',
     label: 'Condition',
+    hint: 'New or Used, as the seller graded the lot',
     width: '130px',
     sort: 'conditionName',
     click: (row) => narrowBy('condition', String(row.fields.condition ?? ''))
@@ -1024,6 +1150,7 @@ export const storeInventoryColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quant.',
+    hint: 'How many pieces are in this one lot, all at the price beside it',
     width: '110px',
     sort: 'quantity',
     format: counted
@@ -1031,6 +1158,7 @@ export const storeInventoryColumns: ColumnDef[] = [
   {
     key: 'feedback',
     label: 'Feedback',
+    hint: 'The seller’s feedback score on BrickLink — blank on their own store front, which never states it',
     width: '135px',
     sort: 'feedback',
     format: counted
@@ -1062,6 +1190,7 @@ export const conditionColumns: ColumnDef[] = [
   {
     key: 'lots',
     label: 'Lots',
+    hint: 'Listings of this condition among the lots loaded so far, not BrickLink’s own total',
     width: '90px',
     sort: 'lots',
     format: counted,
@@ -1070,6 +1199,7 @@ export const conditionColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
+    hint: 'Every piece inside those lots, counted one by one',
     width: '125px',
     sort: 'quantity',
     format: counted
@@ -1101,6 +1231,7 @@ export const yearColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
+    hint: 'Catalogue items BrickLink dates to this year',
     width: '100px',
     sort: 'items',
     format: counted,
@@ -1109,6 +1240,42 @@ export const yearColumns: ColumnDef[] = [
 ]
 
 /** The parts of the world BrickLink groups its sellers by. */
+/**
+ * The knobs, as a table: what each one is called, what it is set to, and what
+ * turning it does.
+ *
+ * The value column is the one cell in brickzuke that writes — see [CellSetting]
+ * — and the description column is wide because it is the whole of the
+ * documentation a reader gets. No `click` on any of them: a setting leads
+ * nowhere, it is simply changed where it stands.
+ */
+export const settingsColumns: ColumnDef[] = [
+  {
+    key: 'name',
+    role: 'identity',
+    label: 'Setting',
+    // Wide enough for the longest name here to stand whole. A setting cut short
+    // is a setting nobody can look up, and there are two of them — the room
+    // costs nothing that a fourteen-column catalogue table would miss.
+    width: '330px',
+    sort: 'name'
+  },
+  {
+    key: 'value',
+    label: 'Value',
+    kind: 'component',
+    component: CellSetting,
+    width: '120px'
+  },
+  {
+    key: 'detail',
+    label: 'What it does',
+    // This column *is* the documentation, so it is sized to hold a sentence
+    // rather than to fit a column of them.
+    width: '900px'
+  }
+]
+
 export const regionColumns: ColumnDef[] = [
   {
     key: 'ordinal',
@@ -1127,6 +1294,7 @@ export const regionColumns: ColumnDef[] = [
   {
     key: 'countries',
     label: 'Countries',
+    hint: 'How many countries with sellers in them this part of the world holds',
     width: '135px',
     sort: 'countries',
     format: counted,
@@ -1172,6 +1340,7 @@ export const countryColumns: ColumnDef[] = [
   {
     key: 'stores',
     label: 'Stores',
+    hint: 'BrickLink’s own count of the sellers here, stated before any of them has been fetched',
     width: '110px',
     sort: 'stores',
     format: counted,
@@ -1181,6 +1350,7 @@ export const countryColumns: ColumnDef[] = [
     key: 'region',
     role: 'reference',
     label: 'Region',
+    hint: 'The part of the world BrickLink groups the country under',
     width: '140px',
     sort: 'region',
     click: (row) => narrowTo('regions', 'region', String(row.fields.region ?? ''))
@@ -1231,6 +1401,7 @@ export const storeColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
+    hint: 'Every piece the seller has for sale, counted one by one — not how many listings that is',
     width: '100px',
     sort: 'items',
     format: counted,
@@ -1239,6 +1410,7 @@ export const storeColumns: ColumnDef[] = [
   {
     key: 'instantCheckout',
     label: 'Instant Checkout',
+    hint: 'Whether the seller takes payment straight away, rather than by invoice after they have quoted postage',
     width: '190px',
     sort: 'instantCheckout'
   }
@@ -1782,7 +1954,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       facets: [],
       tabs: [],
       samples: [],
-      columns: informative(storeInventoryColumns, openExpr.value),
+      columns: pricedIn(informative(storeInventoryColumns, openExpr.value), priceCurrency.value),
       sorts: [
         {
           key: 'priceValue',
@@ -1966,6 +2138,38 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'name',
           label: 'Item'
+        }
+      ]
+    },
+    /*
+     * The knobs, last on the wall.
+     *
+     * A type like any other, which is the point of putting them here rather
+     * than behind a gear: they are records with names and values, and the
+     * shell already draws records with names and values. It sorts, it filters,
+     * it has a card — `Settings 2` beside `Colors 213` — and a reader who
+     * wants to know what brickzuke will do on their behalf looks it up the way
+     * they look anything else up.
+     *
+     * Declared unconditionally, unlike the three below it: a setting is not a
+     * detail of whatever is open, and the one time somebody wants this card is
+     * when something is behaving in a way they would like to change.
+     */
+    {
+      key: 'settings',
+      label: 'Settings',
+      // The field a row carries its own key in, so the value cell can find the
+      // setting it is drawing from the row alone.
+      scope: 'setting',
+      count: population(SETTINGS.length),
+      facets: [],
+      tabs: [],
+      samples: [],
+      columns: settingsColumns,
+      sorts: [
+        {
+          key: 'name',
+          label: 'Setting'
         }
       ]
     },

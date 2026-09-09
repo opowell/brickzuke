@@ -14,6 +14,7 @@
  * always blank is not a wired-up column.
  */
 import type { ShellRow } from 'header-content-layout'
+import { SETTINGS } from './settings'
 import type { IDBPDatabase } from 'idb'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
@@ -300,7 +301,34 @@ const loaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
  */
 const liveLoaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
   itemInventories: itemInventoryRows,
-  itemVariants: itemVariantRows
+  itemVariants: itemVariantRows,
+  settings: settingRows
+}
+
+/**
+ * The knobs, as records.
+ *
+ * Live for the third reason a type is: these change because somebody just
+ * changed one, and a held answer would be the value before the edit. They come
+ * from no store and touch no connection — the settings live in `localStorage`,
+ * where a schema computed from them can read them without awaiting anything —
+ * so the database handed in goes unused, which is what the argument is for.
+ */
+async function settingRows(): Promise<ShellRow[]> {
+  return SETTINGS.map((setting) => ({
+    id: setting.key,
+    entityKey: 'settings',
+    entityLabel: 'Settings',
+    fields: {
+      id: setting.key,
+      // The field a `setting:` term names one by, and this type's scope — so
+      // the cell that writes a value can find its setting from the row alone.
+      setting: setting.key,
+      name: setting.name,
+      value: setting.value.value,
+      detail: setting.detail
+    }
+  }))
 }
 
 /** The types this module serves — `items` scans, and nothing serves the codes. */

@@ -4,17 +4,20 @@
  * The sibling of [inventoryFetch], and for the same reason: the bulk downloads
  * state how many parts are made in Aqua and never which ones, so the list is
  * fetched when someone presses that number, and only then. BrickLink answers
- * on the page its own colour guide links to, a page at a time.
+ * on the page its own colour guide links to, a page at a time — the first of
+ * them here, to put a table on screen, and the rest in the fill below for as
+ * long as somebody is looking at it. See [pageFill].
  */
 import { ref } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
 import {COLOR_LIST_TYPES,
-  colorPageCounts,
   colorScope,
   fetchColorPage} from '../stores/bricklink/catalog-list-color-page'
 import type {StoredColorItem,
   StoredColorScope} from '../stores/bricklink/catalog-list-color-page'
+import { fillPages } from './pageFill'
+import type { Fill } from './pageFill'
 import { get, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
@@ -26,17 +29,6 @@ import STORES from '../../idb/stores'
  * through the browser extension, or not at all.
  */
 const DEADLINE_MS = 20_000
-
-/**
- * How many pages of one colour to ask for.
- *
- * Black runs to fourteen thousand parts, which at fifty to a page is nearly
- * three hundred requests for a table nobody is going to read to the end of.
- * The common case — Aqua's 82, Chrome Green's 1 — is one or two pages and
- * costs nothing. A colour that runs past this shows what was fetched, which is
- * why `truncated` is worth knowing about.
- */
-const MAX_PAGES = 20
 
 export async function readColorItems(scope: string): Promise<StoredColorItem[]> {
   const db = await getDbConnection()
@@ -67,12 +59,17 @@ async function awaitPage(scope: string, before: number): Promise<StoredColorItem
   }
 }
 
-async function scrape(catType: string, colorId: string): Promise<StoredColorItem[]> {
+/**
+ * The first page of a colour, which is what a table can be drawn from.
+ *
+ * Only the first: it is also the page that says how many pages there are, so
+ * everything after it is known about rather than guessed at, and the fill has
+ * something to count from.
+ */
+async function firstPage(catType: string, colorId: string): Promise<StoredColorItem[]> {
   if (!COLOR_LIST_TYPES.has(catType) || !colorId) {
     return []
   }
-  const scope = colorScope(catType, colorId)
-
   installResponseListener()
   // Queues the call, or replays a cached response — a page read within the
   // month never leaves the browser.
@@ -80,18 +77,42 @@ async function scrape(catType: string, colorId: string): Promise<StoredColorItem
   // Nothing drains the queue on its own here: appfr asks for exactly the page
   // someone is looking at, rather than running a worker over everything queued.
   await processQueue(1)
-  let stored = await awaitPage(scope, 0)
+  return await awaitPage(colorScope(catType, colorId), 0)
+}
 
-  // The first page is the one that says how many there are, so the rest are
-  // only known about once it has landed.
-  const pages = Math.min(colorPageCounts.get(scope) ?? 1, MAX_PAGES)
-  for (let page = 2; page <= pages; page++) {
-    const before = stored.length
-    await fetchColorPage(catType, colorId, page)
-    await processQueue(1)
-    stored = await awaitPage(scope, before)
-  }
-  return stored
+/**
+ * The rest of a colour's list, fetched while the table is up.
+ *
+ * Which page is next comes off the stored scope rather than off a counter, so
+ * this resumes a colour left half fetched — including one left short by the
+ * cap that used to be here — instead of starting it again. Black's fourteen
+ * thousand parts are still nearly three hundred requests; what changed is that
+ * they are spread across the time somebody spends reading, and stop the moment
+ * that person leaves. See [pageFill].
+ */
+export function colorItemsFill(catType: string, colorId: string): Fill {
+  const scope = colorScope(catType, colorId)
+  return fillPages(
+    {
+      async next() {
+        const held = await readColorScope(scope)
+        // Nothing recorded is a colour whose first page has not landed, and no
+        // page after it can be asked for until it has.
+        if (!held || held.fetchedPages >= held.pages) {
+          return undefined
+        }
+        return held.fetchedPages + 1
+      },
+      async fetch(page: number) {
+        await fetchColorPage(catType, colorId, page)
+        await processQueue(1)
+      },
+      async reach() {
+        return (await readColorScope(scope))?.fetchedPages ?? 0
+      }
+    },
+    colorScopeVersion
+  )
 }
 
 /**
@@ -122,12 +143,12 @@ export const colorScopeVersion = ref(0)
 const inFlight = new Map<string, Promise<StoredColorItem[]>>()
 
 /**
- * What comes in this colour: read if it is stored, fetched if it is not.
+ * What comes in this colour: read if any of it is stored, fetched if none of
+ * it is.
  *
- * Stored rows are taken as the answer, so a colour is scraped once. That is
- * also what makes the cap above survivable — a truncated colour stays
- * truncated until something clears the store, rather than re-fetching twenty
- * pages every time it is opened.
+ * Stored rows are taken as the answer, which is what keeps every redraw of the
+ * table from being a request — the page after them is [colorItemsFill]'s to
+ * ask for, and it asks by looking at how far the scope says the colour goes.
  */
 export function colorItemsFor(catType: string, colorId: string): Promise<StoredColorItem[]> {
   const scope = colorScope(catType, colorId)
@@ -137,11 +158,18 @@ export function colorItemsFor(catType: string, colorId: string): Promise<StoredC
   }
   const attempt = (async () => {
     const stored = await readColorItems(scope)
-    return stored.length ? stored : await scrape(catType, colorId)
+    if (stored.length) {
+      return stored
+    }
+    const fetched = await firstPage(catType, colorId)
+    // Bumped where a page landed and nowhere else. A read bumping it would be
+    // read by the table as "there is more", and the table's answer to that is
+    // to read again — which would bump it again.
+    colorScopeVersion.value++
+    return fetched
   })()
     .finally(() => {
       inFlight.delete(scope)
-      colorScopeVersion.value++
     })
   inFlight.set(scope, attempt)
   return attempt

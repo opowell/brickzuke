@@ -21,6 +21,7 @@ import {catalogSchema,
   storeColumns,
   storeInventoryColumns,
   yearColumns} from '../catalogSchema'
+import { notePriceCurrency, priceCurrency } from '../priceCurrency'
 
 vi.mock('../../../model', async () => {
   const {
@@ -237,26 +238,29 @@ function labelled(columns: ColumnDef[]) {
   )
 }
 
+/** Every table in the schema, for the checks that hold across all of them. */
+const everyTable = [
+  itemColumns,
+  categoryColumns,
+  colorColumns,
+  itemTypeColumns,
+  itemRecordColumns,
+  inventoryColumns,
+  colorItemColumns,
+  itemInventoryColumns,
+  itemVariantColumns,
+  storeInventoryColumns,
+  conditionColumns,
+  yearColumns,
+  regionColumns,
+  countryColumns,
+  storeColumns,
+  imageColumns,
+]
+
 describe('sortable columns', () => {
   it('names a sort on every labelled column of every table', () => {
-    for (const columns of [
-      itemColumns,
-      categoryColumns,
-      colorColumns,
-      itemTypeColumns,
-      itemRecordColumns,
-      inventoryColumns,
-      colorItemColumns,
-      itemInventoryColumns,
-      itemVariantColumns,
-      storeInventoryColumns,
-      conditionColumns,
-      yearColumns,
-      regionColumns,
-      countryColumns,
-      storeColumns,
-      imageColumns,
-    ]) {
+    for (const columns of everyTable) {
       expect(labelled(columns).filter((column) => !column.sort).map((column) => column.key))
         .toEqual([])
     }
@@ -273,6 +277,58 @@ describe('sortable columns', () => {
         .map((column) => column.key)
       expect([entity.key, missing]).toEqual([entity.key, []])
     }
+  })
+})
+
+/**
+ * A header is two words wide, and several of these columns turn on something
+ * those two words leave out — which currency the prices are in, whose feedback
+ * a score is, what a count counted. That is what a hint is for, and the two
+ * ways it can be wasted are saying the label again and saying nothing.
+ */
+describe('what a header says on hover', () => {
+  const priceHint = () =>
+    catalogSchema.value.entities
+      .find((entity) => entity.key === 'inventories')!
+      .columns!.find((column) => column.key === 'priceValue')!.hint
+
+  it('adds to the label rather than repeating it', () => {
+    for (const columns of everyTable) {
+      for (const column of columns.filter((one) => one.hint !== undefined)) {
+        expect([column.key, column.hint!.trim()]).not.toEqual([column.key, column.label])
+        expect([column.key, column.hint!.trim().length]).not.toEqual([column.key, 0])
+      }
+    }
+  })
+
+  it('names the currency on Price, once a converted price has been read', () => {
+    // The viewer's own currency is a BrickLink account setting that reaches
+    // this app only on the front of a price, so before any lot has arrived the
+    // header can only say what the figure is — and must not guess at EUR.
+    priceCurrency.value = ''
+    expect(priceHint()).toMatch(/converted/)
+    expect(priceHint()).not.toMatch(/EUR/)
+
+    notePriceCurrency('EUR 0.016')
+    expect(priceHint()).toContain('EUR')
+  })
+
+  it('takes the sign off a currency written any other way', () => {
+    // Whatever stands in front of the digits, which for a viewer BrickLink
+    // prices in dollars is two words and a symbol.
+    priceCurrency.value = ''
+    notePriceCurrency('US $0.13')
+    expect(priceHint()).toContain('US $')
+  })
+
+  it('lets the first price read settle it, so the header cannot flip', () => {
+    // Every converted price in a session is in the one currency — and the
+    // reading happens while rows are built, off a value the header is drawn
+    // from, so a sign that could change is a table that never settles.
+    priceCurrency.value = ''
+    notePriceCurrency('EUR 0.016')
+    notePriceCurrency('US $0.13')
+    expect(priceHint()).toContain('EUR')
   })
 })
 
@@ -304,6 +360,9 @@ describe('the catalogue this summarises', () => {
       'countries',
       'stores',
       'images',
+      // Not a table of the catalogue but a table all the same: the knobs, drawn
+      // as records so the shell can sort and filter them like anything else.
+      'settings',
     ])
   })
 

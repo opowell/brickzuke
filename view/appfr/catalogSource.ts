@@ -6,6 +6,7 @@
  * The difference is that the sink closes when the query changes, so a slow scan
  * cannot write the query someone just left over the one they are looking at.
  */
+import { watch } from 'vue'
 import { matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
   EntitySchema,
@@ -14,7 +15,8 @@ import type {DataSource,
   QuerySink,
   ShellRow} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
-import { count, get, getAllFromIndex } from '../../idb/db'
+import type { Fill } from './pageFill'
+import { count, get, getAllFromIndex, openCursor } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
 // `dbStores` rather than `stores`, that name being taken here by a seller.
@@ -23,7 +25,8 @@ import { inventoryFields, rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { inventoryFor, readInventory } from './inventoryFetch'
 import { ensurePartCounts, partsOf } from './partCounts'
-import { colorItemsFor, readColorItems } from './colorItemsFetch'
+import { colorItemsFill, colorItemsFor, readColorItems } from './colorItemsFetch'
+import { notePriceCurrency } from './priceCurrency'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
@@ -38,7 +41,7 @@ import {imagesFor,
   readImages,
   readStoreInventories,
   storeInventoriesFor} from './itemPageFetch'
-import { readAllStoreLots, readStoreLots, storeLotsFor } from './storeLotsFetch'
+import { readAllStoreLots, readStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import type { ItemImage } from './itemPageFetch'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -444,6 +447,8 @@ function itemNameFor(record: string): string | undefined {
 
 /** One lot a seller has on offer, as a row. */
 function toStoreInventoryRow(lot: StoreInventory, regions: Map<string, string>): ShellRow {
+  // The one place the viewer's currency is written down — see [priceCurrency].
+  notePriceCurrency(lot.price)
   return {
     // Stringified here as well as at the parse. The shell trims a row's id, so
     // a number reaches it as a render-time TypeError that empties the table
@@ -517,15 +522,35 @@ function toPrice(value: string | undefined): number | undefined {
  * instead, and the feedback score, which appears on neither, is left blank
  * rather than guessed at.
  */
-async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
-  // By the seller each lot names rather than by one seller passed in: this
-  // answers the un-narrowed table too, where the lots are whoever has been
-  // opened. Two maps read once, not a directory search per lot.
-  const sellers = new Map((await readStores()).map((store) => [store.id, store]))
-  const countries = new Map((await readCountries()).map((one) => [one.countryCode, one]))
-  return lots.map((lot) => {
+/**
+ * The directory as the two lookups a lot needs.
+ *
+ * Read whole rather than streamed, and the one place here that is: these are
+ * lookup tables bounded by the sellers there are in the world, and a lot cannot
+ * say what part of the world it is from without them. What must never be read
+ * whole is the lots themselves, which is what [eachLot] is for.
+ */
+async function lotDirectory(): Promise<LotDirectory> {
+  return {
+    sellers: new Map((await readStores()).map((store) => [store.id, store])),
+    countries: new Map((await readCountries()).map((one) => [one.countryCode, one]))
+  }
+}
+
+interface LotDirectory {
+  sellers: Map<string, Store>
+  countries: Map<string, Country>
+}
+
+/** One stored lot, as a row. */
+function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
+  {
+    const sellers = directory.sellers
+    const countries = directory.countries
     const seller = sellers.get(lot.store)
     const country = seller ? countries.get(seller.countryID) : undefined
+    // As on an item's own lots: the printed figure is where the currency is.
+    notePriceCurrency(lot.displayPrice)
     return {
       id: lot.id,
       entityKey: 'inventories',
@@ -562,7 +587,49 @@ async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
         colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
       }
     }
-  })
+  }
+}
+
+async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
+  const directory = await lotDirectory()
+  return lots.map((lot) => toStoreLotRow(lot, directory))
+}
+
+/**
+ * Every lot brickzuke holds, handed over one at a time.
+ *
+ * The fact table the home screen's cards are joined through — see [reach] — and
+ * the one store here that has no bound on it: a seller runs to thousands of
+ * lots and a region to thousands of sellers, so reading them into an array to
+ * filter it is a way of running out of memory on somebody's laptop. This walks
+ * a cursor instead: one row read, one row given to the caller, one row
+ * forgotten, then the next.
+ *
+ * Both halves of the table, in the order they cost: the lots this session has
+ * opened are already in memory, and the stored ones come off the cursor behind
+ * them. Returns how many were seen, which is the one number a caller cannot
+ * count for itself without keeping them.
+ */
+export async function eachLot(visit: (lot: ShellRow) => void): Promise<number> {
+  let seen = 0
+  const regions = await countryRegions()
+  for (const lot of readStoreInventories()) {
+    visit(toStoreInventoryRow(lot, regions))
+    seen++
+  }
+  const directory = await lotDirectory()
+  const db = await getDbConnection()
+  try {
+    let cursor = await openCursor(db, dbStores.STORE_LOTS)
+    while (cursor) {
+      visit(toStoreLotRow(cursor.value as StoredStoreLot, directory))
+      seen++
+      cursor = await cursor.continue()
+    }
+  } finally {
+    db.close()
+  }
+  return seen
 }
 
 /**
@@ -1047,6 +1114,13 @@ interface Fetched {
    */
   addresses: string[] | ((request: QueryRequest) => string[])
   rows: (request: QueryRequest, fetching: boolean) => Promise<ShellRow[]>
+  /**
+   * The rest of an answer that arrives a page at a time, for the queries that
+   * have one — see [pageFill]. `stream` runs it behind the rows it already
+   * has and stops it on the way out; nothing else here asks for it, a card
+   * counting a type being no reason to fetch sixty pages of BrickLink.
+   */
+  fill?: (request: QueryRequest) => Fill | undefined
 }
 
 function addressesOf(source: Fetched, request: QueryRequest): string[] {
@@ -1067,7 +1141,13 @@ const fetched: Record<string, Fetched> = {
   },
   colorItems: {
     addresses: ['colorid', 'type'],
-    rows: colorItemRows
+    rows: colorItemRows,
+    fill: (request) => {
+      const colorId = termValue(request, 'colorid')
+      // The same pair `colorItemRows` reads, and the same default: the press
+      // that opens this table writes `type` and a hand-typed query need not.
+      return colorId ? colorItemsFill(termValue(request, 'type') ?? 'P', colorId) : undefined
+    }
   },
   inventories: {
     // A record is what fetched the rows, so it does not filter them again — and
@@ -1075,7 +1155,14 @@ const fetched: Record<string, Fetched> = {
     // narrowing of an item's sellers. A store on its own is what fetched them
     // instead, and then it is the address.
     addresses: (request) => (termValue(request, 'record') ? ['record'] : ['record', 'store']),
-    rows: storeInventoryRows
+    rows: storeInventoryRows,
+    fill: (request) => {
+      const store = termValue(request, 'store')
+      // Only the seller's own front is paged. An item's lots are one request
+      // and are whole when they land, and the un-narrowed table is what
+      // browsing has gathered rather than an answer with more of it to come.
+      return store && !termValue(request, 'record') ? storeLotsFill(store) : undefined
+    }
   },
   images: {
     addresses: ['record'],
@@ -1253,27 +1340,60 @@ export const catalogSource: DataSource = {
 
     const source = key ? fetched[key] : undefined
     if (source) {
-      void source
-        .rows(request, true)
-        .then((all) => {
-          if (cancelled || !sink.open) return
-          // The address terms are this table's address rather than a filter
-          // over it, so the rows they fetched are not filtered by them again —
-          // but whatever else the query carries does narrow them.
-          const rows = present(
-            all,
-            request,
-            matcherBesides(request, ...addressesOf(source, request))
-          )
-          sink.set({
-            rows: rows.slice(request.offset, request.offset + request.limit),
-            total: rows.length
-          })
-          sink.close()
+      /** Everything stored for this query, as the page the shell asked for. */
+      const push = async () => {
+        const all = await source.rows(request, true)
+        if (cancelled || !sink.open) return
+        // The address terms are this table's address rather than a filter
+        // over it, so the rows they fetched are not filtered by them again —
+        // but whatever else the query carries does narrow them.
+        const rows = present(
+          all,
+          request,
+          matcherBesides(request, ...addressesOf(source, request))
+        )
+        sink.set({
+          rows: rows.slice(request.offset, request.offset + request.limit),
+          total: rows.length
         })
-        .catch((thrown) => sink.fail(thrown))
+      }
+
+      /*
+       * A table that arrives over a minute rather than in one go.
+       *
+       * The first push is what is stored, which for a seller nobody has opened
+       * is the one page `storeLotsFor` fetched to have anything at all. The
+       * fill then works through the rest, and every page it lands bumps the
+       * version this watches — so the rows are read again and the shell is
+       * told the page as it now stands, count and pager included.
+       *
+       * The sink stays open for the whole of it, that being what the shell
+       * draws as pending, and the last push is made after the run rather than
+       * left to a watcher that would fire after the close.
+       */
+      const fill = source.fill?.(request)
+      const unwatch = fill && watch(fill.version, () => void push())
+      void (async () => {
+        try {
+          await push()
+          if (fill && !cancelled && sink.open) {
+            await fill.run()
+            await push()
+          }
+          sink.close()
+        } catch (thrown) {
+          sink.fail(thrown)
+        } finally {
+          unwatch?.()
+        }
+      })()
       return () => {
         cancelled = true
+        // The query changed or the shell went away, and page forty-one is now
+        // a request on nobody's behalf. What was fetched is stored, and the
+        // next visit picks up from it.
+        fill?.stop()
+        unwatch?.()
       }
     }
 

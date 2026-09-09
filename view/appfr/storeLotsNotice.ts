@@ -1,11 +1,14 @@
 /**
  * What a seller's inventory is not showing.
  *
- * The sibling of [colorItemsNotice], and for the same reason: a store that
- * runs past the page cap is stored short and stays short, because
- * `storeLotsFor` takes stored rows as the answer. Three thousand rows under a
- * header reading `3000` is indistinguishable from the whole answer, which is
- * the one thing it must not be — so the table says how far it got.
+ * The sibling of [colorItemsNotice], and for the same reason: a seller's lots
+ * come a hundred to the request, so for as long as [pageFill] is working
+ * through the sixty-three pages of a warehouse the table is holding part of an
+ * answer. Three thousand rows under a header reading `3,000` is
+ * indistinguishable from the whole of one, which is the one thing they must
+ * not be — so the table says how far it has got, and the figure climbs as the
+ * pages land. It goes away once the two numbers meet, and stands where it is
+ * when a run ended early: the table was left, or nothing answered.
  *
  * In lots rather than pages, unlike a colour's: the store front states its
  * total lot count on the first page it answers with, so the shortfall here is

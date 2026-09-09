@@ -98,8 +98,25 @@ onMounted(async () => {
   }
 })
 
-function press() {
-  props.column.click?.(props.row)
+/**
+ * Pressing the cell, and not the row under it.
+ *
+ * A row press narrows the whole result set to that record — see `rowPress` in
+ * ItemsShell — and a cell that leads somewhere of its own cannot also be the
+ * row's way in: without this, one press on a count both opened the list it
+ * counts and narrowed to the row it was on, which is two navigations for one
+ * click. The shell's own cells do exactly this; a cell brickzuke draws itself
+ * has to say it itself.
+ *
+ * Guarded rather than unconditional, because a column with nothing to press is
+ * drawn here as plain text, and plain text in a row is part of the row.
+ */
+function press(event: MouseEvent) {
+  if (!props.column.click) {
+    return
+  }
+  event.stopPropagation()
+  props.column.click(props.row)
 }
 </script>
 

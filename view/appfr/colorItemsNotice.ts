@@ -1,11 +1,13 @@
 /**
  * What a colour's list is not showing.
  *
- * A colour that runs past the page cap is stored short, and stays short:
- * `colorItemsFor` takes stored rows as the answer, so Tan's thousand parts are
- * read back for ever without a second request. A thousand rows under a header
- * reading `1000` is indistinguishable from the whole answer, which is the one
- * thing it must not be — so the table says how far it got.
+ * A colour arrives a page at a time, so for as long as [pageFill] is working
+ * through Tan's two hundred and eighty-seven of them the table is holding part
+ * of an answer. A thousand rows under a header reading `1000` is
+ * indistinguishable from the whole of one, which is the one thing they must
+ * not be — so the table says how far it has got, and the figure climbs as the
+ * pages land. It goes away once the two numbers meet, and stands where it is
+ * when a run ended early: the table was left, or nothing answered.
  *
  * In pages rather than items, because pages are what is actually known:
  * BrickLink states how many pages a list runs to, and the items on the ones

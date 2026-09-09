@@ -8,8 +8,9 @@
  *
  * Three deep rather than two. The front page is fetched for the numeric id
  * BrickLink's item search insists on, and then the lots come a hundred at a
- * time — so a middling seller is sixty requests, which is what the cap below
- * is about.
+ * time — so a middling seller is sixty requests. One of them is made here, to
+ * put a table on screen; the rest are made by the fill below, page by page,
+ * for as long as somebody is looking at it — see [pageFill].
  */
 import { ref } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
@@ -17,10 +18,11 @@ import { processQueue } from '../assets/js/make-call'
 import {PAGE_SIZE,
   fetchStoreFront,
   fetchStoreItems,
-  storeIds,
-  storeLotCounts} from '../stores/bricklink/store-front-page'
+  storeIds} from '../stores/bricklink/store-front-page'
 import type {StoredStoreLot,
   StoredStoreScope} from '../stores/bricklink/store-front-page'
+import { fillPages } from './pageFill'
+import type { Fill } from './pageFill'
 import { get, getAll, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
@@ -32,19 +34,6 @@ import STORES from '../../idb/stores'
  * through the browser extension, or not at all.
  */
 const DEADLINE_MS = 20_000
-
-/**
- * How many pages of one seller to ask for.
- *
- * At a hundred lots a page this is three thousand of them, which covers most
- * of BrickLink outright: the median German seller has some twenty-five
- * thousand items spread over far fewer lots than that. The sellers it does not
- * cover are the warehouses — six thousand lots is sixty-three requests, and
- * the biggest run past that again — and a table nobody will read to the end of
- * is not worth several hundred round trips. A store that runs past this shows
- * what was fetched, which is why `storeLotsNotice` exists.
- */
-const MAX_PAGES = 30
 
 const MISSING_EXTENSION =
   'No answer from the BrickZuke extension. It fetches BrickLink pages on the ' +
@@ -124,7 +113,18 @@ async function awaitStoreId(username: string): Promise<number> {
   }
 }
 
-async function scrape(username: string): Promise<StoredStoreLot[]> {
+/**
+ * The seller's numeric id, which every page of lots is addressed by.
+ *
+ * Learned once a session and then remembered, so a fill resuming a store
+ * somebody fetched last week pays for the front page and nothing more — the
+ * lots are read back by username, and by then nothing in memory knows the id.
+ */
+async function storeIdFor(username: string): Promise<number> {
+  const known = storeIds.get(username)
+  if (known !== undefined) {
+    return known
+  }
   installResponseListener()
   // Queues the call, or replays a cached response — a front page read within
   // the week never leaves the browser.
@@ -132,23 +132,53 @@ async function scrape(username: string): Promise<StoredStoreLot[]> {
   // Nothing drains the queue on its own here: appfr asks for exactly the page
   // someone is looking at.
   await processQueue(1)
-  const sid = await awaitStoreId(username)
+  return await awaitStoreId(username)
+}
 
+/**
+ * The first hundred lots, which is what a table can be drawn from.
+ *
+ * Only the first: it is also the page that states how many lots there are, so
+ * everything after it is known about rather than guessed at, and the fill has
+ * something to count from.
+ */
+async function firstPage(username: string): Promise<StoredStoreLot[]> {
+  const sid = await storeIdFor(username)
   await fetchStoreItems(username, sid, 1)
   await processQueue(1)
-  let stored = await awaitMore(() => readStoreLots(username), 0)
+  return await awaitMore(() => readStoreLots(username), 0)
+}
 
-  // The first page is the one that says how many lots there are, so the rest
-  // are only known about once it has landed.
-  const lots = storeLotCounts.get(username) ?? stored.length
-  const pages = Math.min(Math.ceil(lots / PAGE_SIZE), MAX_PAGES)
-  for (let page = 2; page <= pages; page++) {
-    const before = stored.length
-    await fetchStoreItems(username, sid, page)
-    await processQueue(1)
-    stored = await awaitMore(() => readStoreLots(username), before)
-  }
-  return stored
+/**
+ * The rest of a seller's inventory, fetched while the table is up.
+ *
+ * Which page is next comes off the stored scope rather than off a counter, so
+ * this resumes a store left half fetched — including one left short by the cap
+ * that used to be here — instead of starting it again. See [pageFill] for what
+ * the run costs and what ends it.
+ */
+export function storeLotsFill(username: string): Fill {
+  return fillPages(
+    {
+      async next() {
+        const scope = await readStoreScope(username)
+        // Nothing recorded is a store whose first page has not landed, and no
+        // page after it can be asked for until it has.
+        if (!scope || scope.fetchedLots >= scope.lots) {
+          return undefined
+        }
+        return Math.floor(scope.fetchedLots / PAGE_SIZE) + 1
+      },
+      async fetch(page: number) {
+        await fetchStoreItems(username, await storeIdFor(username), page)
+        await processQueue(1)
+      },
+      async reach() {
+        return (await readStoreScope(username))?.fetchedLots ?? 0
+      }
+    },
+    storeScopeVersion
+  )
 }
 
 /**
@@ -164,12 +194,12 @@ export const storeScopeVersion = ref(0)
 const inFlight = new Map<string, Promise<StoredStoreLot[]>>()
 
 /**
- * What a seller has for sale: read if it is stored, fetched if it is not.
+ * What a seller has for sale: read if any of it is stored, fetched if none of
+ * it is.
  *
- * Stored rows are taken as the answer, so a store is scraped once. That is
- * also what makes the cap above survivable — a truncated store stays truncated
- * until something clears the store, rather than re-fetching thirty pages every
- * time it is opened.
+ * Stored rows are taken as the answer, which is what keeps every redraw of the
+ * table from being a request — the page after them is [storeLotsFill]'s to
+ * ask for, and it asks by looking at how far the scope says the store goes.
  */
 export function storeLotsFor(username: string): Promise<StoredStoreLot[]> {
   if (!username) {
@@ -181,10 +211,17 @@ export function storeLotsFor(username: string): Promise<StoredStoreLot[]> {
   }
   const attempt = (async () => {
     const stored = await readStoreLots(username)
-    return stored.length ? stored : await scrape(username)
+    if (stored.length) {
+      return stored
+    }
+    const fetched = await firstPage(username)
+    // Bumped where a page landed and nowhere else. A read bumping it would be
+    // read by the table as "there is more", and the table's answer to that is
+    // to read again — which would bump it again.
+    storeScopeVersion.value++
+    return fetched
   })().finally(() => {
     inFlight.delete(username)
-    storeScopeVersion.value++
   })
   inFlight.set(username, attempt)
   return attempt

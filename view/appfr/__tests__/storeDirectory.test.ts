@@ -40,8 +40,11 @@ const {
   readStores
 } = await import('../storesFetch')
 const {
-  readStoreLots
+  readStoreLots, storeScopeVersion
 } = await import('../storeLotsFetch')
+const {
+  storeIds
+} = await import('../../stores/bricklink/store-front-page')
 const {
   useCatalogItemPageStore
 } = await import('../../stores/bricklink/catalog-item-page')
@@ -49,7 +52,7 @@ const {
   getDbConnection
 } = await import('../../../idb/idb')
 const {
-  putAll
+  put, putAll
 } = await import('../../../idb/db')
 const STORES = (await import('../../../idb/stores')).default
 
@@ -596,3 +599,89 @@ describe.each([
     expect(cellTextOf(roleColumn(type.columns ?? [], 'identity'), found[0]!)).toBe(name)
   })
 })
+
+/**
+ * A seller too big to arrive in one go, which is most of them.
+ *
+ * Lots come a hundred to the request, so a table addressed to a seller is
+ * drawn from the first page and filled in behind it — see [pageFill]. What
+ * that asks of the stream is that it stay open and say the rows again as each
+ * page lands: a stream that answered once would leave the first hundred on
+ * screen under a count and a pager built for the whole store, and the rest of
+ * it would appear only for somebody who thought to navigate away and back.
+ *
+ * Last in the file because it stores lots of its own, and the tables above
+ * count every lot there is.
+ */
+describe('a seller still being fetched', () => {
+  it('says the rows again as each page lands, rather than only at the end', async () => {
+    // Four hundred lots with one page of them stored — a store as the fill
+    // finds it, and the numbers the caveat under the header is made of.
+    const db = await getDbConnection()
+    await putAll(db, STORES.STORE_LOTS, [growingLot('801', 'Brick 2 x 4')])
+    await put(db, STORES.STORE_LOT_SCOPES, {
+      store: 'growing',
+      lots: 400,
+      fetchedLots: 100
+    })
+    db.close()
+    // The seller's numeric id, which the front page states and nothing here is
+    // going to answer for. Known, so the fill asks for a page of lots rather
+    // than waiting out the front page it is addressed by.
+    storeIds.set('growing', 1_801_484)
+
+    const {
+      state, scope
+    } = runStream({
+      entity: 'inventories',
+      expr: 'store:"growing"'
+    })
+    await settle()
+    expect(state.rows.value.map((row) => row.fields.id)).toEqual(['801'])
+    // Still open: the seller is not fetched whole, and a closed stream is the
+    // shell being told there is no more coming.
+    expect(state.pending.value).toBe(true)
+
+    // A page landing, which is rows stored and the version bumped — the two
+    // halves of what `handleStoreItemsResponse` and the fill do between them.
+    const landed = await getDbConnection()
+    await putAll(landed, STORES.STORE_LOTS, [growingLot('802', 'Plate 2 x 4')])
+    landed.close()
+    storeScopeVersion.value++
+    await settle()
+
+    expect(state.rows.value.map((row) => row.fields.id).sort()).toEqual(['801', '802'])
+    // The count above the table and the pager beside it are the same read, so
+    // a page that reached the rows and not the total would page to nothing.
+    expect(state.total.value).toBe(2)
+    scope.stop()
+  })
+})
+
+/** One of that seller's lots, as the store front stores them. */
+function growingLot(id: string, itemName: string) {
+  return {
+    id,
+    store: 'growing',
+    record: 'P-3001',
+    itemType: 'P',
+    itemNumber: '3001',
+    itemName,
+    description: '',
+    condition: 'U',
+    colorId: '5',
+    colorName: 'Red',
+    quantity: 1,
+    price: 0.1,
+    displayPrice: 'EUR 0.10',
+    nativePrice: 'EUR 0.10'
+  }
+}
+
+/** Lets the stream catch up: it reads IndexedDB, so a tick is not enough. */
+async function settle() {
+  for (let i = 0; i < 20; i++) {
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+}

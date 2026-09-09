@@ -15,12 +15,13 @@
  * The cards are drawn in the shell's own tokens, so a screen brickzuke now
  * owns still looks like the one it replaced.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { formatInteger } from '@/assets/js/utils'
 import { catalogSchema, openType } from './catalogSchema'
 import { forgetPreview, previewFor } from './catalogPreviews'
 import type { Preview, PreviewTile } from './catalogPreviews'
 import { FILLED, LOADING, filled } from './homeFill'
+import { reaching, startReachFill, stopReachFill } from './reachFill'
 import { byRecency } from './recentTypes'
 
 const props = defineProps<{
@@ -51,22 +52,34 @@ const previews = ref<Record<string, Preview>>({})
  * which of them is nearest the top.
  */
 const cards = computed(() =>
-  byRecency(catalogSchema.value.entities).map((entity) => {
-    const preview = previews.value[entity.key]
-    const tiles = preview?.tiles.length ? preview.tiles : undefined
-    const count = countOf(entity.count, preview)
-    return {
-      entity,
-      count,
-      // Drawn quieter than a number, and the reason the placeholder is a
-      // character rather than a word: a card still being fetched should be
-      // legible as such at a glance across the wall, without any of them
-      // changing size when the number lands.
-      waiting: count === LOADING,
-      pictures: preview?.kind === 'pictures' ? tiles : undefined,
-      pills: preview?.kind === 'pills' ? tiles : undefined
-    }
-  })
+  byRecency(catalogSchema.value.entities)
+    .map((entity) => {
+      const preview = previews.value[entity.key]
+      const tiles = preview?.tiles.length ? preview.tiles : undefined
+      const count = countOf(entity.count, preview)
+      return {
+        entity,
+        count,
+        pinned: Boolean(preview?.pinned),
+        // Drawn quieter than a number, and the reason the placeholder is a
+        // character rather than a word: a card still being fetched should be
+        // legible as such at a glance across the wall, without any of them
+        // changing size when the number lands.
+        //
+        // A card whose number is a floor and whose floor is still rising reads
+        // the same way, and for the same reason: the two states differ in what
+        // is known, and not in the one thing the mark says — that this will
+        // change on its own if you watch it. An estimate under a live fill is
+        // the joined cards, the wall being deepened seller by seller.
+        waiting: count === LOADING || Boolean(preview?.estimated && reaching.value),
+        pictures: preview?.kind === 'pictures' ? tiles : undefined,
+        pills: preview?.kind === 'pills' ? tiles : undefined
+      }
+    })
+    // The types the query has already picked the single record of, left off:
+    // see [pinnedBy]. Dropped here rather than never read, because whether a
+    // card is one of them is something only its own read can say.
+    .filter((card) => !card.pinned)
 )
 
 /**
@@ -116,7 +129,6 @@ function hover(tile: PreviewTile): string {
   return tile.detail ? tile.label + ' — ' + tile.detail : tile.label
 }
 
-
 /**
  * Which read the cards on screen belong to.
  *
@@ -165,11 +177,26 @@ watch(
     // back to the population meanwhile, which is true of every query.
     previews.value = {}
     read(asked)
+    /*
+     * And the fetching behind it. A narrowed wall answers its cards by joining
+     * through the lots brickzuke holds, so what it can say is bounded by how
+     * many of them there are — see [reachFill], which goes and gets more of the
+     * ones this query is about. Started from here because this watch is the
+     * whole of the condition: the home screen is up, and it is under a query.
+     */
+    startReachFill(asked)
   },
   {
     immediate: true
   }
 )
+
+/*
+ * And stopped on the way out, at whatever seller it had reached. A fill is
+ * fetching somebody else's pages because a screen is open in front of
+ * somebody; the screen closing is the end of the reason.
+ */
+onUnmounted(stopReachFill)
 
 /**
  * The same read again, when a background fill has added to one of the types.
@@ -456,5 +483,4 @@ watch(filled, () => {
   flex: none;
   color: var(--dc-fg-3);
 }
-
 </style>

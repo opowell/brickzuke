@@ -65,6 +65,26 @@ const urlEntity = computed(() => {
 const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
 
 /**
+ * Whether a press on a row means anything on the table that is up.
+ *
+ * appfr 0.21.0 made a row press narrow the whole result set to that record,
+ * which is the move the `→` beside the name used to make on its own — the
+ * smaller of the two controls doing the more useful thing. brickzuke takes the
+ * default: the gesture is one it already shipped, and it now has the row to hit
+ * rather than an arrow.
+ *
+ * But only a type declaring a `scope` carries a field the other records name it
+ * by, and a press on one that does not is reported and dropped, brickzuke
+ * handling no `activate`. So the shell's own hover and hand are let through for
+ * the types that can be narrowed to, and held back for the rest: a row that
+ * does nothing must not offer itself as a row that does.
+ */
+const narrowsRows = computed(() => {
+  const key = urlEntity.value
+  return Boolean(key && catalogSchema.value.entities.find((entity) => entity.key === key)?.scope)
+})
+
+/**
  * The home screen's counts, taken every time it is reached — and, on the way
  * out, which type was opened.
  *
@@ -140,10 +160,21 @@ const plainTokens = {
 
 <template>
   <!-- The shell fills the box it is given, so give it a height. -->
-  <div class="items-shell">
+  <div
+    class="items-shell"
+    :data-narrows-rows="String(narrowsRows)"
+  >
     <!--
-      No `@activate`: a row press reports one, and the original table has no
-      row press at all. Every cell that leads somewhere says so itself.
+      No `@activate`: under `rowPress: 'narrow'` — the default since appfr
+      0.21.0 — the shell applies the press itself wherever it can, and reports
+      one only for the types it cannot narrow to. Those are brickzuke's leaves,
+      and there is nothing to route to: every cell that leads somewhere says so
+      itself.
+
+      What the press lands on is the home screen under that record's term, the
+      shell writing the cards view along with the expression (0.22.0) and
+      `openedQuery` agreeing with it — which is the screen brickzuke already
+      draws for a narrowed query.
     -->
     <DataShell
       :schema="catalogSchema"
@@ -368,9 +399,16 @@ const plainTokens = {
   width: min-content;
 }
 
-/* A row is not pressable, so it must not offer itself as one. */
-.items-shell :deep(.dc-table__row),
-.items-shell :deep(.dc-table__row:hover) {
+/*
+ * A row of a type that cannot be narrowed to is not pressable, so it must not
+ * offer itself as one — the shell gives every row the hand and the hover, not
+ * knowing which of them its host has somewhere to send.
+ *
+ * The other tables keep both, and they are the whole of what says a row can be
+ * pressed at all: the arrow that used to say it is gone with the job it was for.
+ */
+.items-shell[data-narrows-rows='false'] :deep(.dc-table__row),
+.items-shell[data-narrows-rows='false'] :deep(.dc-table__row:hover) {
   background: none;
   cursor: default;
 }

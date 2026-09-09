@@ -19,14 +19,20 @@
  * Narrowed, the items card is the one exception, and says why at
  * [narrowedItems].
  */
-import { cellText, cellValue, matchesExpression, parseExpression, roleColumn } from 'header-content-layout'
+import {addTerm,
+  cellText,
+  cellValue,
+  parseExpression,
+  roleColumn,
+  scopeTermFor} from 'header-content-layout'
 import type { ColumnDef, EntitySchema, ShellRow } from 'header-content-layout'
 import { getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
-import { catalogSchema, counted, narrowTo, narrowToColor } from './catalogSchema'
+import { catalogSchema, counted, narrowTo, narrowToColor, narrowingTo } from './catalogSchema'
 import { catalogSource, sorted, storedRows } from './catalogSource'
+import { forgetReach, matching, reachFor, reaches } from './reach'
 import { awaitedStores } from './homeFill'
 import { openingOrderFor } from './openingOrder'
 
@@ -73,6 +79,11 @@ export interface Preview {
    * are long before it can list one.
    */
   estimated?: boolean
+  /**
+   * Whether the whole of what the type matched is the one record the query
+   * already names — see {@link pinnedBy}. The card is left off the wall.
+   */
+  pinned?: boolean
 }
 
 /**
@@ -118,29 +129,47 @@ interface Read {
    * needs the number even where a card on its own would keep quiet about it.
    */
   matched: number
+  /**
+   * Whether the count is still a floor rather than a tally.
+   *
+   * A joined answer is read from the fact table brickzuke holds, which is a
+   * fraction of the one BrickLink has — so what the lots reach is what is known
+   * and not what is so, and the card says `~` over it. See [reach].
+   *
+   * Unless the floor has met the ceiling. The join only ever takes rows out of
+   * what the type's own terms match, and more lots only ever reach more, so a
+   * joined count climbs towards that number and stops there. Reach it and the
+   * `~` is promising a rise that cannot happen: the conditions card sat at `~2`
+   * with both conditions drawn on it, the item types at `~9` with the whole
+   * vocabulary listed. There is nothing left for another seller's lots to add,
+   * so the number is said plainly.
+   */
+  floor: boolean
 }
 
 /**
- * The query as a test one row at a time, against the type it is being asked
- * about.
+ * Whether a card would say nothing but what the query already says.
  *
- * The same `matchesExpression` the source filters a table with, and read
- * against that type's own schema — so a term resolves through the fields and
- * columns the type actually has. A field none of them carries is ignored
- * rather than failed, which is this language's rule everywhere: `region:` on
- * the years card narrows nothing, because a year is in no region.
+ * Under `region:"Europe" country:"DE"` the countries card is one flag and the
+ * regions card is one name, and both are the terms in the header, drawn again
+ * a little lower down. A card is a look inside a type, and a type the reader
+ * has already picked the one record of has nothing left inside it to look at.
  *
- * No addresses are lifted out of it, unlike the table's own matcher. An
- * address is the term that *fetched* the rows, and nothing here fetches — a
- * card reads what is stored, so every term in the query is a filter over it.
+ * Both halves are needed. One match is not enough on its own — `name:"Belgium"`
+ * also leaves one country, and that country is the answer to the question
+ * rather than a restatement of it — so what is asked here is whether the record
+ * is the one the query named: its own term, the one a press on it would add,
+ * already in the expression. `addTerm` is what decides that, and it is the same
+ * `addTerm` the press goes through, so the two agree about `category:5` and
+ * `category:"5"` being one term.
  */
-function matching(entityKey: string, expr: string): (row: ShellRow) => boolean {
-  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)
-  if (!expr.trim() || !entity) {
-    return () => true
+function pinnedBy(expr: string, rows: ShellRow[], count: number | undefined): boolean {
+  if (count !== 1 || rows.length !== 1) {
+    return false
   }
-  const parsed = parseExpression(expr)
-  return (row) => matchesExpression(parsed, row, entity)
+  const term = scopeTermFor(catalogSchema.value, rows[0])
+  const written = expr.trim()
+  return Boolean(term) && Boolean(written) && addTerm(written, term) === written
 }
 
 /**
@@ -163,11 +192,26 @@ async function opening(
   if (!held) {
     return {
       rows: [],
-      matched: 0
+      matched: 0,
+      floor: false
     }
   }
   const all = await held
-  const matched = all.filter(matching(entity, expr))
+  /*
+   * The two filters a card is read through, and they answer different halves of
+   * the query. `matching` is the type asked on its own terms — `year>=1988` of a
+   * year, `name:` of a country. The reach is the rest: the terms this type
+   * carries no field for, resolved through the lots that do. Without it those
+   * terms matched every row, and the years card sat at eighty-one under a query
+   * that had narrowed everything beside it.
+   */
+  const reach = await reachFor(entity, expr, all)
+  const match = matching(entity, expr)
+  // Kept apart, because the first of the two is also the ceiling the second is
+  // climbing towards — and reaching it is what retires the `~`. See
+  // {@link Read.floor}.
+  const own = all.filter(match)
+  const matched = own.filter((row) => reaches(reach, row))
   const order = openingOrderFor(entity)
   return {
     rows: sorted(matched.filter(keep), order.sort, order.dir).slice(0, shown),
@@ -183,7 +227,8 @@ async function opening(
     // of them. Nought is only ever said about records brickzuke has actually
     // read.
     count: expr.trim() && all.length ? matched.length : undefined,
-    matched: matched.length
+    matched: matched.length,
+    floor: Boolean(reach.values) && matched.length < own.length
   }
 }
 
@@ -202,9 +247,11 @@ const NO_COLOUR = 0
  * Colours, as bricks. The picture is the whole of what a colour is, and the
  * name is on the hover where a name is worth reading.
  *
- * Pressing one is the press its Parts column makes — the parts catalogued in
- * that colour — because a picture of a brick in a colour is a picture of
- * exactly those.
+ * Pressing one narrows the wall to that colour, as every other tile does — see
+ * [pressFor]. What it used to make was its Parts column's press, the parts
+ * catalogued in that colour, and that is still the fallback: a colour BrickLink
+ * has an id for is a record every other type can name, so in practice the
+ * narrowing is what happens.
  */
 async function colorTiles(shown: number, expr: string): Promise<Preview> {
   const read = await opening(
@@ -216,6 +263,8 @@ async function colorTiles(shown: number, expr: string): Promise<Preview> {
   return {
     kind: 'pictures',
     count: read.count,
+    estimated: read.floor || undefined,
+    pinned: pinnedBy(expr, read.rows, read.count),
     tiles: read.rows.flatMap((row) => {
       const colorId = Number(row.fields.colorid)
       // A colour BrickLink has no id for is a colour it has no picture of.
@@ -228,7 +277,7 @@ async function colorTiles(shown: number, expr: string): Promise<Preview> {
           label: String(row.fields.name ?? ''),
           detail: counted(row.fields.items),
           image: brickIn(colorId),
-          press: () => narrowToColor('P', row)
+          press: narrowingTo(row) ?? (() => narrowToColor('P', row))
         }
       ]
     })
@@ -246,6 +295,68 @@ function itemTile(row: ShellRow): PreviewTile {
     detail: String(row.fields.record ?? ''),
     image: String(row.fields.image ?? '') || undefined,
     press: () => narrowTo('itemRecords', 'item', row.id)
+  }
+}
+
+/**
+ * The items a query reaches through the lots, where it reaches them at all.
+ *
+ * The items card is the one that cannot go through [opening] — it is a scan
+ * rather than a list of stored rows, so the join has to be applied here instead
+ * of around it. Without this the card sat at the whole catalogue under a term no
+ * item carries: `region:"Europe"` matched all two hundred thousand of them while
+ * every card beside it had narrowed.
+ *
+ * It is also the cheaper answer by a wide margin. The scan below reads the whole
+ * catalogue to count what matches; the reach is bounded by the distinct records
+ * in the lots the query left standing, and the tiles are that many point
+ * lookups. So this runs first, and the scan is what happens when there is no
+ * join to do — a term the items table *can* answer, like a year or a name.
+ *
+ * Undefined where the query needs no join, which is the caller's signal to scan.
+ */
+async function reachedItems(shown: number, expr: string): Promise<Preview | undefined> {
+  // No rows to read a vocabulary off — the items card is a scan rather than a
+  // list — so the join reads the schema instead. See [vocabularyOf].
+  const reach = await reachFor('items', expr, [])
+  if (!reach.values) {
+    return undefined
+  }
+  const wanted = [...reach.values]
+  const db = await getDbConnection()
+  try {
+    const rows: ShellRow[] = []
+    for (const id of wanted.slice(0, shown)) {
+      const records =
+        (await getAllFromIndex<BrickLinkItem>(
+          db,
+          indices.BRICK_LINK_ITEMS_BY_ITEM_ID,
+          Number(id)
+        )) ?? []
+      if (!records.length) {
+        continue
+      }
+      rows.push({
+        id: String(id),
+        entityKey: 'items',
+        entityLabel: 'Items',
+        fields: {
+          id: String(id),
+          name: records[0].Name,
+          record: records[0].id,
+          image: records.find((record) => record.image)?.image
+        }
+      })
+    }
+    return {
+      kind: 'pictures',
+      count: reach.values.size,
+      // A floor like every other joined card: more lots reach more items.
+      estimated: true,
+      tiles: rows.map(itemTile)
+    }
+  } finally {
+    db.close()
   }
 }
 
@@ -291,6 +402,7 @@ async function narrowedItems(shown: number, expr: string): Promise<Preview> {
   return {
     kind: 'pictures',
     count: result.total,
+    pinned: pinnedBy(expr, result.rows, result.total),
     tiles: result.rows.map(itemTile)
   }
 }
@@ -306,7 +418,8 @@ async function narrowedItems(shown: number, expr: string): Promise<Preview> {
  */
 async function itemTiles(shown: number, expr: string): Promise<Preview> {
   if (expr.trim()) {
-    return await narrowedItems(shown, expr)
+    const reached = await reachedItems(shown, expr)
+    return reached ?? (await narrowedItems(shown, expr))
   }
   const db = await getDbConnection()
   try {
@@ -370,10 +483,23 @@ function shownColumns(entity: EntitySchema | undefined): ColumnDef[] {
 }
 
 /**
- * Where a record leads, which is wherever its own row leads: the press on the
- * identity column, and failing that the first press the row offers at all.
+ * Where a record leads, which is wherever its own row leads.
+ *
+ * Which is now the record itself: appfr 0.21.0 made a press on a row narrow the
+ * screen to it rather than open anything, so a tile — a row drawn brickzuke's
+ * own way — narrows too, and the home screen stays the home screen with one
+ * more term over it. Pressing `Europe` had been a trip to the countries table,
+ * which is the one card on this wall the reader could already see.
+ *
+ * The old rule is the fallback, for the types nothing carries the id of: the
+ * press on the identity column, and failing that the first press the row offers
+ * at all.
  */
 function pressFor(columns: ColumnDef[], row: ShellRow): (() => void) | undefined {
+  const narrow = narrowingTo(row)
+  if (narrow) {
+    return narrow
+  }
   const click = roleColumn(columns, 'identity')?.click ?? columns.find((one) => one.click)?.click
   return click ? () => click(row) : undefined
 }
@@ -417,14 +543,14 @@ function tileFor(row: ShellRow, columns: ColumnDef[]): PreviewTile {
  * room for.
  */
 async function fromRows(entityKey: string, expr: string): Promise<Preview> {
-  return asPreview(entityKey, await opening(entityKey, ROWS_READ, expr))
+  return asPreview(entityKey, await opening(entityKey, ROWS_READ, expr), expr)
 }
 
 /** As many rows as either look could want, which of the two not yet being known. */
 const ROWS_READ = Math.max(PICTURES_SHOWN, PILLS_SHOWN)
 
 /** The rows read, as the card drawn from them. */
-function asPreview(entityKey: string, read: Read): Preview {
+function asPreview(entityKey: string, read: Read, expr: string): Preview {
   const columns = shownColumns(
     catalogSchema.value.entities.find((entity) => entity.key === entityKey)
   )
@@ -433,6 +559,12 @@ function asPreview(entityKey: string, read: Read): Preview {
   return {
     kind: pictures ? 'pictures' : 'pills',
     count: read.count,
+    // A joined count is what the stored lots reach, and more lots reach more —
+    // so it is written as the projection it is, in the same `~` the store fill
+    // uses for the same admission. Until it reaches everything the type's own
+    // terms match, at which point there is no more to reach and it is a tally.
+    estimated: read.floor || undefined,
+    pinned: pinnedBy(expr, read.rows, read.count),
     tiles: shown.map((row) => tileFor(row, columns))
   }
 }
@@ -468,7 +600,7 @@ function onlyCountryTerms(expr: string): boolean {
  */
 async function storeTiles(shown: number, expr: string): Promise<Preview> {
   const read = await opening('stores', shown, expr)
-  const preview = asPreview('stores', read)
+  const preview = asPreview('stores', read, expr)
   if (!onlyCountryTerms(expr)) {
     return preview
   }
@@ -486,7 +618,11 @@ async function storeTiles(shown: number, expr: string): Promise<Preview> {
   return {
     ...preview,
     count: read.matched + waiting,
-    estimated: true
+    estimated: true,
+    // The projection is what the card is headed with now, and it is more than
+    // one: whatever the stored rows came to, there are sellers in the
+    // countries the query names that nobody has fetched yet.
+    pinned: false
   }
 }
 
@@ -566,6 +702,9 @@ export function previewFor(entity: string, expr = ''): Promise<Preview> {
 /** Drops the held previews, for when an update run has rewritten the catalogue. */
 export function forgetPreviews() {
   cache.clear()
+  // And the walks under them: a preview read again against a stale join would
+  // be a fresh card drawn from a stale answer.
+  forgetReach()
 }
 
 /**
