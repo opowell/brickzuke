@@ -52,7 +52,9 @@ import type { ItemImage } from './itemPageFetch'
 import {shopListItemRows,
   shopPlanRows,
   shopStoreRows,
-  userInventoryLineRows} from './userRows'
+  userInventoryLineRows,
+  userItemRows} from './userRows'
+import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
 
@@ -242,6 +244,17 @@ async function scan(
   // Before the first row, so every row carries the parts count it sorts by.
   // One pass over the sets already opened, held for the session.
   await ensurePartCounts()
+  /*
+   * Somebody's own items first, then the catalogue's. They are rows of this
+   * one table — an item of theirs is an item — and the page places each row
+   * where it sorts, so first is only the order they are read in and not where
+   * they land. First because they are tens of records against two hundred
+   * thousand: a set of theirs on page one should not wait behind a scan of
+   * everything to be found.
+   */
+  for (const row of await userItemRows(db)) {
+    if (matches(row) && !emit(row)) return
+  }
   // Records with no `bzItemId` are not in the index at all, which is the same
   // exclusion model.ts makes by hand.
   let range: IDBKeyRange | null = null
@@ -792,6 +805,11 @@ async function inventoryRows(
   if (!record) {
     return []
   }
+  // A set of theirs is read and never fetched: there is no page of BrickLink's
+  // to ask, and `inventoryFor` would go and ask it.
+  if (userItemIdOf(record) !== undefined) {
+    return reading((db) => userInventoryLineRows(db, record))
+  }
   const stored = fetching ? await inventoryFor(record) : await readInventory(record)
   return stored.map(toInventoryRow)
 }
@@ -813,6 +831,26 @@ async function namedRecordRows(request: QueryRequest): Promise<ShellRow[]> {
   const record = termValue(request, 'record')
   if (!record) {
     return []
+  }
+  // One of theirs: the header names `record:"U-3"` through this type as it
+  // names a BrickLink set, so the row it finds has to be here to be found.
+  if (userItemIdOf(record) !== undefined) {
+    return reading(async (db) =>
+      (await userItemRows(db))
+        .filter((row) => row.id === record)
+        .map((row) => ({
+          ...row,
+          entityKey: 'itemRecords',
+          entityLabel: 'Item records',
+          fields: {
+            ...row.fields,
+            // The name alone, as a BrickLink record's row carries it: the
+            // header states the record after it, and the items table's row
+            // already has it there — see [userItemRows].
+            name: row.fields.ownName
+          }
+        }))
+    )
   }
   const db = await getDbConnection()
   try {
@@ -1403,16 +1441,13 @@ const fetched: Record<string, Fetched> = {
     rows: yearRows
   },
   /*
-   * The four detail types over somebody's own records. Each is addressed by the
-   * record it belongs to and fetches nothing — everything they read is already
-   * stored, these being the one part of brickzuke that was never scraped — so
-   * none of them takes the `fetching` flag the catalogue's own types turn on.
+   * The three detail types over somebody's own records. Each is addressed by
+   * the list it belongs to and fetches nothing — everything they read is
+   * already stored, these being the one part of brickzuke that was never
+   * scraped — so none of them takes the `fetching` flag the catalogue's own
+   * types turn on. A set of theirs has no such type: its parts are the
+   * `inventory` above, addressed by its record like any set's.
    */
-  userInventoryLines: {
-    addresses: ['userinventory'],
-    rows: (request) =>
-      reading((db) => userInventoryLineRows(db, openedUserId(request, 'userinventory')))
-  },
   shopListItems: {
     addresses: ['shoplist'],
     rows: (request) => reading((db) => shopListItemRows(db, openedUserId(request, 'shoplist')))
@@ -1747,7 +1782,9 @@ export const catalogSource: DataSource = {
       void (async () => {
         const db = await getDbConnection()
         try {
-          const total = await count(db, dbStores.ITEMS)
+          // Theirs as well: they are rows of the items table now.
+          const total =
+            (await count(db, dbStores.ITEMS)) + (await count(db, dbStores.USER_ITEMS))
           if (cancelled || !sink.open) return
           sink.set({
             rows: [],

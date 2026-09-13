@@ -50,7 +50,6 @@ export const categoryChoices = ref<{ value: string; label: string }[]>([])
 const COUNTED = {
   userCategories: stores.USER_CATEGORIES,
   userItems: stores.USER_ITEMS,
-  userInventories: stores.USER_INVENTORIES,
   userInventoryLines: stores.USER_INVENTORY_LINES,
   shopLists: stores.SHOP_LISTS,
   shopListItems: stores.SHOP_LIST_ITEMS

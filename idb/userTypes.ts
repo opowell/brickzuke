@@ -14,11 +14,12 @@
  * nothing imports it — `Cart`, `InvItem` and `Store` in it have no backing
  * store and no callers either. These are the live ones.
  *
- * A catalogue item is referred to by BrickLink's own record — `S-10511-1`,
- * `P-3001` — rather than by brickzuke's auto-increment key, because that is
- * what every table here already carries in `record` and what a lot on offer is
- * matched against. One of `record` and `userItemId` is set on a line; a line
- * naming neither is a line nothing can be bought for.
+ * An item is referred to by its record — BrickLink's own for one of theirs,
+ * `S-10511-1`, `P-3001`, and `U-3` for one of somebody's own: see
+ * [userItemRecord]. One field, whichever kind, because that is what every
+ * table here already carries in `record`, what a lot on offer is matched
+ * against, and what a set's parts are filed under. A part with no record is
+ * a part nothing can be bought for.
  */
 
 /** A category of somebody's own, for what BrickLink has no category for. */
@@ -28,7 +29,12 @@ export interface UserCategory {
   createdAt: Date
 }
 
-/** An item of somebody's own. */
+/**
+ * An item of somebody's own — a piece BrickLink does not list, or a set they
+ * designed. Which of the two it is, is whether anything is filed under its
+ * record in USER_INVENTORY_LINES: an item with parts is a set, as it is in
+ * the catalogue.
+ */
 export interface UserItem {
   id: number
   name: string
@@ -44,26 +50,20 @@ export interface UserItem {
   createdAt: Date
 }
 
-/** A set of somebody's own: a MOC, or parts to add to one the catalogue has. */
-export interface UserInventory {
-  id: number
-  name: string
-  /**
-   * The BrickLink record this is about, where it is about one — `S-10511-1` for
-   * the parts somebody means to add to that set. Absent for a set of their own.
-   */
-  record?: string
-  createdAt: Date
-}
-
-/** One part of one such set. */
+/**
+ * One part of one of somebody's own sets.
+ *
+ * The same shape ITEM_INVENTORIES gives a part of a BrickLink set — the set it
+ * is in, the part it is, how many — under the same `record`, so one table
+ * lists both and one address opens either: `record:"U-3"` reads these where
+ * `record:"S-10511-1"` reads BrickLink's.
+ */
 export interface UserInventoryLine {
   id: number
-  inventoryId: number
-  /** The catalogue item, where the part is one BrickLink lists. */
-  record?: string
-  /** A [UserItem] id, where it is one of theirs. */
-  userItemId?: number
+  /** The set this is a part of — always one of theirs, `U-3`. */
+  record: string
+  /** The part — BrickLink's, `P-3001`, or one of theirs, `U-5`. */
+  part?: string
   /** BrickLink's own colour id, as every other table here holds it. */
   colorId?: string
   /** What the line is called, held on the line so a table can draw it. */
@@ -81,9 +81,7 @@ export interface UserInventoryLine {
 export interface ShopList {
   id: number
   name: string
-  /** The [UserInventory] the lines were copied from, where they were. */
-  sourceInventoryId?: number
-  /** The BrickLink set they were copied from, where it was a set. */
+  /** The set the lines were copied from, where they were — theirs or BrickLink's. */
   sourceRecord?: string
   createdAt: Date
 }
@@ -92,8 +90,8 @@ export interface ShopList {
 export interface ShopListItem {
   id: number
   listId: number
+  /** The part wanted — `P-3001`, or `U-5` for one of theirs, which no seller has. */
   record?: string
-  userItemId?: number
   colorId?: string
   name?: string
   /** How many are wanted. The one figure the planner has to satisfy. */

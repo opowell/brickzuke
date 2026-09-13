@@ -1,2 +1,1 @@
 - add "price modifier" fields, store as modifier profiles.
-- appfr: allow input result page number.

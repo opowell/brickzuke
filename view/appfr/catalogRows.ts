@@ -20,7 +20,7 @@ import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
 import { userCategoryRef } from '../../idb/userCategory'
 import type { UserCategory, UserItem } from '../../idb/userTypes'
-import { shopListRows, userInventoryRows, userItemRows } from './userRows'
+import { allUserInventoryLineRows, shopListRows } from './userRows'
 import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
 import indices from '../../idb/indices'
 import stores from '../../idb/stores'
@@ -273,12 +273,17 @@ export function inventoryFields(stored: StoredItemInventory): Record<string, unk
  */
 async function itemInventoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const stored = (await getAll<StoredItemInventory>(db, stores.ITEM_INVENTORIES)) ?? []
-  return stored.map((record) => ({
-    id: record.id,
-    entityKey: 'itemInventories',
-    entityLabel: 'Item inventories',
-    fields: inventoryFields(record)
-  }))
+  return [
+    ...stored.map((record) => ({
+      id: record.id,
+      entityKey: 'itemInventories',
+      entityLabel: 'Item inventories',
+      fields: inventoryFields(record)
+    })),
+    // And the parts of the sets somebody designed, under the same fields —
+    // a set of theirs is an item of theirs, and its parts are parts.
+    ...(await allUserInventoryLineRows(db))
+  ]
 }
 
 /**
@@ -346,15 +351,14 @@ const liveLoaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
   itemVariants: itemVariantRows,
   settings: settingRows,
   /*
-   * And the three types somebody writes themselves — live for the same reason
-   * the settings are, and more so: these change because somebody just typed
-   * into them, and a held answer would be the table before the edit. See
-   * [userRows]. Their categories are not a fourth: those are rows of the
-   * catalogue's own `categories`, above, whose held answer is dropped when one
-   * is written — see [userWrites].
+   * And the one type somebody writes themselves that is a type of its own —
+   * live for the same reason the settings are, and more so: it changes because
+   * somebody just typed into it, and a held answer would be the table before
+   * the edit. See [userRows]. Their categories, items and sets are not more
+   * of these: those are rows of the catalogue's own `categories`, `items` and
+   * `inventory`, and the held answer for categories is dropped when one is
+   * written — see [userWrites].
    */
-  userItems: userItemRows,
-  userInventories: userInventoryRows,
   shopLists: shopListRows
 }
 

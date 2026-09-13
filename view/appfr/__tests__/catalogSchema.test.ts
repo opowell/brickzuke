@@ -197,9 +197,12 @@ describe('items schema', () => {
     expect(shell.find('option[value="items"]').text()).toBe('Items · 199k')
   })
 
-  it('draws the seven columns the table has today, and the parts count beside them', () => {
+  it('draws the seven columns the table has today, the parts count, and two more', () => {
     const headers = mountShell().findAll('th').map((th) => th.text().replace(/[↑↓]\s*$/, '').trim())
     expect(headers).toEqual([
+      // The ticks, because the table lists items of somebody's own beside
+      // the catalogue's and names `delete` for them — see [userItemRows].
+      'Select',
       '#',
       '',
       'Type',
@@ -208,7 +211,9 @@ describe('items schema', () => {
       'Year',
       'Parts',
       'Weight',
-      'Dimensions'
+      'Dimensions',
+      // And their note, blank on every row of BrickLink's.
+      'Note'
     ])
   })
 
@@ -375,12 +380,10 @@ describe('the catalogue this summarises', () => {
       // Not a table of the catalogue but a table all the same: the knobs, drawn
       // as records so the shell can sort and filter them like anything else.
       'settings',
-      // Nor are these three, and for a stronger reason: they are the types
-      // nobody scraped — what somebody writes themselves, and the only records
-      // here with no second copy on BrickLink. See [userSchema]. Their
-      // categories are not a fourth: those are rows of `categories` above.
-      'userItems',
-      'userInventories',
+      // Nor is this one, and for a stronger reason: it is the one type nobody
+      // scraped that has no counterpart in the catalogue. Everything else
+      // somebody writes themselves — a category, an item, a set — is a row
+      // of the catalogue's own table for that kind of thing. See [userSchema].
       'shopLists',
     ])
   })

@@ -197,13 +197,16 @@ describe('what a line refuses', () => {
   })
 
   it('says a part of somebody own is not for sale anywhere', async () => {
+    // A `U-` record — one of theirs — which no lot will ever carry, however
+    // many lots are walked.
     const plan = await planPurchase(
       [wanting({
-        record: undefined,
-        userItemId: 7,
+        record: 'U-7',
         name: 'Sprue offcut' 
       })],
-      walking([lot({})])
+      walking([lot({
+        record: 'U-7' 
+      })])
     )
     expect(plan.lines[0].shortfall).toBe('own')
     expect(plan.lines[0].offers).toBe(0)

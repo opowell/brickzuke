@@ -12,6 +12,7 @@
  * is no answer at all if that is not installed or not signed in.
  */
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
+import { userItemIdOf } from '../../idb/userItem'
 import { processQueue } from '../assets/js/make-call'
 import { useCatalogItemInvPageStore } from '../stores/bricklink/catalog-item-inv-page'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
@@ -57,6 +58,11 @@ function splitRecord(record: string): { type: string; number: string } | undefin
  * blank rather than offering a listing that would come back empty.
  */
 export function hasInventory(record: string): boolean {
+  // An item of theirs may have parts under it — that is what makes it a set —
+  // so its cell is drawn; what it is drawn from is [partCounts], never a fetch.
+  if (userItemIdOf(record) !== undefined) {
+    return true
+  }
   const parts = splitRecord(record)
   return !!parts && HAS_INVENTORY.has(parts.type)
 }
@@ -133,6 +139,11 @@ async function scrape(record: string): Promise<StoredItemInventory[]> {
  * nothing either way.
  */
 export function inventoryFor(record: string): Promise<StoredItemInventory[]> {
+  // Nothing of theirs is on BrickLink to fetch. The callers know this and
+  // read their lines instead; this is the guard for the one that forgets.
+  if (userItemIdOf(record) !== undefined) {
+    return Promise.resolve([])
+  }
   const running = inFlight.get(record)
   if (running) {
     return running

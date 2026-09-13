@@ -100,9 +100,9 @@ export async function listRecords<T extends UserRecord>(
 export async function listChildren<T extends UserRecord>(
   db: IDBPDatabase,
   index: IndexDefinition,
-  parentId: number
+  parent: IDBValidKey
 ): Promise<T[]> {
-  const held = (await getAllFromIndex<T>(db, index, parentId)) ?? []
+  const held = (await getAllFromIndex<T>(db, index, parent)) ?? []
   return held.sort((a, b) => a.id - b.id)
 }
 
@@ -119,9 +119,11 @@ export async function removeWithChildren(
   store: StoreDefinition,
   childStore: StoreDefinition,
   childIndex: IndexDefinition,
-  id: number
+  id: number,
+  /** What the children carry the parent as, where it is not the id — `U-3`. */
+  parent: IDBValidKey = id
 ): Promise<void> {
-  for (const child of await listChildren<UserRecord>(db, childIndex, id)) {
+  for (const child of await listChildren<UserRecord>(db, childIndex, parent)) {
     await dbDelete(db, childStore, child.id)
   }
   await dbDelete(db, store, id)

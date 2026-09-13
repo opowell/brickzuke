@@ -29,14 +29,14 @@
  * store per part on the list.
  */
 
+import { userItemIdOf } from './userItem'
+
 /** One part somebody wants, as the planner reads it. */
 export interface WantedLine {
   /** What identifies the line in the answer — the shop list item's id. */
   key: string
-  /** BrickLink's own record for the part — `P-3001`. */
+  /** The part's record — BrickLink's, `P-3001`, or one of theirs, `U-5`. */
   record?: string
-  /** Set instead where the part is one of somebody's own, which has no lots. */
-  userItemId?: number
   name?: string
   /** BrickLink's colour id, or absent to take the part in any colour. */
   colorId?: string
@@ -142,7 +142,7 @@ interface Best {
  * is no offer at all — the one thing a comparison cannot do without.
  */
 function eligible(line: WantedLine, lot: CandidateLot): boolean {
-  if (!line.record || lot.record !== line.record) {
+  if (!buyable(line) || lot.record !== line.record) {
     return false
   }
   if (typeof lot.price !== 'number' || !Number.isFinite(lot.price) || lot.price <= 0) {
@@ -211,8 +211,17 @@ function planLine(line: WantedLine, best: Best | undefined, offers: number): Pla
  * take fewer. `offers` is counted before the price limit is applied, which is
  * what lets `price` be told from `none`.
  */
+/**
+ * Whether any seller could have the part at all: it has a record, and the
+ * record is BrickLink's. A part of somebody's own — `U-5` — is a record no lot
+ * will ever carry, and it is not walked for.
+ */
+function buyable(line: WantedLine): boolean {
+  return Boolean(line.record) && userItemIdOf(line.record) === undefined
+}
+
 function shortfallFor(line: WantedLine, offers: number, covered: number): Shortfall {
-  if (!line.record) {
+  if (!buyable(line)) {
     return 'own'
   }
   if (covered > 0) {
@@ -232,9 +241,9 @@ function round(value: number): number {
 /**
  * The plan, from the wanted lines and one walk over every lot held.
  *
- * Lines naming a part of somebody's own are answered without looking: no seller
- * lists a part BrickLink has no id for, so there is nothing to match and the
- * line is reported as unbuyable rather than as missing.
+ * Lines naming a part of somebody's own — a `U-` record — are answered without
+ * looking: no seller lists a part BrickLink has no id for, so there is nothing
+ * to match and the line is reported as unbuyable rather than as missing.
  */
 export async function planPurchase(lines: WantedLine[], walk: LotWalk): Promise<ShopPlan> {
   const best = new Map<string, Best>()
@@ -242,11 +251,11 @@ export async function planPurchase(lines: WantedLine[], walk: LotWalk): Promise<
   const offers = new Map<string, number>()
   /* Per seller, the cheapest they have of each line — see the note up top. */
   const perStore = new Map<string, { lot: CandidateLot; lines: Map<string, Best> }>()
-  const buyable = lines.filter((line) => line.record)
+  const wanted = lines.filter(buyable)
 
-  if (buyable.length) {
+  if (wanted.length) {
     await walk((lot) => {
-      for (const line of buyable) {
+      for (const line of wanted) {
         if (!eligible(line, lot)) {
           continue
         }
@@ -281,7 +290,7 @@ export async function planPurchase(lines: WantedLine[], walk: LotWalk): Promise<
   }
 
   const planned = lines.map((line) => planLine(line, best.get(line.key), offers.get(line.key) ?? 0))
-  const wanted = new Map(lines.map((line) => [line.key, line.quantity]))
+  const asked = new Map(lines.map((line) => [line.key, line.quantity]))
 
   const stores: PlannedStore[] = Array.from(perStore.entries())
     .map(([store, held]) => {
@@ -291,7 +300,7 @@ export async function planPurchase(lines: WantedLine[], walk: LotWalk): Promise<
       for (const [key, offer] of held.lines) {
         quantity += offer.covered
         cost += offer.price * offer.covered
-        if (offer.covered < (wanted.get(key) ?? 0)) {
+        if (offer.covered < (asked.get(key) ?? 0)) {
           short++
         }
       }

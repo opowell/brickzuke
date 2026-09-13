@@ -29,7 +29,6 @@ function wanted(items: Awaited<ReturnType<typeof loadShopListItems>>): WantedLin
     // can be traced back to the line somebody wrote.
     key: String(item.id),
     record: item.record,
-    userItemId: item.userItemId,
     name: item.name,
     colorId: item.colorId,
     quantity: item.minQuantity,

@@ -18,12 +18,14 @@ import {createUserCategory,
   deleteUserCategory,
   loadUserCategories,
   updateUserCategory} from '../userCategory'
-import { createUserItem, deleteUserItem, loadUserItems, updateUserItem } from '../userItem'
+import {createUserItem,
+  deleteUserItem,
+  loadUserItems,
+  updateUserItem,
+  userItemIdOf,
+  userItemRecord} from '../userItem'
 import {addInventoryLine,
-  createUserInventory,
-  deleteUserInventory,
   loadInventoryLines,
-  loadUserInventory,
   removeInventoryLine,
   updateInventoryLine} from '../userInventory'
 import {addShopListItem,
@@ -32,7 +34,6 @@ import {addShopListItem,
   loadShopList,
   loadShopListItems,
   loadShopLists,
-  shopListFromInventory,
   shopListFromRecord,
   updateShopListItem} from '../shopList'
 
@@ -44,7 +45,6 @@ beforeEach(async () => {
   for (const store of [
     STORES.USER_CATEGORIES,
     STORES.USER_ITEMS,
-    STORES.USER_INVENTORIES,
     STORES.USER_INVENTORY_LINES,
     STORES.SHOP_LISTS,
     STORES.SHOP_LIST_ITEMS,
@@ -108,79 +108,98 @@ describe('user items', () => {
   })
 })
 
-describe('user inventories', () => {
-  it('joins its lines on, in the order they were added', async () => {
-    const inventory = await createUserInventory(db, {
-      name: 'My MOC' 
-    })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3001',
+describe('an item record of their own', () => {
+  it('reads as one and back, and never as one of BrickLink own', () => {
+    expect(userItemRecord(3)).toBe('U-3')
+    expect(userItemIdOf('U-3')).toBe(3)
+    // Every shape a BrickLink record takes, and the near misses.
+    for (const record of ['S-10511-1', 'P-3001', 'M-sw0001', 'U-', 'U-0', 'u-3', 'U-3x', 3]) {
+      expect([record, userItemIdOf(record)]).toEqual([record, undefined])
+    }
+  })
+})
+
+describe('sets of their own: an item with parts', () => {
+  it('files lines under the item record, in the order they were added', async () => {
+    const set = userItemRecord((await createUserItem(db, 'My MOC')).id)
+    await addInventoryLine(db, set, {
+      part: 'P-3001',
       colorId: '5',
       quantity: 4 
     })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3002',
+    await addInventoryLine(db, set, {
+      part: 'P-3002',
       quantity: 2 
     })
 
-    const held = await loadUserInventory(db, inventory.id)
-    expect(held?.name).toBe('My MOC')
-    expect(held?.lines.map((line) => line.record)).toEqual(['P-3001', 'P-3002'])
-    expect(held?.lines[0].quantity).toBe(4)
+    const lines = await loadInventoryLines(db, set)
+    expect(lines.map((line) => line.part)).toEqual(['P-3001', 'P-3002'])
+    expect(lines[0].quantity).toBe(4)
+    expect(lines[0].record).toBe(set)
   })
 
   it('gives a new line one, not none', async () => {
-    const inventory = await createUserInventory(db)
-    expect((await addInventoryLine(db, inventory.id)).quantity).toBe(1)
+    const set = userItemRecord((await createUserItem(db)).id)
+    expect((await addInventoryLine(db, set)).quantity).toBe(1)
   })
 
-  it('holds only the lines of the inventory asked about', async () => {
-    const mine = await createUserInventory(db, {
-      name: 'Mine' 
+  it('holds only the lines of the set asked about', async () => {
+    const mine = userItemRecord((await createUserItem(db, 'Mine')).id)
+    const theirs = userItemRecord((await createUserItem(db, 'Theirs')).id)
+    await addInventoryLine(db, mine, {
+      part: 'P-3001' 
     })
-    const theirs = await createUserInventory(db, {
-      name: 'Theirs' 
-    })
-    await addInventoryLine(db, mine.id, {
-      record: 'P-3001' 
-    })
-    await addInventoryLine(db, theirs.id, {
-      record: 'P-3002' 
+    await addInventoryLine(db, theirs, {
+      part: 'P-3002' 
     })
 
-    expect(await loadInventoryLines(db, mine.id)).toHaveLength(1)
-    expect((await loadInventoryLines(db, mine.id))[0].record).toBe('P-3001')
+    expect(await loadInventoryLines(db, mine)).toHaveLength(1)
+    expect((await loadInventoryLines(db, mine))[0].part).toBe('P-3001')
   })
 
   it('edits and removes a line', async () => {
-    const inventory = await createUserInventory(db)
-    const line = await addInventoryLine(db, inventory.id, {
-      record: 'P-3001',
+    const set = userItemRecord((await createUserItem(db)).id)
+    const line = await addInventoryLine(db, set, {
+      part: 'P-3001',
       quantity: 1 
     })
     await updateInventoryLine(db, line.id, {
       quantity: 9 
     })
-    expect((await loadInventoryLines(db, inventory.id))[0].quantity).toBe(9)
+    expect((await loadInventoryLines(db, set))[0].quantity).toBe(9)
 
     await removeInventoryLine(db, line.id)
-    expect(await loadInventoryLines(db, inventory.id)).toHaveLength(0)
+    expect(await loadInventoryLines(db, set)).toHaveLength(0)
   })
 
-  it('takes its lines with it when it goes', async () => {
-    const inventory = await createUserInventory(db)
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3001' 
+  it('takes its parts with it when the item goes', async () => {
+    const item = await createUserItem(db, 'My MOC')
+    const set = userItemRecord(item.id)
+    await addInventoryLine(db, set, {
+      part: 'P-3001' 
     })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3002' 
+    await addInventoryLine(db, set, {
+      part: 'P-3002' 
     })
-    await deleteUserInventory(db, inventory.id)
+    await deleteUserItem(db, item.id)
 
     // Nothing addressed to a record that has gone — IndexedDB has no cascade
     // of its own, so this is the whole of what enforces it.
-    expect(await loadInventoryLines(db, inventory.id)).toHaveLength(0)
+    expect(await loadInventoryLines(db, set)).toHaveLength(0)
     expect(await db.count(STORES.USER_INVENTORY_LINES.name)).toBe(0)
+  })
+
+  it('leaves a line naming the deleted item as a part', async () => {
+    const piece = await createUserItem(db, 'Sprue offcut')
+    const set = userItemRecord((await createUserItem(db, 'My MOC')).id)
+    await addInventoryLine(db, set, {
+      part: userItemRecord(piece.id),
+      name: 'Sprue offcut' 
+    })
+    await deleteUserItem(db, piece.id)
+    // The line still says what it was called: losing the description is not
+    // a reason to lose the line that wanted it.
+    expect((await loadInventoryLines(db, set))[0].name).toBe('Sprue offcut')
   })
 })
 
@@ -209,23 +228,23 @@ describe('shopping lists', () => {
     expect(await db.count(STORES.SHOP_LIST_ITEMS.name)).toBe(0)
   })
 
-  it('copies one of somebody own sets, quantity and all', async () => {
-    const inventory = await createUserInventory(db, {
-      name: 'My MOC' 
-    })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3001',
+  it('copies one of somebody own sets, quantity and all, by its record', async () => {
+    const set = userItemRecord((await createUserItem(db, 'My MOC')).id)
+    await addInventoryLine(db, set, {
+      part: 'P-3001',
       colorId: '5',
       name: 'Brick 2 x 4',
       quantity: 4
     })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3002',
+    await addInventoryLine(db, set, {
+      part: 'P-3002',
       quantity: 2 
     })
 
-    const list = await shopListFromInventory(db, inventory.id)
-    expect(list?.sourceInventoryId).toBe(inventory.id)
+    // The same call as for a set of BrickLink's: the record says which store.
+    const list = await shopListFromRecord(db, set)
+    expect(list?.sourceRecord).toBe(set)
+    expect(list?.name).toBe('Parts for My MOC')
     const items = await loadShopListItems(db, list!.id)
     // A set needing four is a list wanting four.
     expect(items.map((item) => item.minQuantity).sort()).toEqual([2, 4])

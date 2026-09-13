@@ -4,6 +4,7 @@ import INDICES from './indices'
 
 import { createIndex, createStore } from './db'
 import { userCategoryRef } from './userCategory'
+import { userItemRecord } from './userItem'
 
 const DB_NAME = 'brickzuke'
 // 19 adds COLOR_SCOPES, which says how much of a colour was fetched.
@@ -31,7 +32,13 @@ const DB_NAME = 'brickzuke'
 // negative `categoryId` — see [userCategoryRef]. The first change of shape to
 // a store nobody scraped, and so the first migrated in place rather than
 // cleared: see the loop at the foot of `upgrade` for how that is done.
-const DB_VERSION = 26
+// 27 makes a set of somebody's own an item of theirs with parts, and gives
+// every item of theirs a record — `U-3` — in the field a BrickLink item has
+// one in. USER_INVENTORIES goes: each becomes a USER_ITEMS row, its lines are
+// re-filed under the new item's record, and the two places a line or a list
+// item could name a part by key name it by record instead. Every row is
+// carried; see the last block of `upgrade`.
+const DB_VERSION = 27
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -122,6 +129,113 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           }
         } catch (e) {
           console.log('Error folding item categories', e)
+        }
+      }
+      /*
+       * v27. A set of theirs was a record of its own, keyed apart from their
+       * items; now it is one of their items, and its parts are filed under
+       * that item's record. So each set becomes an item — its name, its date,
+       * and what it was about kept as a note — and every line under it is
+       * re-addressed from the set's old key to the new item's record, with the
+       * part it names moved into `part`. A line or a wanted part that named a
+       * part of theirs by key names it by record now, and a list that named
+       * the set it came from by key names it by record.
+       *
+       * The old store is dropped once it is empty of anything not carried
+       * across, which is the one deletion of a user store here and the reason
+       * it is stated in words: nothing in it is lost, it has been moved.
+       *
+       * Guarded on the store being there at all: a database made fresh at
+       * this version never had it.
+       */
+      if (oldVersion >= 24 && oldVersion < 27) {
+        try {
+          const items = transaction.objectStore(STORES.USER_ITEMS.name)
+          const lines = transaction.objectStore(STORES.USER_INVENTORY_LINES.name)
+          const listItems = transaction.objectStore(STORES.SHOP_LIST_ITEMS.name)
+          const lists = transaction.objectStore(STORES.SHOP_LISTS.name)
+          const OLD_SETS = 'userInventories'
+          const OLD_INDEX = 'inventoryId'
+
+          // Each set of theirs, as an item of theirs — and which key became
+          // which record, for everything that pointed at the set.
+          const recordOf = new Map<number, string>()
+          if (db.objectStoreNames.contains(OLD_SETS)) {
+            const sets = transaction.objectStore(OLD_SETS)
+            for (const set of (await sets.getAll()) as {
+              id: number
+              name: string
+              record?: string
+              createdAt: Date
+            }[]) {
+              const key = await items.add({
+                name: set.name,
+                note: set.record ? `For ${set.record}` : undefined,
+                createdAt: set.createdAt ?? new Date()
+              })
+              recordOf.set(set.id, userItemRecord(Number(key)))
+            }
+          }
+
+          let line = await lines.openCursor()
+          while (line) {
+            const old = line.value as {
+              inventoryId?: number
+              record?: string
+              userItemId?: number
+              [field: string]: unknown
+            }
+            if (old.inventoryId !== undefined) {
+              const {
+                inventoryId, record, userItemId, ...rest 
+              } = old
+              await line.update({
+                ...rest,
+                record: recordOf.get(inventoryId) ?? userItemRecord(inventoryId),
+                part: record ?? (userItemId === undefined ? undefined : userItemRecord(userItemId))
+              })
+            }
+            line = await line.continue()
+          }
+          if (lines.indexNames.contains(OLD_INDEX)) {
+            lines.deleteIndex(OLD_INDEX)
+          }
+
+          let wanted = await listItems.openCursor()
+          while (wanted) {
+            const old = wanted.value as { record?: string; userItemId?: number; [field: string]: unknown }
+            if (old.userItemId !== undefined) {
+              const {
+                userItemId, ...rest 
+              } = old
+              await wanted.update({
+                ...rest,
+                record: rest.record ?? userItemRecord(userItemId)
+              })
+            }
+            wanted = await wanted.continue()
+          }
+
+          let list = await lists.openCursor()
+          while (list) {
+            const old = list.value as { sourceInventoryId?: number; sourceRecord?: string; [field: string]: unknown }
+            if (old.sourceInventoryId !== undefined) {
+              const {
+                sourceInventoryId, ...rest 
+              } = old
+              await list.update({
+                ...rest,
+                sourceRecord: rest.sourceRecord ?? recordOf.get(sourceInventoryId)
+              })
+            }
+            list = await list.continue()
+          }
+
+          if (db.objectStoreNames.contains(OLD_SETS)) {
+            db.deleteObjectStore(OLD_SETS)
+          }
+        } catch (e) {
+          console.log('Error making sets into items', e)
         }
       }
     },

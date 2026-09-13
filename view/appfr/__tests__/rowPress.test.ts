@@ -65,7 +65,7 @@ const color: ShellRow = {
   }
 }
 
-/** One country of the directory, whose flag is a picture that leads somewhere. */
+/** One country of the directory, its flag drawn in the name's cell. */
 const country: ShellRow = {
   id: 'DE',
   entityKey: 'countries',
@@ -76,6 +76,23 @@ const country: ShellRow = {
     stores: 120,
     region: 'Europe',
     image: 'https://img.bricklink.com/flags/DE.gif'
+  }
+}
+
+/** One part in one colour, whose picture is a press of its own. */
+const variant: ShellRow = {
+  id: '3001-5',
+  entityKey: 'itemVariants',
+  entityLabel: 'Item variants',
+  fields: {
+    id: '3001-5',
+    variant: '3001-5',
+    type: 'P',
+    itemId: '3001',
+    colorid: 5,
+    name: 'Brick 2 x 4',
+    sets: 12,
+    image: 'https://img.bricklink.com/P/5/3001.jpg'
   }
 }
 
@@ -104,11 +121,14 @@ const part: ShellRow = {
  * the state the app is in, ItemsShell handing the shell the same router this
  * schema reads.
  */
-async function mountTable(entity: string, row: ShellRow) {
+async function mountTable(entity: string, row: ShellRow, expr = '') {
   await router.replace({
     path: '/',
     query: {
-      [PARAM_ENTITY]: entity
+      [PARAM_ENTITY]: entity,
+      ...(expr ? {
+        [PARAM_EXPR]: expr
+      } : {})
     }
   })
   const source: DataSource = {
@@ -118,7 +138,14 @@ async function mountTable(entity: string, row: ShellRow) {
       unfiltered: false
     })
   }
-  const route = createMemoryAdapter(`?${PARAM_ENTITY}=${entity}&${PARAM_VIEW}=table`)
+  const params = new URLSearchParams({
+    [PARAM_ENTITY]: entity,
+    [PARAM_VIEW]: 'table'
+  })
+  if (expr) {
+    params.set(PARAM_EXPR, expr)
+  }
+  const route = createMemoryAdapter(`?${params.toString()}`)
   const shell = mount(DataShell, {
     props: {
       schema: catalogSchema.value,
@@ -191,6 +218,26 @@ describe('pressing a row', () => {
     expect(route.search.value).toBe(before)
   })
 
+  it('narrows a country on top of what is asked, pressed by its name', async () => {
+    const {
+      shell, route
+    } = await mountTable('countries', country, 'region:"Europe"')
+    // The name is plain text with the flag in front of it — see CellFlag — so
+    // a press on it is the row's press. It used to be a button of its own that
+    // opened the sellers on `country:"DE"` alone, dropping the region on the
+    // way; a reader who came in through Europe stays in Europe.
+    const name = shell.findAll('.flagged__name').find((one) => one.text() === 'Germany')
+    expect(name).toBeDefined()
+    expect(shell.get('.dc-table__row').find('img[src*="flags"]').exists()).toBe(true)
+    await name!.trigger('click')
+    await nextTick()
+    const query = asked(route)
+    expect(query.expr).toContain('region:"Europe"')
+    expect(query.expr).toContain('country:"DE"')
+    expect(query.entity).toBe(ENTITY_ALL)
+    expect(query.view).toBe('cards')
+  })
+
   it('drops no arrow on the rows it narrows, the row being it', async () => {
     const {
       shell
@@ -222,11 +269,12 @@ describe('pressing a cell that leads somewhere', () => {
   it('does not also narrow to the row when the cell is a picture', async () => {
     const {
       shell, route
-    } = await mountTable('countries', country)
+    } = await mountTable('itemVariants', variant)
     const before = route.search.value
-    // The flag, drawn by CellImage: a country's sellers, not the country.
-    const flag = shell.get('img[src*="flags"]')
-    await flag.trigger('click')
+    // The thumbnail, drawn by CellImage: the part in that colour on offer,
+    // not the variant row.
+    const picture = shell.get('img[src*="3001"]')
+    await picture.trigger('click')
     await nextTick()
     expect(route.search.value).toBe(before)
   })

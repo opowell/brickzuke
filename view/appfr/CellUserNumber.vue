@@ -82,8 +82,10 @@ function write() {
 </script>
 
 <template>
-  <!-- Plain on a row nobody may write, as [CellUserText] is. -->
-  <span v-if="!writable">{{ typed }}</span>
+  <!-- Plain on a row nobody may write, as [CellUserText] is — and written the
+       way the column says, where it says: a BrickLink set's quantities are
+       formatted as counts. -->
+  <span v-if="!writable">{{ column?.format ? column.format(value, row) : typed }}</span>
   <span
     v-else
     class="user-number"

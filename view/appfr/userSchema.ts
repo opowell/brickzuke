@@ -16,17 +16,18 @@
  * screen card reading "Wanted parts" beside the catalogue's own would be a card
  * for nothing.
  *
- * Categories of somebody's own are not a type here at all. A category is a
- * category whoever made it, so theirs are rows of the catalogue's `categories`
- * — see [categoryRows] — and that type is the one catalogue type that names
- * `create` and `delete`, in [catalogSchema]. What is here is the one column
- * an item of theirs files itself under, which offers both kinds at once.
+ * Categories, items and sets of somebody's own are not types here at all. A
+ * category is a category, an item an item and a set a set whoever made it, so
+ * theirs are rows of the catalogue's own `categories`, `items` and `inventory`
+ * — see [categoryRows], [userItemRows] and [userInventoryLineRows] — and
+ * those three are the catalogue types that name `create` and `delete`, in
+ * [catalogSchema]. What is left here is the one type that is theirs alone: a
+ * shopping list, which the catalogue has no counterpart to.
  */
 import type { ColumnDef, EntitySchema } from 'header-content-layout'
 import type { ShellRow } from 'header-content-layout'
 import { narrowBy, narrowTo } from './catalogSchema'
 import { userPopulation } from './userCounts'
-import { shopPartsOfInventory } from './userWrites'
 import CellPrice from './CellPrice.vue'
 import CellPostage from './CellPostage.vue'
 import CellUserNumber from './CellUserNumber.vue'
@@ -36,27 +37,6 @@ import CellUserText from './CellUserText.vue'
 /** The row's own key, which every one of these types carries in `id`. */
 function idOf(row: ShellRow): string {
   return String(row.fields.id ?? '')
-}
-
-/**
- * A list of everything in one of somebody's own sets, and the plan for buying
- * it — the press that makes "buy the parts in this" one gesture.
- *
- * Made and then opened, rather than opened and then made, because the list is
- * what the plan is worked out from: there is nothing to show until it exists.
- * A set with nothing in it makes no list, and the press then does nothing
- * rather than opening an empty table.
- */
-function shopInventory(row: ShellRow): void {
-  const id = Number(idOf(row))
-  if (!Number.isFinite(id)) {
-    return
-  }
-  void shopPartsOfInventory(id).then((listId) => {
-    if (listId) {
-      narrowTo('shopPlan', 'shoplist', String(listId))
-    }
-  })
 }
 
 /** The `#` every table here opens with. */
@@ -83,142 +63,6 @@ const created: ColumnDef = {
   sort: 'created',
   muted: true
 }
-
-export const userItemColumns: ColumnDef[] = [
-  ordinal,
-  {
-    key: 'name',
-    role: 'identity',
-    label: 'Name',
-    kind: 'component',
-    component: CellUserText,
-    width: '300px',
-    sort: 'name'
-  },
-  {
-    // The same field an item of the catalogue's carries its category in, so
-    // `category:` narrows this table and that one alike — and the picker
-    // offers BrickLink's categories and theirs together, theirs first.
-    key: 'category',
-    role: 'reference',
-    label: 'Category',
-    hint: 'One of BrickLink’s categories or one of your own, or none',
-    kind: 'component',
-    component: CellUserPick,
-    width: '220px',
-    // Sorted by the name the picker shows, not by the number behind it.
-    sort: 'categoryName'
-  },
-  {
-    key: 'note',
-    label: 'Note',
-    kind: 'component',
-    component: CellUserText,
-    width: '340px',
-    sort: 'note'
-  },
-  created
-]
-
-export const userInventoryColumns: ColumnDef[] = [
-  ordinal,
-  {
-    key: 'name',
-    role: 'identity',
-    label: 'Name',
-    kind: 'component',
-    component: CellUserText,
-    width: '300px',
-    sort: 'name'
-  },
-  {
-    key: 'parts',
-    role: 'metric',
-    label: 'Parts',
-    hint: 'How many different pieces are in it — press to see them',
-    width: '90px',
-    sort: 'parts',
-    click: (row) => narrowTo('userInventoryLines', 'userinventory', idOf(row))
-  },
-  {
-    key: 'pieces',
-    role: 'metric',
-    label: 'Pieces',
-    hint: 'How many pieces in all, counting every one of each',
-    width: '90px',
-    sort: 'pieces'
-  },
-  {
-    // The set this is about, where it is about one — the parts somebody means
-    // to add to a set BrickLink lists. Under the name every other table holds a
-    // record in, so the press leads where a record leads everywhere else.
-    key: 'record',
-    label: 'Set',
-    hint: 'The BrickLink set this inventory is about, if it is about one',
-    width: '140px',
-    mono: true,
-    sort: 'record',
-    click: (row) => narrowTo('inventory', 'record', String(row.fields.record ?? ''))
-  },
-  {
-    key: 'shop',
-    label: 'Buy',
-    hint: 'Make a shopping list of everything in this, and price it across the sellers brickzuke holds lots for',
-    width: '110px',
-    value: () => 'Shop parts',
-    click: shopInventory
-  },
-  created
-]
-
-/**
- * One part of one such set.
- *
- * Four of the five columns are boxes to type in, this being the table an
- * inventory is actually written on. The part is named by BrickLink's own record
- * — `P-3001` — because that is what the planner matches a lot against: a line
- * naming a part by anything else is a line nothing can be bought for.
- */
-export const userInventoryLineColumns: ColumnDef[] = [
-  ordinal,
-  {
-    key: 'name',
-    role: 'identity',
-    label: 'Part',
-    kind: 'component',
-    component: CellUserText,
-    width: '300px',
-    sort: 'name'
-  },
-  {
-    key: 'record',
-    label: 'Record',
-    hint: 'BrickLink’s own id for the part — P-3001 — which is what a seller’s lots are matched against',
-    kind: 'component',
-    component: CellUserText,
-    width: '150px',
-    mono: true,
-    sort: 'record'
-  },
-  {
-    key: 'colorid',
-    label: 'Color',
-    hint: 'BrickLink’s own colour id, or blank to take the part in any colour',
-    kind: 'component',
-    component: CellUserText,
-    width: '110px',
-    sort: 'colorid'
-  },
-  {
-    key: 'quantity',
-    role: 'metric',
-    label: 'Quantity',
-    kind: 'component',
-    component: CellUserNumber,
-    width: '110px',
-    sort: 'quantity'
-  }
-]
 
 export const shopListColumns: ColumnDef[] = [
   ordinal,
@@ -291,7 +135,7 @@ export const shopListItemColumns: ColumnDef[] = [
   {
     key: 'record',
     label: 'Record',
-    hint: 'BrickLink’s own id for the part — P-3001 — which is what a seller’s lots are matched against',
+    hint: 'The part’s record — BrickLink’s, P-3001, which is what a seller’s lots are matched against, or one of your own, U-5, which no seller has',
     kind: 'component',
     component: CellUserText,
     width: '150px',
@@ -512,77 +356,13 @@ export const shopStoreColumns: ColumnDef[] = [
 ]
 
 /**
- * The three types that stand whether or not anything is open.
+ * The one type that stands whether or not anything is open, and is theirs
+ * alone: the catalogue has no shopping list to file one under.
  *
- * Each names `create` and `delete`, which is the whole of how one is made and
+ * It names `create` and `delete`, which is the whole of how one is made and
  * unmade: the shell draws `+ New…` and the ticks, and reports both.
  */
 export const userEntities: EntitySchema[] = [
-  {
-    key: 'userItems',
-    label: 'My items',
-    scope: 'useritem',
-    count: '',
-    create: 'New item',
-    delete: 'Delete',
-    facets: [],
-    tabs: [],
-    samples: [],
-    columns: userItemColumns,
-    sorts: [
-      {
-        key: 'name',
-        label: 'Name'
-      },
-      {
-        key: 'categoryName',
-        label: 'Category'
-      },
-      {
-        key: 'note',
-        label: 'Note'
-      },
-      {
-        key: 'created',
-        label: 'Made'
-      }
-    ]
-  },
-  {
-    key: 'userInventories',
-    label: 'My inventories',
-    // The field a line carries the inventory it belongs to in.
-    scope: 'userinventory',
-    count: '',
-    create: 'New inventory',
-    delete: 'Delete',
-    facets: [],
-    tabs: [],
-    samples: [],
-    columns: userInventoryColumns,
-    sorts: [
-      {
-        key: 'name',
-        label: 'Name'
-      },
-      {
-        key: 'parts',
-        label: 'Parts'
-      },
-      {
-        key: 'pieces',
-        label: 'Pieces'
-      },
-      {
-        key: 'record',
-        label: 'Set'
-      },
-      {
-        key: 'created',
-        label: 'Made'
-      }
-    ]
-  },
   {
     key: 'shopLists',
     label: 'Shopping lists',
@@ -619,7 +399,7 @@ export const userEntities: EntitySchema[] = [
   }
 ]
 
-/** The same three, with the populations the cards are headed by. */
+/** The same, with the population the card is headed by. */
 export function standingUserEntities(): EntitySchema[] {
   return userEntities.map((entity) => ({
     ...entity,
@@ -627,47 +407,7 @@ export function standingUserEntities(): EntitySchema[] {
   }))
 }
 
-/** An inventory's parts, declared only while one is open. */
-export const userInventoryLinesEntity: EntitySchema = {
-  key: 'userInventoryLines',
-  label: 'Inventory parts',
-  // Counted by what comes back: this is one inventory's parts, not a population.
-  count: '',
-  create: 'Add part',
-  delete: 'Delete',
-  facets: [
-    {
-      kind: 'range',
-      key: 'quantity',
-      label: 'Quantity',
-      min: 0,
-      max: 1_000
-    }
-  ],
-  tabs: [],
-  samples: [],
-  columns: userInventoryLineColumns,
-  sorts: [
-    {
-      key: 'name',
-      label: 'Part'
-    },
-    {
-      key: 'record',
-      label: 'Record'
-    },
-    {
-      key: 'colorid',
-      label: 'Color'
-    },
-    {
-      key: 'quantity',
-      label: 'Quantity'
-    }
-  ]
-}
-
-/** A list's wanted parts, likewise. */
+/** A list's wanted parts, declared only while one is open. */
 export const shopListItemsEntity: EntitySchema = {
   key: 'shopListItems',
   label: 'Wanted parts',

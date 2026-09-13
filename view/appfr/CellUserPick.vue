@@ -75,10 +75,21 @@ const choices = computed(() =>
 
 const writable = computed(() => writableRow(props.row))
 
-/** What the picked choice is called, for a row that gets no picker. */
-const pickedLabel = computed(
-  () => choices.value.find((choice) => choice.value === picked.value)?.label ?? picked.value
-)
+/**
+ * What the picked choice is called, for a row that gets no picker.
+ *
+ * A catalogue row carries the name beside the id under `<key>Name` — an
+ * item's `categoryName` — and that is read first, being what the row says of
+ * itself; the choices are asked only where it does not, which is a row of
+ * theirs drawn before the choices have loaded.
+ */
+const pickedLabel = computed(() => {
+  const named = props.row.fields[`${props.column?.key ?? ''}Name`]
+  if (typeof named === 'string' && named) {
+    return named
+  }
+  return choices.value.find((choice) => choice.value === picked.value)?.label ?? picked.value
+})
 
 function shown(value: unknown): string {
   return value === undefined || value === null ? '' : String(value)

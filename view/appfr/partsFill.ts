@@ -29,6 +29,7 @@
  * by hand while the backlog is running is served before the backlog is.
  */
 import { ref } from 'vue'
+import { userItemIdOf } from '../../idb/userItem'
 import { fetchesInFlight, hasInventory, inventoryFor } from './inventoryFetch'
 import { partsOf } from './partCounts'
 
@@ -106,7 +107,12 @@ let failures = 0
  * it is not counted already, and if it has not been asked about before.
  */
 export function requestPartCount(record: string) {
-  if (!record || !hasInventory(record) || partsOf(record) || asked.has(record)) {
+  // A set of theirs is counted off what they wrote — see [partCounts] — and
+  // there is no page of BrickLink's to ask for the rest.
+  if (!record || userItemIdOf(record) !== undefined) {
+    return
+  }
+  if (!hasInventory(record) || partsOf(record) || asked.has(record)) {
     return
   }
   asked.add(record)

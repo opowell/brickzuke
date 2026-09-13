@@ -1,93 +1,42 @@
 /**
- * Sets of somebody's own, and what is in them.
+ * What a set of somebody's own is made of.
  *
- * The same question ITEM_INVENTORIES answers for a BrickLink set — what is this
- * made of — over an inventory a reader wrote instead. Two stores rather than
- * one, and joined through USER_INVENTORY_LINES_BY_INVENTORY the way
- * [loadCategory] joins through BRICK_LINK_CATEGORIES_BY_CATEGORY_ID: one
- * indexed lookup answers "what is in this".
+ * The same question ITEM_INVENTORIES answers for a BrickLink set, over lines
+ * a reader wrote instead, and under the same address: the set's record. A
+ * set of theirs is an item of theirs — see [userItemRecord] — so there is no
+ * inventory record to make or name; there are only parts filed under `U-3`,
+ * and the item is a set for as long as any are.
  *
- * A line names its part by BrickLink's own record — `P-3001` — where the part
- * is one the catalogue lists, and by a [UserItem] id where it is not. Holding
- * the record rather than brickzuke's key is what lets the planner match the
- * line against the lots on offer, every one of which carries the same field.
+ * Joined through USER_INVENTORY_LINES_BY_RECORD the way ITEM_INVENTORIES is
+ * joined through ITEM_INVENTORIES_BY_RECORD: one indexed lookup answers "what
+ * is in this".
+ *
+ * A line names its part by record — BrickLink's, `P-3001`, or one of theirs,
+ * `U-5`. Holding the record rather than a key is what lets the planner match
+ * the line against the lots on offer, every one of which carries the same
+ * field, and tell a part of theirs, which no seller has, from a part nobody
+ * happens to hold.
  */
 import type { IDBPDatabase } from 'idb'
 import indices from './indices'
 import stores from './stores'
-import type { UserInventory, UserInventoryLine } from './userTypes'
-import {createRecord,
-  listChildren,
-  listRecords,
-  removeRecord,
-  removeWithChildren,
-  updateRecord} from './userRecord'
+import { getAll } from './db'
+import type { UserInventoryLine } from './userTypes'
+import { createRecord, listChildren, removeRecord, updateRecord } from './userRecord'
 
-export const NEW_USER_INVENTORY_NAME = 'New inventory'
-
-export async function createUserInventory(
-  db: IDBPDatabase,
-  fields: Partial<Omit<UserInventory, 'id' | 'createdAt'>> = {}
-): Promise<UserInventory> {
-  return createRecord<UserInventory>(db, stores.USER_INVENTORIES, {
-    name: fields.name ?? NEW_USER_INVENTORY_NAME,
-    record: fields.record,
-    createdAt: new Date()
-  })
-}
-
-export async function updateUserInventory(
-  db: IDBPDatabase,
-  id: number,
-  changes: Partial<Omit<UserInventory, 'id'>>
-): Promise<UserInventory | undefined> {
-  return updateRecord<UserInventory>(db, stores.USER_INVENTORIES, id, changes)
-}
-
-/** The inventory and its lines both — see [removeWithChildren] for why. */
-export async function deleteUserInventory(db: IDBPDatabase, id: number): Promise<void> {
-  return removeWithChildren(
-    db,
-    stores.USER_INVENTORIES,
-    stores.USER_INVENTORY_LINES,
-    indices.USER_INVENTORY_LINES_BY_INVENTORY,
-    id
-  )
-}
-
-export async function loadUserInventories(db: IDBPDatabase): Promise<UserInventory[]> {
-  return listRecords<UserInventory>(db, stores.USER_INVENTORIES)
-}
-
-/** What one inventory is made of, in the order the lines were added. */
+/** What one set is made of, in the order the lines were added. */
 export async function loadInventoryLines(
   db: IDBPDatabase,
-  inventoryId: number
+  record: string
 ): Promise<UserInventoryLine[]> {
-  return listChildren<UserInventoryLine>(
-    db,
-    indices.USER_INVENTORY_LINES_BY_INVENTORY,
-    inventoryId
-  )
+  return listChildren<UserInventoryLine>(db, indices.USER_INVENTORY_LINES_BY_RECORD, record)
 }
 
-/**
- * The inventory with its lines joined on, which is the one shape a reader of
- * this store wants and the shape [loadCategory] hands a category back in.
- */
-export async function loadUserInventory(
-  db: IDBPDatabase,
-  id: number
-): Promise<(UserInventory & { lines: UserInventoryLine[] }) | undefined> {
-  const inventories = await loadUserInventories(db)
-  const inventory = inventories.find((held) => held.id === id)
-  if (!inventory) {
-    return undefined
-  }
-  return {
-    ...inventory,
-    lines: await loadInventoryLines(db, id)
-  }
+/** Every line of every set of theirs, for the tables that list them all. */
+export async function loadAllInventoryLines(db: IDBPDatabase): Promise<UserInventoryLine[]> {
+  return ((await getAll<UserInventoryLine>(db, stores.USER_INVENTORY_LINES)) ?? []).sort(
+    (a, b) => a.id - b.id
+  )
 }
 
 /**
@@ -99,13 +48,12 @@ export async function loadUserInventory(
  */
 export async function addInventoryLine(
   db: IDBPDatabase,
-  inventoryId: number,
-  fields: Partial<Omit<UserInventoryLine, 'id' | 'inventoryId'>> = {}
+  record: string,
+  fields: Partial<Omit<UserInventoryLine, 'id' | 'record'>> = {}
 ): Promise<UserInventoryLine> {
   return createRecord<UserInventoryLine>(db, stores.USER_INVENTORY_LINES, {
-    inventoryId,
-    record: fields.record,
-    userItemId: fields.userItemId,
+    record,
+    part: fields.part,
     colorId: fields.colorId,
     name: fields.name,
     quantity: fields.quantity ?? 1

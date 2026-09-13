@@ -30,12 +30,13 @@ import stores from '../../idb/stores'
 import type {ShopList,
   ShopListItem,
   UserCategory,
-  UserInventory,
   UserInventoryLine,
   UserItem} from '../../idb/userTypes'
-import type { BrickLinkCategory } from '../stores/bricklink/catalog-download-page'
+import type {BrickLinkCategory,
+  BrickLinkColor} from '../stores/bricklink/catalog-download-page'
 import { userCategoryIdOf, userCategoryRef } from '../../idb/userCategory'
-import { loadInventoryLines } from '../../idb/userInventory'
+import { userItemIdOf, userItemRecord } from '../../idb/userItem'
+import { loadAllInventoryLines, loadInventoryLines } from '../../idb/userInventory'
 import { loadShopListItems } from '../../idb/shopList'
 import { planFor } from './shopPlan'
 
@@ -85,83 +86,128 @@ async function categoryNames(db: IDBPDatabase): Promise<Map<number, string>> {
   return names
 }
 
+/**
+ * Somebody's own items, as rows of the catalogue's `items` table.
+ *
+ * The same fields under the same names, so the one table draws both and one
+ * `name:` or `category:` term narrows both — and the two the catalogue's rows
+ * have no use for: `own`, which the writing cells read, and `ownName`, the
+ * name without the record after it, which is what the box holds. `name` keeps
+ * the `(U-3)` suffix a catalogue row carries, because that is what a set's
+ * parts lead back to their item by: `narrowToItem` writes `name:"(P-3001)"`.
+ *
+ * Type `U`, which is the record's own letter and no type of BrickLink's — so
+ * a reader sees at once which rows are theirs, and `type:"U"` is the term
+ * that lists them alone.
+ */
 export async function userItemRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const items = await held<UserItem>(db, stores.USER_ITEMS)
   const names = await categoryNames(db)
-  return items.map((item) => ({
-    id: String(item.id),
-    entityKey: 'userItems',
-    entityLabel: 'My items',
-    fields: {
-      id: item.id,
-      own: true,
-      useritem: item.id,
-      name: item.name,
-      note: item.note,
-      // The one field, under the name every item row carries its category in
-      // — so `category:` narrows this table and the catalogue's alike.
-      category: item.categoryId,
-      // The name where the category is still there, and nothing where it is
-      // not: deleting a grouping does not delete what was grouped, so a row
-      // naming a category that has gone is drawn without one.
-      categoryName: item.categoryId === undefined ? undefined : names.get(item.categoryId),
-      // Whether that category is one of theirs, for a cell that wants to say.
-      ownCategory: userCategoryIdOf(item.categoryId) !== undefined,
-      created: made(item.createdAt)
-    }
-  }))
-}
-
-export async function userInventoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
-  const inventories = await held<UserInventory>(db, stores.USER_INVENTORIES)
-  const lines = (await getAll<UserInventoryLine>(db, stores.USER_INVENTORY_LINES)) ?? []
-  return inventories.map((inventory) => {
-    const own = lines.filter((line) => line.inventoryId === inventory.id)
+  const lines = await loadAllInventoryLines(db)
+  return items.map((item) => {
+    const record = userItemRecord(item.id)
+    const own = lines.filter((line) => line.record === record)
     return {
-      id: String(inventory.id),
-      entityKey: 'userInventories',
-      entityLabel: 'My inventories',
+      id: record,
+      entityKey: 'items',
+      entityLabel: 'Items',
       fields: {
-        id: inventory.id,
+        id: record,
         own: true,
-        userinventory: inventory.id,
-        name: inventory.name,
-        // The BrickLink set this is about, where it is about one. Under the
-        // same name every other table holds a record in, so a press on it
-        // leads where a record leads everywhere else.
-        record: inventory.record,
-        // How many different parts, and how many pieces in all — the two
-        // numbers a set is described by, and the pair `shopLists` also draws.
-        parts: own.length,
-        pieces: own.reduce((sum, line) => sum + (line.quantity ?? 0), 0),
-        created: made(inventory.createdAt)
+        record,
+        name: `${item.name} (${record})`,
+        ownName: item.name,
+        type: 'U',
+        typeId: 'U',
+        note: item.note,
+        // The one field, under the name every item row carries its category in
+        // — so `category:` narrows theirs and the catalogue's alike.
+        category: item.categoryId,
+        // The name where the category is still there, and nothing where it is
+        // not: deleting a grouping does not delete what was grouped, so a row
+        // naming a category that has gone is drawn without one.
+        categoryName: item.categoryId === undefined ? undefined : names.get(item.categoryId),
+        ownCategory: userCategoryIdOf(item.categoryId) !== undefined,
+        // How many pieces, counted the way a BrickLink set's are, and absent
+        // rather than nought for an item with nothing under it — a piece of
+        // theirs is not a set with no parts.
+        parts: own.length ? own.reduce((sum, line) => sum + (line.quantity ?? 0), 0) : undefined,
+        created: made(item.createdAt)
       }
     }
   })
 }
 
-/** The lines of one inventory — the type declared only while one is open. */
+/**
+ * What each BrickLink colour is called, by its own id — what a line holds.
+ *
+ * Read off the download records directly, as [categoryNames] reads the
+ * categories: the line carries BrickLink's id, which is what the record itself
+ * carries.
+ */
+async function colorNames(db: IDBPDatabase): Promise<Map<string, string>> {
+  const names = new Map<string, string>()
+  for (const record of (await getAll<BrickLinkColor>(db, stores.BRICK_LINK_COLORS)) ?? []) {
+    if (record.colorId && !names.has(record.colorId)) {
+      names.set(record.colorId, record['Color Name'])
+    }
+  }
+  return names
+}
+
+/**
+ * One part of one of somebody's own sets, as the fields a part of a BrickLink
+ * set has — see [inventoryFields], whose names these are.
+ *
+ * The part's record is split the way a stored variant is, into the type letter
+ * and the number, because that is what the Type column narrows by and what
+ * `narrowToItem` leads back through. A part of theirs splits the same way —
+ * `U` and `5` — and leads to their item.
+ */
+function userLineFields(line: UserInventoryLine, colors: Map<string, string>): Record<string, unknown> {
+  const dash = line.part?.indexOf('-') ?? -1
+  const type = dash > 0 ? line.part!.slice(0, dash) : undefined
+  const itemId = dash > 0 ? line.part!.slice(dash + 1) : undefined
+  return {
+    id: line.id,
+    own: true,
+    record: line.record,
+    part: line.part,
+    type,
+    itemId,
+    name: line.name,
+    color: line.colorId === undefined ? undefined : colors.get(line.colorId),
+    colorid: line.colorId === undefined ? undefined : Number(line.colorId),
+    quantity: line.quantity,
+    variant: itemId && line.colorId ? `${itemId}-${line.colorId}` : undefined
+  }
+}
+
+/** The lines of one set of theirs, as rows of the open set's `inventory`. */
 export async function userInventoryLineRows(
   db: IDBPDatabase,
-  inventoryId: number | undefined
+  record: string | undefined
 ): Promise<ShellRow[]> {
-  if (!inventoryId) {
+  if (!record || userItemIdOf(record) === undefined) {
     return []
   }
-  const lines = await loadInventoryLines(db, inventoryId)
-  return lines.map((line) => ({
+  const colors = await colorNames(db)
+  return (await loadInventoryLines(db, record)).map((line) => ({
     id: String(line.id),
-    entityKey: 'userInventoryLines',
-    entityLabel: 'Inventory parts',
-    fields: {
-      id: line.id,
-      own: true,
-      userinventory: line.inventoryId,
-      name: line.name,
-      record: line.record,
-      colorid: line.colorId === undefined ? undefined : Number(line.colorId),
-      quantity: line.quantity
-    }
+    entityKey: 'inventory',
+    entityLabel: 'Inventory',
+    fields: userLineFields(line, colors)
+  }))
+}
+
+/** Every line of every set of theirs, as rows of `itemInventories`. */
+export async function allUserInventoryLineRows(db: IDBPDatabase): Promise<ShellRow[]> {
+  const colors = await colorNames(db)
+  return (await loadAllInventoryLines(db)).map((line) => ({
+    id: String(line.id),
+    entityKey: 'itemInventories',
+    entityLabel: 'Item inventories',
+    fields: userLineFields(line, colors)
   }))
 }
 

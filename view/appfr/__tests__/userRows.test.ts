@@ -16,8 +16,8 @@ import { getDbConnection } from '../../../idb/idb'
 import { putAll } from '../../../idb/db'
 import STORES from '../../../idb/stores'
 import { createUserCategory } from '../../../idb/userCategory'
-import { createUserItem, updateUserItem } from '../../../idb/userItem'
-import { addInventoryLine, createUserInventory } from '../../../idb/userInventory'
+import { createUserItem, updateUserItem, userItemRecord } from '../../../idb/userItem'
+import { addInventoryLine } from '../../../idb/userInventory'
 import { addShopListItem, createShopList } from '../../../idb/shopList'
 
 /* As [catalogSchema]'s own test does: the cards are headed by counts off the
@@ -37,7 +37,6 @@ const {
   shopListItemRows,
   shopListRows,
   userInventoryLineRows,
-  userInventoryRows,
   userItemRows
 } = await import('../userRows')
 const {
@@ -64,12 +63,12 @@ beforeEach(async () => {
   for (const store of [
     STORES.USER_CATEGORIES,
     STORES.USER_ITEMS,
-    STORES.USER_INVENTORIES,
     STORES.USER_INVENTORY_LINES,
     STORES.SHOP_LISTS,
     STORES.SHOP_LIST_ITEMS,
     STORES.CATEGORIES,
-    STORES.BRICK_LINK_CATEGORIES
+    STORES.BRICK_LINK_CATEGORIES,
+    STORES.BRICK_LINK_COLORS
   ]) {
     await db.clear(store.name)
   }
@@ -155,7 +154,7 @@ describe('somebody own categories, in the one categories table', () => {
     })
 
     const named = (name: string) =>
-      userItemRows(db).then((rows) => rows.find((r) => r.fields.name === name)!)
+      userItemRows(db).then((rows) => rows.find((r) => r.fields.ownName === name)!)
     // One field, one column, both kinds — the whole point of the merge.
     expect((await named('Sprue offcut')).fields.categoryName).toBe('Oddments')
     expect((await named('Sprue offcut')).fields.ownCategory).toBe(true)
@@ -166,65 +165,87 @@ describe('somebody own categories, in the one categories table', () => {
     // Deleting a grouping does not delete what was grouped — see
     // [deleteUserCategory] — so the row is drawn without one.
     expect((await named('Sprue offcut')).fields.categoryName).toBeUndefined()
-    expect((await named('Sprue offcut')).fields.name).toBe('Sprue offcut')
+    expect((await named('Sprue offcut')).fields.ownName).toBe('Sprue offcut')
     db.close()
   })
 })
 
-describe('somebody own sets', () => {
-  it('says how many parts and how many pieces', async () => {
+describe('somebody own sets, as items with parts', () => {
+  it('draws an item of theirs as a row of the items table, a set once it has parts', async () => {
     const db = await connection()
-    const inventory = await createUserInventory(db, {
-      name: 'My MOC' 
-    })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3001',
+    const set = await createUserItem(db, 'My MOC')
+    const record = userItemRecord(set.id)
+    const [before] = await userItemRows(db)
+    // A row of `items`, keyed and addressed by its record like BrickLink's,
+    // the record after the name as a catalogue row carries it, and the name
+    // on its own for the box to hold.
+    expect(before.entityKey).toBe('items')
+    expect(before.id).toBe(record)
+    expect(before.fields.record).toBe(record)
+    expect(before.fields.name).toBe(`My MOC (${record})`)
+    expect(before.fields.ownName).toBe('My MOC')
+    expect(before.fields.type).toBe('U')
+    // Not a set yet: nothing is under it, and nought would say it is one.
+    expect(before.fields.parts).toBeUndefined()
+
+    await addInventoryLine(db, record, {
+      part: 'P-3001',
       quantity: 4 
     })
-    await addInventoryLine(db, inventory.id, {
-      record: 'P-3002',
+    await addInventoryLine(db, record, {
+      part: 'P-3002',
       quantity: 2 
     })
-
-    const [row] = await userInventoryRows(db)
-    // Two different pieces, six of them in all — the pair a set is described
-    // by, and the pair a shopping list draws as well.
-    expect(row.fields.parts).toBe(2)
-    expect(row.fields.pieces).toBe(6)
+    const [after] = await userItemRows(db)
+    // Six pieces, counted the way a BrickLink set's are.
+    expect(after.fields.parts).toBe(6)
     db.close()
   })
 
-  it('draws the lines of the inventory asked about and no other', async () => {
+  it('draws the parts of the set asked about, in the inventory shape', async () => {
     const db = await connection()
-    const mine = await createUserInventory(db, {
-      name: 'Mine' 
-    })
-    const theirs = await createUserInventory(db, {
-      name: 'Theirs' 
-    })
-    await addInventoryLine(db, mine.id, {
-      record: 'P-3001',
+    await putAll(db, STORES.BRICK_LINK_COLORS, [
+      {
+        colorId: '5',
+        bzColorId: '1',
+        'Color Name': 'Red' 
+      }
+    ])
+    const mine = userItemRecord((await createUserItem(db, 'Mine')).id)
+    const theirs = userItemRecord((await createUserItem(db, 'Theirs')).id)
+    await addInventoryLine(db, mine, {
+      part: 'P-3001',
       colorId: '5',
+      name: 'Brick 2 x 4',
       quantity: 4 
     })
-    await addInventoryLine(db, theirs.id, {
-      record: 'P-3002' 
+    await addInventoryLine(db, theirs, {
+      part: 'P-3002' 
     })
 
-    const rows = await userInventoryLineRows(db, mine.id)
+    const rows = await userInventoryLineRows(db, mine)
     expect(rows).toHaveLength(1)
-    expect(rows[0].fields.record).toBe('P-3001')
-    // A number, because `:` compares numbers exactly where it substring-matches
-    // strings — `colorid:"85"` must not also answer for colour 185.
-    expect(rows[0].fields.colorid).toBe(5)
-    // The field that says which inventory this belongs to, which is what a
-    // press on the parent narrowed by.
-    expect(rows[0].fields.userinventory).toBe(mine.id)
+    const [row] = rows
+    expect(row.entityKey).toBe('inventory')
+    // The fields a part of a BrickLink set has, under the same names — the
+    // set in `record`, the part split into its type and number, the colour's
+    // name looked up from its id and the id held as a number.
+    expect(row.fields.record).toBe(mine)
+    expect(row.fields.part).toBe('P-3001')
+    expect(row.fields.type).toBe('P')
+    expect(row.fields.itemId).toBe('3001')
+    expect(row.fields.color).toBe('Red')
+    expect(row.fields.colorid).toBe(5)
+    expect(row.fields.quantity).toBe(4)
+    expect(row.fields.own).toBe(true)
     db.close()
   })
 
-  it('draws nothing at all when the URL names no inventory', async () => {
+  it('draws nothing for a record that is not one of theirs', async () => {
     const db = await connection()
+    // A BrickLink set's parts come from the other store, and nothing of theirs
+    // must answer for it.
+    expect(await userInventoryLineRows(db, 'S-10511-1')).toEqual([])
     expect(await userInventoryLineRows(db, undefined)).toEqual([])
     db.close()
   })
@@ -289,15 +310,9 @@ describe('what the shell is told it may do', () => {
     const {
       shopListItemsEntity,
       shopPlanEntity,
-      shopStoresEntity,
-      userInventoryLinesEntity
-    } = await import('../userSchema')
-    for (const entity of [
-      userInventoryLinesEntity,
-      shopListItemsEntity,
-      shopPlanEntity,
       shopStoresEntity
-    ]) {
+    } = await import('../userSchema')
+    for (const entity of [shopListItemsEntity, shopPlanEntity, shopStoresEntity]) {
       const offered = new Set((entity.sorts ?? []).map((sort) => sort.key))
       const missing = (entity.columns ?? [])
         .filter((column) => column.sort && !offered.has(column.sort))
@@ -306,17 +321,39 @@ describe('what the shell is told it may do', () => {
     }
   })
 
-  it('offers making and unmaking on one catalogue type only: categories', () => {
+  it('offers making and unmaking on the catalogue types that list theirs, and no other', () => {
     // The shell draws a create button for any type that names one, so this is
-    // what keeps them off the tables brickzuke does not own. Categories is the
-    // exception because theirs are rows of it — what "+ New category" makes is
-    // one of theirs, and nothing here can make a BrickLink one.
+    // what keeps them off the tables brickzuke does not own. Categories and
+    // items are the exceptions because theirs are rows of them — what the
+    // button makes is one of theirs, and nothing here can make one of
+    // BrickLink's. A set's parts are the third, but only while the set on
+    // screen is theirs, which no URL here names.
     const scraped = catalogSchema.value.entities.filter(
       (entity) => !entity.key.startsWith('user') && !entity.key.startsWith('shop')
     )
     expect(
       scraped.filter((entity) => entity.create || entity.delete).map((e) => e.key)
-    ).toEqual(['categories'])
+    ).toEqual(['categories', 'items'])
+  })
+
+  it('deletes only their own rows of the items table, whatever is ticked', async () => {
+    const db = await connection()
+    const mine = await createUserItem(db, 'Sprue offcut')
+    db.close()
+
+    const {
+      deleteRecordsFor
+    } = await import('../userWrites')
+    const entity = catalogSchema.value.entities.find((e) => e.key === 'items')!
+    // A catalogue item's id is brickzuke's number; theirs is the record.
+    await deleteRecordsFor({
+      ids: ['12345', userItemRecord(mine.id)],
+      rows: [],
+      entity
+    })
+    const db2 = await connection()
+    expect(await userItemRows(db2)).toHaveLength(0)
+    db2.close()
   })
 
   it('deletes only their own rows of the categories table, whatever is ticked', async () => {

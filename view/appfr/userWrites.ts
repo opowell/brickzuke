@@ -19,23 +19,23 @@ import {createUserCategory,
   deleteUserCategory,
   updateUserCategory,
   userCategoryIdOf} from '../../idb/userCategory'
-import { createUserItem, deleteUserItem, updateUserItem } from '../../idb/userItem'
+import {createUserItem,
+  deleteUserItem,
+  updateUserItem,
+  userItemIdOf} from '../../idb/userItem'
 import {addInventoryLine,
-  createUserInventory,
-  deleteUserInventory,
   removeInventoryLine,
-  updateInventoryLine,
-  updateUserInventory} from '../../idb/userInventory'
+  updateInventoryLine} from '../../idb/userInventory'
 import {addShopListItem,
   createShopList,
   deleteShopList,
   removeShopListItem,
-  shopListFromInventory,
   shopListFromRecord,
   updateShopList,
   updateShopListItem} from '../../idb/shopList'
 import { forgetPlan } from './shopPlan'
 import { forgetCatalogRows } from './catalogRows'
+import { forgetPartCounts } from './partCounts'
 
 /**
  * One connection per write, opened and closed — as every reader here does.
@@ -56,8 +56,13 @@ async function writing<T>(
     return await write(db)
   } finally {
     db.close()
-    if (touches === 'categories' || touches === 'userItems') {
+    if (touches === 'categories' || touches === 'items') {
       forgetCatalogRows()
+    }
+    // A part added to a set of theirs is a number on that set's row of the
+    // items table, and the pass that counts them is held for the session.
+    if (touches === 'inventory' || touches === 'items') {
+      forgetPartCounts()
     }
     // The plan is worked out from the lots against a list, so any change to a
     // list is a plan that no longer describes it.
@@ -86,13 +91,18 @@ export function writableRow(row: ShellRow): boolean {
  * string — and for `shopStores` is not a key at all.
  */
 export function recordId(fields: Record<string, unknown>): number | undefined {
+  // An item of theirs is keyed by its record on the items table, `U-3`, so
+  // the key is read out of it; everything else of theirs carries the number.
+  const own = userItemIdOf(fields.id)
+  if (own !== undefined) {
+    return own
+  }
   const id = Number(fields.id)
   return Number.isFinite(id) && id > 0 ? id : undefined
 }
 
 /**
- * The id in the URL that a detail type belongs to — which inventory's lines
- * are up, which list's parts.
+ * The id in the URL that a detail type belongs to — which list's parts are up.
  *
  * Read off the expression rather than passed in, because that is where the
  * shell keeps it: opening a detail type states the term, and a new line has to
@@ -102,6 +112,12 @@ export function openedId(expr: string, field: string): number | undefined {
   const found = new RegExp(`${field}:"?(\\d+)"?`).exec(expr)
   const id = found ? Number(found[1]) : NaN
   return Number.isFinite(id) && id > 0 ? id : undefined
+}
+
+/** The set of theirs whose parts are up — `record:"U-3"` — or nothing. */
+export function openedOwnSet(expr: string): string | undefined {
+  const found = /record:"?(U-\d+)"?/.exec(expr)
+  return found && userItemIdOf(found[1]) !== undefined ? found[1] : undefined
 }
 
 /**
@@ -123,15 +139,16 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
       // category of theirs, which is a row of that same table.
       case 'categories':
         return void (await createUserCategory(db))
-      case 'userItems':
+      // Likewise: a new item of theirs is a row of the catalogue's items.
+      case 'items':
         return void (await createUserItem(db))
-      case 'userInventories':
-        return void (await createUserInventory(db))
       case 'shopLists':
         return void (await createShopList(db))
-      case 'userInventoryLines': {
-        const inventoryId = openedId(expr, 'userinventory')
-        return inventoryId ? void (await addInventoryLine(db, inventoryId)) : undefined
+      // A part goes under the set whose parts are on screen, and only where
+      // that set is theirs: nothing can be added to what BrickLink states.
+      case 'inventory': {
+        const record = openedOwnSet(expr)
+        return record ? void (await addInventoryLine(db, record)) : undefined
       }
       case 'shopListItems': {
         const listId = openedId(expr, 'shoplist')
@@ -146,19 +163,29 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
 /**
  * The keys of the ticked records that are somebody's to delete.
  *
- * On a type of their own every id is a key. On the categories table the ticks
- * can land on BrickLink's rows as well, which are not theirs and must not go:
- * a category of theirs is keyed by the negative of its id there — see
- * [categoryRows] and [userCategoryRef] — so only ids that read as one are
- * taken, and the rest are left exactly as they were.
+ * On a type of their own every id is a key. On the three catalogue tables that
+ * list theirs beside BrickLink's, the ticks can land on BrickLink's rows as
+ * well, which are not theirs and must not go — so only the ids that read as
+ * one of theirs are taken, and the rest are left exactly as they were. A
+ * category of theirs is keyed by the negative of its id, an item by its
+ * `U-3` record, and a part of one of their sets by its plain key, where a
+ * part of BrickLink's is keyed `S-10511-1|3001-5` and never reads as a number.
  */
 function ownIds(key: string | undefined, ids: string[]): number[] {
-  const keys = key === 'categories'
-    ? ids.flatMap((id) => {
-      const own = userCategoryIdOf(id)
-      return own === undefined ? [] : [own]
-    })
-    : ids.map(Number)
+  const keys =
+    key === 'categories'
+      ? ids.flatMap((id) => {
+        const own = userCategoryIdOf(id)
+        return own === undefined ? [] : [own]
+      })
+      : key === 'items'
+        ? ids.flatMap((id) => {
+          const own = userItemIdOf(id)
+          return own === undefined ? [] : [own]
+        })
+        : key === 'inventory'
+          ? ids.flatMap((id) => (/^\d+$/.test(id) ? [Number(id)] : []))
+          : ids.map(Number)
   return keys.filter((id) => Number.isFinite(id) && id > 0)
 }
 
@@ -181,13 +208,10 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
         case 'categories':
           await deleteUserCategory(db, id)
           break
-        case 'userItems':
+        case 'items':
           await deleteUserItem(db, id)
           break
-        case 'userInventories':
-          await deleteUserInventory(db, id)
-          break
-        case 'userInventoryLines':
+        case 'inventory':
           await removeInventoryLine(db, id)
           break
         case 'shopLists':
@@ -215,10 +239,10 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
  * inventory line and a different one on a wanted part.
  */
 const FIELD_OF: Record<string, Record<string, string>> = {
-  userItems: {
+  items: {
     category: 'categoryId'
   },
-  userInventoryLines: {
+  inventory: {
     colorid: 'colorId'
   },
   shopListItems: {
@@ -247,11 +271,9 @@ export async function writeField(
     switch (entityKey) {
       case 'categories':
         return void (await updateUserCategory(db, id, changes))
-      case 'userItems':
+      case 'items':
         return void (await updateUserItem(db, id, changes))
-      case 'userInventories':
-        return void (await updateUserInventory(db, id, changes))
-      case 'userInventoryLines':
+      case 'inventory':
         return void (await updateInventoryLine(db, id, changes))
       case 'shopLists':
         return void (await updateShopList(db, id, changes))
@@ -264,18 +286,13 @@ export async function writeField(
 }
 
 /**
- * "Shop parts" on a set BrickLink lists: a list of everything in it, and the
- * plan for buying it.
+ * "Shop parts" on a set — BrickLink's or one of theirs: a list of everything
+ * in it, and the plan for buying it.
  *
  * Gives back the list's id so the caller can open it, and nothing where the
- * set's inventory has not been fetched — a list with nothing on it would read
- * as a set with nothing in it. See [shopListFromRecord].
+ * set has no parts stored — a list with nothing on it would read as a set with
+ * nothing in it. See [shopListFromRecord].
  */
 export async function shopPartsOf(record: string, setName?: string): Promise<number | undefined> {
   return writing('shopLists', async (db) => (await shopListFromRecord(db, record, setName))?.id)
-}
-
-/** The same, for a set of somebody's own. */
-export async function shopPartsOfInventory(inventoryId: number): Promise<number | undefined> {
-  return writing('shopLists', async (db) => (await shopListFromInventory(db, inventoryId))?.id)
 }

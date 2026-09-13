@@ -14,6 +14,7 @@
  * came from is still on screen behind it.
  */
 import { ref } from 'vue'
+import { loadAllInventoryLines } from '../../idb/userInventory'
 import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
@@ -97,6 +98,17 @@ async function read(): Promise<void> {
         held.lots++
       }
       cursor = await cursor.continue()
+    }
+    // And the sets somebody designed, off the lines they wrote under them —
+    // the same fold over the other store, so a set of theirs on the items
+    // table is headed by a count the way a set of BrickLink's is.
+    for (const line of await loadAllInventoryLines(db)) {
+      const held = (counts[line.record] ??= {
+        parts: 0,
+        lots: 0
+      })
+      held.parts += Number(line.quantity) || 0
+      held.lots++
     }
     // Anything noted while the pass ran wins: a set opened just now was read
     // from what came back, and the pass may have started before it was stored.

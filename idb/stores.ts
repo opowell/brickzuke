@@ -27,7 +27,6 @@ const stores: {
   STORE_POLICIES: StoreDefinition
   USER_CATEGORIES: StoreDefinition
   USER_ITEMS: StoreDefinition
-  USER_INVENTORIES: StoreDefinition
   USER_INVENTORY_LINES: StoreDefinition
   SHOP_LISTS: StoreDefinition
   SHOP_LIST_ITEMS: StoreDefinition
@@ -217,20 +216,14 @@ const stores: {
     autoIncrement: true
   },
   /**
-   * A set of somebody's own, and what is in it — a MOC, or the parts they mean
-   * to add to a set the catalogue already knows.
+   * One part of one of somebody's own sets, under the set's record — `U-3`.
    *
-   * Parallel to ITEM_INVENTORIES rather than written into it, and deliberately:
-   * that store is keyed by BrickLink's own record id, so a line written into it
-   * is a line that can collide with a real one, and it is cleared when a
-   * fetched inventory's shape changes.
+   * A set of theirs is an item of theirs with parts, so there is no store of
+   * sets: the set is a USER_ITEMS row, and this is what is filed under it,
+   * the way ITEM_INVENTORIES is what is filed under a BrickLink set. Parallel
+   * to that store rather than written into it, and deliberately: it is
+   * cleared when a fetched inventory's shape changes, and this must never be.
    */
-  USER_INVENTORIES: {
-    name: 'userInventories',
-    keyPath: 'id',
-    autoIncrement: true
-  },
-  /** One part of one such set, under the inventory holding it. */
   USER_INVENTORY_LINES: {
     name: 'userInventoryLines',
     keyPath: 'id',

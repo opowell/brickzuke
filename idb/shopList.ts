@@ -6,10 +6,10 @@
  * that is worked out from the lots on offer every time somebody asks, because a
  * price is true only while the lot is there. See [shopParts] for the other half.
  *
- * A list is made three ways, which is the whole of what `TODO.md` asks for:
- * empty, so somebody can type what they want; from a set of their own; or from
- * a set BrickLink lists, which is "buy the parts in this set" and the reason
- * `shopListFromRecord` reads ITEM_INVENTORIES.
+ * A list is made two ways, which is the whole of what `TODO.md` asks for:
+ * empty, so somebody can type what they want; or from a set — BrickLink's or
+ * one of their own, `shopListFromRecord` reading whichever store the record
+ * names — which is "buy the parts in this set".
  */
 import type { IDBPDatabase } from 'idb'
 import indices from './indices'
@@ -22,7 +22,8 @@ import {createRecord,
   removeRecord,
   removeWithChildren,
   updateRecord} from './userRecord'
-import { loadInventoryLines, loadUserInventories } from './userInventory'
+import { loadInventoryLines } from './userInventory'
+import { loadUserItems, userItemIdOf } from './userItem'
 
 export const NEW_SHOP_LIST_NAME = 'New shopping list'
 
@@ -51,7 +52,6 @@ export async function createShopList(
 ): Promise<ShopList> {
   return createRecord<ShopList>(db, stores.SHOP_LISTS, {
     name: fields.name ?? NEW_SHOP_LIST_NAME,
-    sourceInventoryId: fields.sourceInventoryId,
     sourceRecord: fields.sourceRecord,
     createdAt: new Date()
   })
@@ -109,7 +109,6 @@ export async function addShopListItem(
   return createRecord<ShopListItem>(db, stores.SHOP_LIST_ITEMS, {
     listId,
     record: fields.record,
-    userItemId: fields.userItemId,
     colorId: fields.colorId,
     name: fields.name,
     minQuantity: fields.minQuantity ?? 1,
@@ -145,47 +144,18 @@ async function writeItems(
 }
 
 /**
- * A list of everything in one of somebody's own sets.
+ * A list of everything in a set — the "shop parts" press on a set's inventory.
  *
- * The quantity carries over as `minQuantity`: a set needing four of a brick is
- * a list wanting four of it, and that is the figure the planner has to satisfy.
- */
-export async function shopListFromInventory(
-  db: IDBPDatabase,
-  inventoryId: number
-): Promise<ShopList | undefined> {
-  const inventory = (await loadUserInventories(db)).find((held) => held.id === inventoryId)
-  if (!inventory) {
-    return undefined
-  }
-  const lines = await loadInventoryLines(db, inventoryId)
-  const list = await createShopList(db, {
-    name: 'Parts for ' + inventory.name,
-    sourceInventoryId: inventoryId
-  })
-  await writeItems(
-    db,
-    lines.map((line) => ({
-      listId: list.id,
-      record: line.record,
-      userItemId: line.userItemId,
-      colorId: line.colorId,
-      name: line.name,
-      minQuantity: line.quantity
-    }))
-  )
-  return list
-}
-
-/**
- * A list of everything in a set BrickLink lists — the "shop parts" press on a
- * set's own inventory.
+ * Which store is read is which kind of set the record names. One of theirs is
+ * read out of USER_INVENTORY_LINES, and the quantity carries over as
+ * `minQuantity`: a set needing four of a brick is a list wanting four of it.
  *
- * Read out of ITEM_INVENTORIES, which is where a set's parts are written when
- * somebody opens it. So the press only says as much as has been fetched: a set
- * whose inventory has not been opened has no parts stored, and this makes an
- * empty list rather than a wrong one. Undefined where nothing at all is stored,
- * so the caller can say why instead of opening a list with nothing on it.
+ * BrickLink's is read out of ITEM_INVENTORIES, which is where a set's parts
+ * are written when somebody opens it. So the press only says as much as has
+ * been fetched: a set whose inventory has not been opened has no parts stored,
+ * and this makes an empty list rather than a wrong one. Undefined where
+ * nothing at all is stored, so the caller can say why instead of opening a
+ * list with nothing on it.
  *
  * One line per stored part, keeping the colour, because a 2 x 4 in red and the
  * same brick in blue are two different things to buy. The item's name comes
@@ -197,6 +167,30 @@ export async function shopListFromRecord(
   record: string,
   setName?: string
 ): Promise<ShopList | undefined> {
+  const ownId = userItemIdOf(record)
+  if (ownId !== undefined) {
+    const lines = await loadInventoryLines(db, record)
+    if (!lines.length) {
+      return undefined
+    }
+    const name = setName || (await loadUserItems(db)).find((item) => item.id === ownId)?.name
+    const list = await createShopList(db, {
+      name: 'Parts for ' + (name || record),
+      sourceRecord: record
+    })
+    await writeItems(
+      db,
+      lines.map((line) => ({
+        listId: list.id,
+        record: line.part,
+        colorId: line.colorId,
+        name: line.name,
+        minQuantity: line.quantity
+      }))
+    )
+    return list
+  }
+
   const parts =
     (await getAllFromIndex<StoredSetPart>(db, indices.ITEM_INVENTORIES_BY_RECORD, record)) ?? []
   if (!parts.length) {

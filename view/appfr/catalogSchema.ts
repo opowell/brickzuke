@@ -27,16 +27,19 @@ import { priceCurrency } from './priceCurrency'
 import CellCount from './CellCount.vue'
 import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
+import CellFlag from './CellFlag.vue'
 import CellParts from './CellParts.vue'
 import CellSetting from './CellSetting.vue'
+import CellUserNumber from './CellUserNumber.vue'
+import CellUserPick from './CellUserPick.vue'
 import CellUserText from './CellUserText.vue'
+import { openedOwnSet } from './userWrites'
 import { SETTINGS } from './settings'
 import { userCounts } from './userCounts'
 import {shopListItemsEntity,
   shopPlanEntity,
   shopStoresEntity,
-  standingUserEntities,
-  userInventoryLinesEntity} from './userSchema'
+  standingUserEntities} from './userSchema'
 
 /** Verbatim from the `weight` column in model.ts. */
 const weightBreakpoints = [
@@ -319,6 +322,16 @@ export const itemColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Name',
+    /*
+     * A box on an item of somebody's own and plain text on BrickLink's, this
+     * table now listing both — see [userItemRows]. The box holds the name
+     * without the record after it: `name` carries `(U-3)` the way a catalogue
+     * row carries `(S-10511-1)`, which is what a set's parts lead back by, and
+     * is not something anyone should be able to type over.
+     */
+    kind: 'component',
+    component: CellUserText,
+    value: (row) => (row.fields.own === true ? row.fields.ownName : row.fields.name),
     width: '300px',
     sort: 'name',
     click: (row) => narrowBy('id', String(row.fields.id ?? ''))
@@ -329,8 +342,11 @@ export const itemColumns: ColumnDef[] = [
     label: 'Category',
     width: '200px',
     sort: 'categoryName',
-    // `category` holds the id so a term can address it; the cell shows the name.
-    value: (row) => row.fields.categoryName,
+    // `category` holds the id so a term can address it; the cell shows the
+    // name — and on an item of theirs, the picker, offering BrickLink's
+    // categories and theirs together. See [CellUserPick].
+    kind: 'component',
+    component: CellUserPick,
     click: (row) => narrowBy('category', String(row.fields.category ?? ''))
   },
   {
@@ -387,6 +403,23 @@ export const itemColumns: ColumnDef[] = [
     // Every other part the same shape — pressing `2 x 4` is the one question a
     // dimension answers.
     click: (row) => narrowBy('dimensions', String(row.fields.dimensions ?? ''))
+  },
+  /*
+   * What somebody wrote about an item of their own, and blank on every row
+   * of BrickLink's. Last, and the first to stand down as the table narrows,
+   * because on the catalogue's two hundred thousand rows it is an empty
+   * column; it is here at all because a field nothing draws is a field nobody
+   * can write.
+   */
+  {
+    key: 'note',
+    label: 'Note',
+    hint: 'Your own note on an item of your own',
+    kind: 'component',
+    component: CellUserText,
+    width: '220px',
+    sort: 'note',
+    hideBelow: 1100
   }
 ]
 
@@ -546,12 +579,39 @@ export const inventoryColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Item',
+    /*
+     * A box on a part of a set of somebody's own and plain text on a part of
+     * BrickLink's — this table lists either set, by its record. The three
+     * writing cells below are the same: a part of theirs is written on this
+     * table, and a part of BrickLink's is read off it.
+     */
+    kind: 'component',
+    component: CellUserText,
     width: '300px',
     sort: 'name',
     // Out to the catalogue entry for this part, colour and all. The picture
     // beside it keeps the colour, this being the row's two questions: what
     // part is that, and who sells it in that colour.
     click: narrowToItem
+  },
+  /*
+   * The part's record — `P-3001`, or `U-5` for one of theirs — which a
+   * BrickLink set's rows never showed, the picture and the name having said
+   * it. A set of theirs is written by it: it is what the planner matches a
+   * lot against, so it is what somebody has to be able to type.
+   */
+  {
+    key: 'part',
+    label: 'Record',
+    hint: 'The part’s record — BrickLink’s, P-3001, or one of your own, U-5. On a set of your own, what you type here is what the sellers’ lots are matched against',
+    kind: 'component',
+    component: CellUserText,
+    width: '130px',
+    mono: true,
+    sort: 'part',
+    value: (row) =>
+      row.fields.part ??
+      (row.fields.type && row.fields.itemId ? `${row.fields.type}-${row.fields.itemId}` : undefined)
   },
   {
     key: 'categoryName',
@@ -572,10 +632,23 @@ export const inventoryColumns: ColumnDef[] = [
     // than a filter over it.
     click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
   },
+  // The colour's id beside its name, because the id is what a part of theirs
+  // is written in — the name is looked up from it — and what a lot carries.
+  {
+    key: 'colorid',
+    label: 'Color id',
+    hint: 'BrickLink’s own colour id, which is what a seller’s lots carry. On a set of your own, blank takes the part in any colour',
+    kind: 'component',
+    component: CellUserText,
+    width: '95px',
+    sort: 'colorid'
+  },
   {
     key: 'quantity',
     label: 'Quantity',
     hint: 'How many of this part the set contains',
+    kind: 'component',
+    component: CellUserNumber,
     width: '125px',
     sort: 'quantity',
     format: counted
@@ -1358,26 +1431,19 @@ export const countryColumns: ColumnDef[] = [
     label: '#',
     width: '48px'
   },
-  // The flag, which is the whole of what the original's image column is here.
-  // A column's width is the cell's, not the picture's: the shell's 12px of
-  // padding either side and the press button's own chrome come out of it
-  // first, so 40px of them leaves a flag no wider than a line.
-  {
-    key: 'image',
-    role: 'image',
-    kind: 'component',
-    component: CellImage,
-    width: '80px',
-    height: '20px',
-    click: (row) => narrowTo('stores', 'country', String(row.fields.country ?? ''))
-  },
+  // The flag and the name as one cell — see [CellFlag]. No `click`: the press
+  // on a country is the row's, which narrows whatever is on screen to it and
+  // lands on the home screen under that term, `region:"Europe"` and all. It
+  // used to open the sellers and drop the rest of the query on the way, which
+  // is the press the count beside it still makes.
   {
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '200px',
-    sort: 'name',
-    click: (row) => narrowTo('stores', 'country', String(row.fields.country ?? ''))
+    kind: 'component',
+    component: CellFlag,
+    width: '220px',
+    sort: 'name'
   },
   {
     key: 'stores',
@@ -1875,10 +1941,9 @@ const recordNamed = computed(() => {
 const openInventory = computed(() => openEntity.value === 'inventory')
 const openColorItems = computed(() => openEntity.value === 'colorItems')
 /*
- * And the four details over somebody's own records, on the same rule: declared
+ * And the three details over somebody's own lists, on the same rule: declared
  * exactly while the URL is on them. See [userSchema].
  */
-const openUserInventoryLines = computed(() => openEntity.value === 'userInventoryLines')
 const openShopListItems = computed(() => openEntity.value === 'shopListItems')
 const openShopPlan = computed(() => openEntity.value === 'shopPlan')
 const openShopStores = computed(() => openEntity.value === 'shopStores')
@@ -1933,10 +1998,23 @@ const itemRecordsEntity: EntitySchema = {
   ]
 }
 
-const inventoryEntity: EntitySchema = {
+/**
+ * The open set's parts. Named `create` and `delete` only while the set is one
+ * of theirs: a part can be added to what they designed and not to what
+ * BrickLink states, and the shell draws the bar and the ticks from these two
+ * fields alone. Computed from the URL for that reason, where the two types
+ * beside it are constants.
+ */
+const inventoryEntity = computed<EntitySchema>(() => ({
   key: 'inventory',
   label: 'Inventory',
   count: '',
+  ...(openedOwnSet(openExpr.value)
+    ? {
+      create: 'Add part',
+      delete: 'Delete'
+    }
+    : {}),
   facets: [
     {
       kind: 'range',
@@ -1963,15 +2041,23 @@ const inventoryEntity: EntitySchema = {
       label: 'Category'
     },
     {
+      key: 'part',
+      label: 'Record'
+    },
+    {
       key: 'color',
       label: 'Color'
+    },
+    {
+      key: 'colorid',
+      label: 'Color id'
     },
     {
       key: 'quantity',
       label: 'Quantity'
     }
   ]
-}
+}))
 
 /**
  * The items of the colour that is open — declared only while one is, for the
@@ -2135,7 +2221,17 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
     {
       key: 'items',
       label: 'Items',
-      count: population(selectedCounts.value?.items),
+      // The catalogue's count and theirs, this table listing both — and
+      // reading `userCounts` is what rebuilds the schema after one of theirs
+      // is written. See [userCounts].
+      count: population((selectedCounts.value?.items ?? 0) + (userCounts.value.userItems ?? 0)),
+      /*
+       * The second catalogue type that can be added to and taken from. What
+       * is made is an item of theirs, a row of this table; what can be
+       * deleted is only such a row — see [userWrites].
+       */
+      create: 'New item',
+      delete: 'Delete',
       facets: [],
       tabs: ['Information', 'Inventory', 'Images'],
       samples: [],
@@ -2175,6 +2271,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'dimensions',
           label: 'Dimensions'
+        },
+        {
+          key: 'note',
+          label: 'Note'
         }
       ]
     },
@@ -2658,9 +2758,8 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
      */
     ...standingUserEntities(),
     ...(openItemRecords.value || recordNamed.value ? [itemRecordsEntity] : []),
-    ...(openInventory.value ? [inventoryEntity] : []),
+    ...(openInventory.value ? [inventoryEntity.value] : []),
     ...(openColorItems.value ? [colorItemsEntity] : []),
-    ...(openUserInventoryLines.value ? [userInventoryLinesEntity] : []),
     ...(openShopListItems.value ? [shopListItemsEntity] : []),
     ...(openShopPlan.value ? [shopPlanEntity] : []),
     ...(openShopStores.value ? [shopStoresEntity] : [])

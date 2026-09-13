@@ -16,7 +16,7 @@ const indices: {
   COLOR_ITEMS_BY_SCOPE: IndexDefinition
   BRICK_LINK_STORES_BY_COUNTRY: IndexDefinition
   STORE_LOTS_BY_STORE: IndexDefinition
-  USER_INVENTORY_LINES_BY_INVENTORY: IndexDefinition
+  USER_INVENTORY_LINES_BY_RECORD: IndexDefinition
   SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
@@ -89,15 +89,15 @@ const indices: {
     keyPath: 'store'
   },
   /**
-   * Every part of one set of somebody's own. The fifth of the same shape as
-   * ITEM_INVENTORIES_BY_RECORD, and the same one indexed lookup answering
-   * "what is in this" — over the inventory they wrote rather than the one
-   * BrickLink states.
+   * Every part of one set of somebody's own, by the set's record — `U-3`. The
+   * fifth of the same shape as ITEM_INVENTORIES_BY_RECORD, under the same
+   * field, so `record:"U-3"` is the one indexed lookup answering "what is in
+   * this" exactly as `record:"S-10511-1"` is.
    */
-  USER_INVENTORY_LINES_BY_INVENTORY: {
+  USER_INVENTORY_LINES_BY_RECORD: {
     store: stores.USER_INVENTORY_LINES,
-    name: 'inventoryId',
-    keyPath: 'inventoryId'
+    name: 'record',
+    keyPath: 'record'
   },
   /** Every part one shopping list wants. The sixth, and the last of them. */
   SHOP_LIST_ITEMS_BY_LIST: {
