@@ -12,6 +12,11 @@
  * one, so a held answer would be the table before the edit — the third reason
  * [catalogRows] gives for a live loader, and the only reason here.
  *
+ * Every row here carries `own: true`. It is what the writing cells read to
+ * know they may write — a table can mix these rows with the catalogue's, as
+ * the categories table does, and a box must not be offered on a row nobody
+ * can change. See [writableRow].
+ *
  * The counts on a parent row — how many parts an inventory has, how many pieces
  * a list wants — are read off the children rather than stored on the parent. A
  * number kept in two places is a number that can disagree with itself, and
@@ -28,6 +33,8 @@ import type {ShopList,
   UserInventory,
   UserInventoryLine,
   UserItem} from '../../idb/userTypes'
+import type { BrickLinkCategory } from '../stores/bricklink/catalog-download-page'
+import { userCategoryIdOf, userCategoryRef } from '../../idb/userCategory'
 import { loadInventoryLines } from '../../idb/userInventory'
 import { loadShopListItems } from '../../idb/shopList'
 import { planFor } from './shopPlan'
@@ -55,51 +62,51 @@ function made(createdAt: unknown): string | undefined {
   return createdAt instanceof Date ? createdAt.toISOString() : undefined
 }
 
-export async function userCategoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
-  const categories = await held<UserCategory>(db, stores.USER_CATEGORIES)
-  const items = (await getAll<UserItem>(db, stores.USER_ITEMS)) ?? []
-  return categories.map((category) => ({
-    id: String(category.id),
-    entityKey: 'userCategories',
-    entityLabel: 'My categories',
-    fields: {
-      id: category.id,
-      // The field a user item carries this category's id in, and so this
-      // type's scope: pressing a row narrows every table to the records under
-      // it, and the header reads the term back through here to put the name to
-      // the number.
-      usercategory: category.id,
-      name: category.name,
-      items: items.filter((item) => item.userCategoryId === category.id).length,
-      created: made(category.createdAt)
+/**
+ * What each category is called, by the number an item names it with — theirs
+ * by the negative id, BrickLink's by its own. One map, because the item holds
+ * one field: see [userCategoryRef].
+ *
+ * BrickLink's names are read off the download records directly rather than
+ * through [loadCategories], which joins them by brickzuke's key; an item names
+ * a category by BrickLink's, which is what the record itself carries.
+ */
+async function categoryNames(db: IDBPDatabase): Promise<Map<number, string>> {
+  const names = new Map<number, string>()
+  for (const record of (await getAll<BrickLinkCategory>(db, stores.BRICK_LINK_CATEGORIES)) ?? []) {
+    const id = Number(record.categoryId)
+    if (Number.isFinite(id) && !names.has(id)) {
+      names.set(id, record['Category Name'])
     }
-  }))
+  }
+  for (const category of (await getAll<UserCategory>(db, stores.USER_CATEGORIES)) ?? []) {
+    names.set(userCategoryRef(category.id), category.name)
+  }
+  return names
 }
 
 export async function userItemRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const items = await held<UserItem>(db, stores.USER_ITEMS)
-  const categories = new Map(
-    ((await getAll<UserCategory>(db, stores.USER_CATEGORIES)) ?? []).map((category) => [
-      category.id,
-      category.name
-    ])
-  )
+  const names = await categoryNames(db)
   return items.map((item) => ({
     id: String(item.id),
     entityKey: 'userItems',
     entityLabel: 'My items',
     fields: {
       id: item.id,
+      own: true,
       useritem: item.id,
       name: item.name,
       note: item.note,
-      usercategory: item.userCategoryId,
+      // The one field, under the name every item row carries its category in
+      // — so `category:` narrows this table and the catalogue's alike.
+      category: item.categoryId,
       // The name where the category is still there, and nothing where it is
       // not: deleting a grouping does not delete what was grouped, so a row
       // naming a category that has gone is drawn without one.
-      usercategoryName:
-        item.userCategoryId === undefined ? undefined : categories.get(item.userCategoryId),
-      category: item.categoryId,
+      categoryName: item.categoryId === undefined ? undefined : names.get(item.categoryId),
+      // Whether that category is one of theirs, for a cell that wants to say.
+      ownCategory: userCategoryIdOf(item.categoryId) !== undefined,
       created: made(item.createdAt)
     }
   }))
@@ -116,6 +123,7 @@ export async function userInventoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
       entityLabel: 'My inventories',
       fields: {
         id: inventory.id,
+        own: true,
         userinventory: inventory.id,
         name: inventory.name,
         // The BrickLink set this is about, where it is about one. Under the
@@ -147,6 +155,7 @@ export async function userInventoryLineRows(
     entityLabel: 'Inventory parts',
     fields: {
       id: line.id,
+      own: true,
       userinventory: line.inventoryId,
       name: line.name,
       record: line.record,
@@ -167,6 +176,7 @@ export async function shopListRows(db: IDBPDatabase): Promise<ShellRow[]> {
       entityLabel: 'Shopping lists',
       fields: {
         id: list.id,
+        own: true,
         shoplist: list.id,
         name: list.name,
         record: list.sourceRecord,
@@ -192,6 +202,7 @@ export async function shopListItemRows(
     entityLabel: 'Wanted parts',
     fields: {
       id: item.id,
+      own: true,
       shoplist: item.listId,
       name: item.name,
       record: item.record,

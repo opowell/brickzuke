@@ -15,11 +15,17 @@
  * It holds what was typed rather than waiting to be told: the table is re-read
  * after a write, but a box that empties and refills on the way would be a box
  * that flickers under the hand that filled it.
+ *
+ * And on a row nobody may write — BrickLink's own categories, in the table
+ * that now lists theirs beside them — it is the value as plain text, cut short
+ * with the whole on hover the way the shell's own text cell is. The box is
+ * what says a row is theirs; offering one on a row that is not would be a
+ * promise the write cannot keep.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
-import { ref, watch } from 'vue'
-import { recordId, writeField } from './userWrites'
+import { computed, ref, watch } from 'vue'
+import { recordId, writableRow, writeField } from './userWrites'
 
 const props = defineProps({
   row: {
@@ -44,6 +50,8 @@ const props = defineProps({
 
 const typed = ref(props.value === undefined || props.value === null ? '' : String(props.value))
 
+const writable = computed(() => writableRow(props.row))
+
 /* The row a cell is drawing changes under it as the table is sorted, filtered
    or paged — same cell, different record — so what is shown follows the value
    the shell hands in wherever it is not what somebody is part-way through. */
@@ -66,6 +74,13 @@ function write() {
 
 <template>
   <span
+    v-if="!writable"
+    class="user-text__plain"
+    :title="typed"
+  >{{ typed }}</span
+  >
+  <span
+    v-else
     class="user-text"
     @click.stop
   >
@@ -83,6 +98,14 @@ function write() {
 <style scoped>
 .user-text {
   display: inline-flex;
+}
+
+/* The shell's own text cell, near enough: one line, the rest on hover. */
+.user-text__plain {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*

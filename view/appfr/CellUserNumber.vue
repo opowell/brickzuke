@@ -14,7 +14,7 @@
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
-import { recordId, writeField } from './userWrites'
+import { recordId, writableRow, writeField } from './userWrites'
 
 const props = defineProps({
   row: {
@@ -48,6 +48,8 @@ watch(
   }
 )
 
+const writable = computed(() => writableRow(props.row))
+
 /** A quantity counts and a price measures — see the note up top. */
 const whole = computed(() => props.column?.key === 'quantity')
 const step = computed(() => (whole.value ? '1' : '0.01'))
@@ -80,7 +82,10 @@ function write() {
 </script>
 
 <template>
+  <!-- Plain on a row nobody may write, as [CellUserText] is. -->
+  <span v-if="!writable">{{ typed }}</span>
   <span
+    v-else
     class="user-number"
     @click.stop
   >

@@ -14,6 +14,29 @@ import { createRecord, listRecords, removeRecord, updateRecord } from './userRec
 /** What a category starts as, before anybody has named it. */
 export const NEW_USER_CATEGORY_NAME = 'New category'
 
+/**
+ * How one of these is referred to from an item, in the same field a BrickLink
+ * category is: as the negative of its id.
+ *
+ * A category is a category whoever made it, so an item names its category in
+ * one field and the categories table lists both kinds in one list. The two id
+ * spaces have to be told apart in that field, and the sign is what does it:
+ * BrickLink never issues a negative id, and a number is what the field has to
+ * hold — the query language compares a number exactly and a string by
+ * substring, so `category:"3"` must not also answer for category 30, and a
+ * prefix like `u3` would. Everything that reads or writes the field goes
+ * through these two, so the sign is stated here and nowhere else.
+ */
+export function userCategoryRef(id: number): number {
+  return -id
+}
+
+/** The [UserCategory] id a reference names, or nothing where it is BrickLink's. */
+export function userCategoryIdOf(ref: unknown): number | undefined {
+  const value = Number(ref)
+  return Number.isFinite(value) && value < 0 ? -value : undefined
+}
+
 export async function createUserCategory(
   db: IDBPDatabase,
   name: string = NEW_USER_CATEGORY_NAME

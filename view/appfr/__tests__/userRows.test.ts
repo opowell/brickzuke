@@ -13,6 +13,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { getDbConnection } from '../../../idb/idb'
+import { putAll } from '../../../idb/db'
 import STORES from '../../../idb/stores'
 import { createUserCategory } from '../../../idb/userCategory'
 import { createUserItem, updateUserItem } from '../../../idb/userItem'
@@ -35,17 +36,28 @@ vi.mock('../../../model', async () => {
 const {
   shopListItemRows,
   shopListRows,
-  userCategoryRows,
   userInventoryLineRows,
   userInventoryRows,
   userItemRows
 } = await import('../userRows')
 const {
-  catalogSchema 
+  forgetCatalogRows, rowsFor
+} = await import('../catalogRows')
+const {
+  catalogSchema
 } = await import('../catalogSchema')
 const {
-  standingUserEntities 
+  standingUserEntities
 } = await import('../userSchema')
+const {
+  userCategoryRef
+} = await import('../../../idb/userCategory')
+
+/** The categories table, read fresh — it is held between reads otherwise. */
+async function categoryRows() {
+  forgetCatalogRows()
+  return (await rowsFor('categories', getDbConnection))!
+}
 
 beforeEach(async () => {
   const db = await getDbConnection()
@@ -55,7 +67,9 @@ beforeEach(async () => {
     STORES.USER_INVENTORIES,
     STORES.USER_INVENTORY_LINES,
     STORES.SHOP_LISTS,
-    STORES.SHOP_LIST_ITEMS
+    STORES.SHOP_LIST_ITEMS,
+    STORES.CATEGORIES,
+    STORES.BRICK_LINK_CATEGORIES
   ]) {
     await db.clear(store.name)
   }
@@ -66,43 +80,93 @@ async function connection() {
   return getDbConnection()
 }
 
-describe('somebody own categories and items', () => {
-  it('counts the items in a category, off the items', async () => {
+describe('somebody own categories, in the one categories table', () => {
+  it('lists theirs beside BrickLink own, told apart by the row', async () => {
+    const db = await connection()
+    await putAll(db, STORES.CATEGORIES, [{
+      id: 1 
+    }])
+    await putAll(db, STORES.BRICK_LINK_CATEGORIES, [
+      {
+        categoryId: '5',
+        bzCategoryId: 1,
+        'Category Name': 'Brick',
+        catType: 'P',
+        items: 92 
+      }
+    ])
+    const mine = await createUserCategory(db, 'Oddments')
+    db.close()
+
+    const rows = await categoryRows()
+    const brick = rows.find((row) => row.fields.name === 'Brick (1)')!
+    const oddments = rows.find((row) => row.fields.name === 'Oddments')!
+    // One type, so one card and one table — and one `category:` term.
+    expect(brick.entityKey).toBe('categories')
+    expect(oddments.entityKey).toBe('categories')
+    // Theirs is keyed by the very value a `category:` term holds, because
+    // that is how the header finds the row to name — the rule BrickLink's
+    // rows follow with their own id. It carries the key the writing cells
+    // write back through as well, and the flag that says they may.
+    expect(oddments.id).toBe(String(userCategoryRef(mine.id)))
+    expect(brick.id).toBe('5')
+    expect(oddments.fields.id).toBe(mine.id)
+    expect(oddments.fields.own).toBe(true)
+    expect(brick.fields.own).toBeUndefined()
+    // The scope: BrickLink's id on theirs, the negative of the key on hers.
+    expect(brick.fields.category).toBe(5)
+    expect(oddments.fields.category).toBe(userCategoryRef(mine.id))
+  })
+
+  it('counts the items in one of theirs, off the items', async () => {
     const db = await connection()
     const category = await createUserCategory(db, 'Oddments')
     const item = await createUserItem(db, 'Sprue offcut')
     await updateUserItem(db, item.id, {
-      userCategoryId: category.id 
+      categoryId: userCategoryRef(category.id) 
     })
     await createUserItem(db, 'Uncategorised thing')
+    db.close()
 
-    const [row] = await userCategoryRows(db)
-    expect(row.fields.name).toBe('Oddments')
+    const row = (await categoryRows()).find((r) => r.fields.name === 'Oddments')!
     // Read off the items rather than kept on the category: a number held in
     // two places is a number that can disagree with itself.
     expect(row.fields.items).toBe(1)
-    // The key a cell writes back through, and the field every item carries
-    // this category's id in — the type's scope. Both, and both as numbers.
-    expect(row.fields.id).toBe(category.id)
-    expect(row.fields.usercategory).toBe(category.id)
-    db.close()
   })
 
-  it('names the category an item is in, and draws none where it has gone', async () => {
+  it('names an item category whichever kind it is, and none where it has gone', async () => {
     const db = await connection()
-    const category = await createUserCategory(db, 'Oddments')
-    const item = await createUserItem(db, 'Sprue offcut')
-    await updateUserItem(db, item.id, {
-      userCategoryId: category.id 
+    await putAll(db, STORES.BRICK_LINK_CATEGORIES, [
+      {
+        categoryId: '5',
+        bzCategoryId: 1,
+        'Category Name': 'Brick',
+        catType: 'P' 
+      }
+    ])
+    const mine = await createUserCategory(db, 'Oddments')
+    const filedUnderMine = await createUserItem(db, 'Sprue offcut')
+    await updateUserItem(db, filedUnderMine.id, {
+      categoryId: userCategoryRef(mine.id) 
     })
-    expect((await userItemRows(db))[0].fields.usercategoryName).toBe('Oddments')
+    const filedUnderBrickLink = await createUserItem(db, 'A brick of my own')
+    await updateUserItem(db, filedUnderBrickLink.id, {
+      categoryId: 5 
+    })
 
-    await db.delete(STORES.USER_CATEGORIES.name, category.id)
-    const [orphan] = await userItemRows(db)
+    const named = (name: string) =>
+      userItemRows(db).then((rows) => rows.find((r) => r.fields.name === name)!)
+    // One field, one column, both kinds — the whole point of the merge.
+    expect((await named('Sprue offcut')).fields.categoryName).toBe('Oddments')
+    expect((await named('Sprue offcut')).fields.ownCategory).toBe(true)
+    expect((await named('A brick of my own')).fields.categoryName).toBe('Brick')
+    expect((await named('A brick of my own')).fields.ownCategory).toBe(false)
+
+    await db.delete(STORES.USER_CATEGORIES.name, mine.id)
     // Deleting a grouping does not delete what was grouped — see
     // [deleteUserCategory] — so the row is drawn without one.
-    expect(orphan.fields.usercategoryName).toBeUndefined()
-    expect(orphan.fields.name).toBe('Sprue offcut')
+    expect((await named('Sprue offcut')).fields.categoryName).toBeUndefined()
+    expect((await named('Sprue offcut')).fields.name).toBe('Sprue offcut')
     db.close()
   })
 })
@@ -242,13 +306,49 @@ describe('what the shell is told it may do', () => {
     }
   })
 
-  it('leaves the catalogue own types unable to be written to', () => {
+  it('offers making and unmaking on one catalogue type only: categories', () => {
     // The shell draws a create button for any type that names one, so this is
-    // what keeps them off the tables brickzuke does not own: nothing here can
-    // make a BrickLink category.
+    // what keeps them off the tables brickzuke does not own. Categories is the
+    // exception because theirs are rows of it — what "+ New category" makes is
+    // one of theirs, and nothing here can make a BrickLink one.
     const scraped = catalogSchema.value.entities.filter(
       (entity) => !entity.key.startsWith('user') && !entity.key.startsWith('shop')
     )
-    expect(scraped.filter((entity) => entity.create || entity.delete)).toEqual([])
+    expect(
+      scraped.filter((entity) => entity.create || entity.delete).map((e) => e.key)
+    ).toEqual(['categories'])
+  })
+
+  it('deletes only their own rows of the categories table, whatever is ticked', async () => {
+    const db = await connection()
+    await putAll(db, STORES.CATEGORIES, [{
+      id: 1 
+    }])
+    await putAll(db, STORES.BRICK_LINK_CATEGORIES, [
+      {
+        categoryId: '5',
+        bzCategoryId: 1,
+        'Category Name': 'Brick',
+        catType: 'P' 
+      }
+    ])
+    const mine = await createUserCategory(db, 'Oddments')
+    db.close()
+
+    const {
+      deleteRecordsFor
+    } = await import('../userWrites')
+    const entity = catalogSchema.value.entities.find((e) => e.key === 'categories')!
+    // Both ticked: BrickLink's row by its id, theirs by its negative one.
+    await deleteRecordsFor({
+      ids: ['5', String(userCategoryRef(mine.id))],
+      rows: [],
+      entity
+    })
+
+    const after = await categoryRows()
+    expect(after.some((row) => row.fields.name === 'Oddments')).toBe(false)
+    // BrickLink's row is exactly where it was.
+    expect(after.some((row) => row.fields.name === 'Brick (1)')).toBe(true)
   })
 })

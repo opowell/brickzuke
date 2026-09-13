@@ -15,6 +15,12 @@
  * and `colorItems` are: they are a detail rather than a population, and a home
  * screen card reading "Wanted parts" beside the catalogue's own would be a card
  * for nothing.
+ *
+ * Categories of somebody's own are not a type here at all. A category is a
+ * category whoever made it, so theirs are rows of the catalogue's `categories`
+ * — see [categoryRows] — and that type is the one catalogue type that names
+ * `create` and `delete`, in [catalogSchema]. What is here is the one column
+ * an item of theirs files itself under, which offers both kinds at once.
  */
 import type { ColumnDef, EntitySchema } from 'header-content-layout'
 import type { ShellRow } from 'header-content-layout'
@@ -78,29 +84,6 @@ const created: ColumnDef = {
   muted: true
 }
 
-export const userCategoryColumns: ColumnDef[] = [
-  ordinal,
-  {
-    key: 'name',
-    role: 'identity',
-    label: 'Name',
-    kind: 'component',
-    component: CellUserText,
-    width: '320px',
-    sort: 'name'
-  },
-  {
-    key: 'items',
-    role: 'metric',
-    label: 'Items',
-    hint: 'How many of your own items are in this category',
-    width: '100px',
-    sort: 'items',
-    click: (row) => narrowTo('userItems', 'usercategory', idOf(row))
-  },
-  created
-]
-
 export const userItemColumns: ColumnDef[] = [
   ordinal,
   {
@@ -113,15 +96,18 @@ export const userItemColumns: ColumnDef[] = [
     sort: 'name'
   },
   {
-    key: 'usercategory',
+    // The same field an item of the catalogue's carries its category in, so
+    // `category:` narrows this table and that one alike — and the picker
+    // offers BrickLink's categories and theirs together, theirs first.
+    key: 'category',
     role: 'reference',
     label: 'Category',
-    hint: 'One of your own categories, or none',
+    hint: 'One of BrickLink’s categories or one of your own, or none',
     kind: 'component',
     component: CellUserPick,
-    width: '200px',
+    width: '220px',
     // Sorted by the name the picker shows, not by the number behind it.
-    sort: 'usercategoryName'
+    sort: 'categoryName'
   },
   {
     key: 'note',
@@ -526,39 +512,12 @@ export const shopStoreColumns: ColumnDef[] = [
 ]
 
 /**
- * The four types that stand whether or not anything is open.
+ * The three types that stand whether or not anything is open.
  *
  * Each names `create` and `delete`, which is the whole of how one is made and
  * unmade: the shell draws `+ New…` and the ticks, and reports both.
  */
 export const userEntities: EntitySchema[] = [
-  {
-    key: 'userCategories',
-    label: 'My categories',
-    // The field one of somebody's own items carries this category's id in.
-    scope: 'usercategory',
-    count: '',
-    create: 'New category',
-    delete: 'Delete',
-    facets: [],
-    tabs: [],
-    samples: [],
-    columns: userCategoryColumns,
-    sorts: [
-      {
-        key: 'name',
-        label: 'Name'
-      },
-      {
-        key: 'items',
-        label: 'Items'
-      },
-      {
-        key: 'created',
-        label: 'Made'
-      }
-    ]
-  },
   {
     key: 'userItems',
     label: 'My items',
@@ -576,7 +535,7 @@ export const userEntities: EntitySchema[] = [
         label: 'Name'
       },
       {
-        key: 'usercategoryName',
+        key: 'categoryName',
         label: 'Category'
       },
       {
@@ -660,7 +619,7 @@ export const userEntities: EntitySchema[] = [
   }
 ]
 
-/** The same four, with the populations the cards are headed by. */
+/** The same three, with the populations the cards are headed by. */
 export function standingUserEntities(): EntitySchema[] {
   return userEntities.map((entity) => ({
     ...entity,

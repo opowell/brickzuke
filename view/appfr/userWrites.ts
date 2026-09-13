@@ -11,11 +11,14 @@
  * Every write ends in [refreshUserCounts], which is what makes the new row
  * appear — see the note there.
  */
-import type { EntitySchema, Selection } from 'header-content-layout'
+import type { EntitySchema, Selection, ShellRow } from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import { getDbConnection } from '../../idb/idb'
 import { refreshUserCounts } from './userCounts'
-import { createUserCategory, deleteUserCategory, updateUserCategory } from '../../idb/userCategory'
+import {createUserCategory,
+  deleteUserCategory,
+  updateUserCategory,
+  userCategoryIdOf} from '../../idb/userCategory'
 import { createUserItem, deleteUserItem, updateUserItem } from '../../idb/userItem'
 import {addInventoryLine,
   createUserInventory,
@@ -32,19 +35,48 @@ import {addShopListItem,
   updateShopList,
   updateShopListItem} from '../../idb/shopList'
 import { forgetPlan } from './shopPlan'
+import { forgetCatalogRows } from './catalogRows'
 
-/** One connection per write, opened and closed — as every reader here does. */
-async function writing<T>(write: (db: IDBPDatabase) => Promise<T>): Promise<T> {
+/**
+ * One connection per write, opened and closed — as every reader here does.
+ *
+ * `touches` says which type the write is to, for the one held answer a user
+ * write can leave stale. The categories table is read once and held, being a
+ * couple of thousand records joined — and somebody's own categories are rows
+ * of it, and an item's category is counted on it. So a write to either drops
+ * that answer; a write to anything else leaves it, the join being worth not
+ * paying for a renamed shopping list.
+ */
+async function writing<T>(
+  touches: string,
+  write: (db: IDBPDatabase) => Promise<T>
+): Promise<T> {
   const db = await getDbConnection()
   try {
     return await write(db)
   } finally {
     db.close()
+    if (touches === 'categories' || touches === 'userItems') {
+      forgetCatalogRows()
+    }
     // The plan is worked out from the lots against a list, so any change to a
     // list is a plan that no longer describes it.
     forgetPlan()
     await refreshUserCounts()
   }
+}
+
+/**
+ * Whether a row is one somebody may write to.
+ *
+ * Every row built by [userRows] says so in `own`, and so does a category of
+ * theirs in the catalogue's own categories table — which is the case this
+ * exists for: that table mixes rows nobody can change with rows somebody can,
+ * and the same column draws both. A cell reads this and offers a box on one
+ * and plain text on the other.
+ */
+export function writableRow(row: ShellRow): boolean {
+  return row.fields.own === true
 }
 
 /**
@@ -85,9 +117,11 @@ export function openedId(expr: string, field: string): number | undefined {
  * ever show.
  */
 export async function createRecordFor(entity: EntitySchema, expr: string): Promise<void> {
-  await writing(async (db) => {
+  await writing(entity.key, async (db) => {
     switch (entity.key) {
-      case 'userCategories':
+      // The one catalogue type that can be added to: what is made is a
+      // category of theirs, which is a row of that same table.
+      case 'categories':
         return void (await createUserCategory(db))
       case 'userItems':
         return void (await createUserItem(db))
@@ -110,6 +144,25 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
 }
 
 /**
+ * The keys of the ticked records that are somebody's to delete.
+ *
+ * On a type of their own every id is a key. On the categories table the ticks
+ * can land on BrickLink's rows as well, which are not theirs and must not go:
+ * a category of theirs is keyed by the negative of its id there — see
+ * [categoryRows] and [userCategoryRef] — so only ids that read as one are
+ * taken, and the rest are left exactly as they were.
+ */
+function ownIds(key: string | undefined, ids: string[]): number[] {
+  const keys = key === 'categories'
+    ? ids.flatMap((id) => {
+      const own = userCategoryIdOf(id)
+      return own === undefined ? [] : [own]
+    })
+    : ids.map(Number)
+  return keys.filter((id) => Number.isFinite(id) && id > 0)
+}
+
+/**
  * The ticked records, gone.
  *
  * A selection outlives the page it was made on, so the ids are all of it — see
@@ -118,14 +171,14 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
  */
 export async function deleteRecordsFor(selection: Selection): Promise<void> {
   const key = selection.entity?.key
-  const ids = selection.ids.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+  const ids = ownIds(key, selection.ids)
   if (!key || !ids.length) {
     return
   }
-  await writing(async (db) => {
+  await writing(key, async (db) => {
     for (const id of ids) {
       switch (key) {
-        case 'userCategories':
+        case 'categories':
           await deleteUserCategory(db, id)
           break
         case 'userItems':
@@ -163,7 +216,7 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
  */
 const FIELD_OF: Record<string, Record<string, string>> = {
   userItems: {
-    usercategory: 'userCategoryId'
+    category: 'categoryId'
   },
   userInventoryLines: {
     colorid: 'colorId'
@@ -187,12 +240,12 @@ export async function writeField(
   field: string,
   value: unknown
 ): Promise<void> {
-  await writing(async (db) => {
+  await writing(entityKey, async (db) => {
     const changes = {
       [FIELD_OF[entityKey]?.[field] ?? field]: value
     }
     switch (entityKey) {
-      case 'userCategories':
+      case 'categories':
         return void (await updateUserCategory(db, id, changes))
       case 'userItems':
         return void (await updateUserItem(db, id, changes))
@@ -219,10 +272,10 @@ export async function writeField(
  * as a set with nothing in it. See [shopListFromRecord].
  */
 export async function shopPartsOf(record: string, setName?: string): Promise<number | undefined> {
-  return writing(async (db) => (await shopListFromRecord(db, record, setName))?.id)
+  return writing('shopLists', async (db) => (await shopListFromRecord(db, record, setName))?.id)
 }
 
 /** The same, for a set of somebody's own. */
 export async function shopPartsOfInventory(inventoryId: number): Promise<number | undefined> {
-  return writing(async (db) => (await shopListFromInventory(db, inventoryId))?.id)
+  return writing('shopLists', async (db) => (await shopListFromInventory(db, inventoryId))?.id)
 }

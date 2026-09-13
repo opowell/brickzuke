@@ -14,8 +14,8 @@
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
-import { recordId, writeField } from './userWrites'
-import { userCategoryChoices } from './userCounts'
+import { recordId, writableRow, writeField } from './userWrites'
+import { categoryChoices } from './userCounts'
 
 const props = defineProps({
   row: {
@@ -59,14 +59,25 @@ const CHOICES: Record<string, { value: string; label: string }[]> = {
 /**
  * The choices for this column — fixed for a condition, and read for a category.
  *
- * A category's are whatever somebody has made, so they are not a constant: they
- * come from [userCounts], which re-reads them after every write and so has the
- * new one before the picker next drops.
+ * A category's are BrickLink's couple of thousand and whatever somebody has
+ * made, theirs first, so they are not a constant: they come from
+ * [userCounts], which re-reads them after every write and so has the new one
+ * before the picker next drops. A couple of thousand options is a lot for a
+ * `<select>`, and one is drawn per row of somebody's items — bearable for the
+ * tens of rows that table runs to, and the browser's own control is still the
+ * one that arrives with keyboard search built in.
  */
 const choices = computed(() =>
-  props.column?.key === 'usercategory'
-    ? userCategoryChoices.value
+  props.column?.key === 'category'
+    ? categoryChoices.value
     : (CHOICES[props.column?.key ?? ''] ?? [])
+)
+
+const writable = computed(() => writableRow(props.row))
+
+/** What the picked choice is called, for a row that gets no picker. */
+const pickedLabel = computed(
+  () => choices.value.find((choice) => choice.value === picked.value)?.label ?? picked.value
 )
 
 function shown(value: unknown): string {
@@ -95,14 +106,17 @@ function write() {
     props.row.entityKey,
     id,
     field,
-    // A category is held as the number it is keyed by; a condition is a code.
-    field === 'usercategory' && value !== undefined ? Number(value) : value
+    // A category is held as the number that names it — see [userCategoryRef];
+    // a condition is a code.
+    field === 'category' && value !== undefined ? Number(value) : value
   )
 }
 </script>
 
 <template>
+  <span v-if="!writable">{{ pickedLabel }}</span>
   <span
+    v-else
     class="user-pick"
     @click.stop
   >

@@ -18,10 +18,9 @@ import { SETTINGS } from './settings'
 import type { IDBPDatabase } from 'idb'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
-import {shopListRows,
-  userCategoryRows,
-  userInventoryRows,
-  userItemRows} from './userRows'
+import { userCategoryRef } from '../../idb/userCategory'
+import type { UserCategory, UserItem } from '../../idb/userTypes'
+import { shopListRows, userInventoryRows, userItemRows } from './userRows'
 import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
 import indices from '../../idb/indices'
 import stores from '../../idb/stores'
@@ -105,6 +104,45 @@ async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
         typeId: category.type?.split(',')[0].trim(),
         // The id after the name, the way the original category cell reads.
         name: category.name + ' (' + category.id + ')'
+      }
+    })
+  }
+  /*
+   * And the categories somebody made themselves, in the same list.
+   *
+   * A category is a category whoever made it: a reader filing an item wants
+   * one list to pick from, and one table to look a name up in. So these are
+   * rows of the same type — the same `category` scope, so pressing one narrows
+   * exactly as pressing BrickLink's does — and what tells them apart is the
+   * sign of that scope and the `own` flag the writing cells read.
+   *
+   * The row id is that same negative number, for the reason BrickLink's is
+   * its own id above: the header puts a name to a `category:` term by finding
+   * the row whose id *is* the term's value, so a row keyed any other way is a
+   * row the header can never name, and `category:-3` would stand as the bare
+   * number. It cannot land on a real id, none of which is negative, nor on a
+   * category with no BrickLink id, which is keyed `bz` and a number.
+   *
+   * Counted off the items rather than kept on the category, for the reason
+   * every count on somebody's own records is: a number held in two places is
+   * a number that can disagree with itself.
+   */
+  const own = (await getAll<UserCategory>(db, stores.USER_CATEGORIES)) ?? []
+  const items = (await getAll<UserItem>(db, stores.USER_ITEMS)) ?? []
+  for (const category of own.slice().sort((a, b) => b.id - a.id)) {
+    const ref = userCategoryRef(category.id)
+    rows.push({
+      id: String(ref),
+      entityKey: 'categories',
+      entityLabel: 'Categories',
+      fields: {
+        // The key the writing cells write back through — theirs, not
+        // brickzuke's join key — and the flag that says a cell may.
+        id: category.id,
+        own: true,
+        category: ref,
+        items: items.filter((item) => item.categoryId === ref).length,
+        name: category.name
       }
     })
   }
@@ -308,12 +346,13 @@ const liveLoaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
   itemVariants: itemVariantRows,
   settings: settingRows,
   /*
-   * And the four types somebody writes themselves — live for the same reason
+   * And the three types somebody writes themselves — live for the same reason
    * the settings are, and more so: these change because somebody just typed
    * into them, and a held answer would be the table before the edit. See
-   * [userRows].
+   * [userRows]. Their categories are not a fourth: those are rows of the
+   * catalogue's own `categories`, above, whose held answer is dropped when one
+   * is written — see [userWrites].
    */
-  userCategories: userCategoryRows,
   userItems: userItemRows,
   userInventories: userInventoryRows,
   shopLists: shopListRows

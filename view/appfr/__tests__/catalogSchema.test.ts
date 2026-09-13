@@ -375,10 +375,10 @@ describe('the catalogue this summarises', () => {
       // Not a table of the catalogue but a table all the same: the knobs, drawn
       // as records so the shell can sort and filter them like anything else.
       'settings',
-      // Nor are these four, and for a stronger reason: they are the types
+      // Nor are these three, and for a stronger reason: they are the types
       // nobody scraped — what somebody writes themselves, and the only records
-      // here with no second copy on BrickLink. See [userSchema].
-      'userCategories',
+      // here with no second copy on BrickLink. See [userSchema]. Their
+      // categories are not a fourth: those are rows of `categories` above.
       'userItems',
       'userInventories',
       'shopLists',

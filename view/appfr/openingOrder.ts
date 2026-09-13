@@ -149,10 +149,10 @@ export function openedQuery(query: ShellQuery, shownEntity: string | null): Shel
     return query.view === 'cards'
       ? query
       : {
-          ...query,
-          view: 'cards',
-          page: 1
-        }
+        ...query,
+        view: 'cards',
+        page: 1
+      }
   }
   const arriving = query.entity !== shownEntity
   const order = arriving ? openingOrderFor(query.entity) : undefined

@@ -32,10 +32,14 @@ export interface UserCategory {
 export interface UserItem {
   id: number
   name: string
-  /** BrickLink's category id, where the item fits one the catalogue lists. */
+  /**
+   * The category it is filed under — one of BrickLink's or one of theirs, in
+   * the one field, because a reader filing an item does not care which table
+   * the category came from. BrickLink's id where it is BrickLink's, and the
+   * negative of the [UserCategory] id where it is theirs: see [userCategoryRef]
+   * for why the sign is the whole of the encoding.
+   */
   categoryId?: number
-  /** A [UserCategory] id, where it fits one of theirs instead. */
-  userCategoryId?: number
   note?: string
   createdAt: Date
 }

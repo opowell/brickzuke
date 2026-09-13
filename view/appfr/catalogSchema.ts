@@ -29,7 +29,9 @@ import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
 import CellParts from './CellParts.vue'
 import CellSetting from './CellSetting.vue'
+import CellUserText from './CellUserText.vue'
 import { SETTINGS } from './settings'
+import { userCounts } from './userCounts'
 import {shopListItemsEntity,
   shopPlanEntity,
   shopStoresEntity,
@@ -657,23 +659,48 @@ export const categoryColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
-    hint: 'How many catalogue items are filed under this category',
+    hint: 'How many items are filed under this category — the catalogue’s under one of BrickLink’s, yours under one of your own',
     kind: 'component',
     component: CellCount,
     width: '100px',
     sort: 'items',
     format: counted,
-    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
+    click: (row) => narrowToCategoryItems(row)
   },
+  /*
+   * A box on a category of somebody's own, and plain text on BrickLink's: the
+   * table lists both — see [categoryRows] — and the one column has to draw
+   * both. [CellUserText] tells them apart by the row, so a name that can be
+   * changed is the only one offered a box, and the box is what says which
+   * rows are theirs.
+   */
   {
     key: 'name',
     role: 'identity',
     label: 'Name',
+    kind: 'component',
+    component: CellUserText,
     width: '300px',
     sort: 'name',
-    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
+    click: (row) => narrowToCategoryItems(row)
   }
 ]
+
+/**
+ * The items filed under a category, on whichever table holds them.
+ *
+ * A category of somebody's own holds only items of their own — no catalogue
+ * item names a negative category — so pressing it opens their items table
+ * narrowed to it, where pressing one of BrickLink's opens the catalogue's.
+ * The term is the same either way; only the table it is read against differs.
+ */
+function narrowToCategoryItems(row: ShellRow) {
+  narrowTo(
+    row.fields.own === true ? 'userItems' : 'items',
+    'category',
+    String(row.fields.category ?? '')
+  )
+}
 
 /**
  * Colours.
@@ -1998,7 +2025,21 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       // Nothing else in the shell acts on it — a drill needs a column asking
       // for one, and brickzuke's columns press for themselves.
       scope: 'category',
-      count: population(selectedCounts.value?.categories),
+      // The catalogue's count and theirs together, this being the one table
+      // that lists both. Reading `userCounts` here is also what rebuilds the
+      // schema after one of theirs is written, which is what makes the new row
+      // appear — see [userCounts].
+      count: population(
+        (selectedCounts.value?.categories ?? 0) + (userCounts.value.userCategories ?? 0)
+      ),
+      /*
+       * The one catalogue type that can be added to and taken from. What is
+       * made is a category of theirs, which is a row of this table; what can
+       * be deleted is only such a row — the handler leaves BrickLink's alone
+       * whatever is ticked. See [userWrites].
+       */
+      create: 'New category',
+      delete: 'Delete',
       facets: [],
       tabs: [],
       samples: [],

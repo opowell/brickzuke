@@ -3,6 +3,7 @@ import STORES from './stores'
 import INDICES from './indices'
 
 import { createIndex, createStore } from './db'
+import { userCategoryRef } from './userCategory'
 
 const DB_NAME = 'brickzuke'
 // 19 adds COLOR_SCOPES, which says how much of a colour was fetched.
@@ -26,7 +27,11 @@ const DB_NAME = 'brickzuke'
 // anything. A shape that turns out to be wrong is migrated in place.
 // 25 adds STORE_POLICIES — a seller's shipping terms — made by the loop below
 // like any other and, being a copy of BrickLink's, safe to clear.
-const DB_VERSION = 25
+// 26 folds an item's two category fields into one: `userCategoryId` becomes a
+// negative `categoryId` — see [userCategoryRef]. The first change of shape to
+// a store nobody scraped, and so the first migrated in place rather than
+// cleared: see the loop at the foot of `upgrade` for how that is done.
+const DB_VERSION = 26
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -87,6 +92,36 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           } catch (e) {
             console.log('Error clearing store lots', store, e)
           }
+        }
+      }
+      /*
+       * Items of somebody's own written before v26 name one of their own
+       * categories in a field of its own. Every clearing above is safe because
+       * the rows are a copy of BrickLink's; these are not, so this walks them
+       * and rewrites each in place — the one field moved, the rest untouched.
+       * Awaited, because the upgrade transaction is what makes the write
+       * atomic with the version: a cursor left running past the end of this
+       * function would be writing into a transaction already committed.
+       */
+      if (oldVersion >= 24 && oldVersion < 26) {
+        try {
+          const items = transaction.objectStore(STORES.USER_ITEMS.name)
+          let cursor = await items.openCursor()
+          while (cursor) {
+            const item = cursor.value as { categoryId?: number; userCategoryId?: number }
+            if (item.userCategoryId !== undefined) {
+              const {
+                userCategoryId, ...rest 
+              } = item
+              await cursor.update({
+                ...rest,
+                categoryId: userCategoryRef(userCategoryId)
+              })
+            }
+            cursor = await cursor.continue()
+          }
+        } catch (e) {
+          console.log('Error folding item categories', e)
         }
       }
     },

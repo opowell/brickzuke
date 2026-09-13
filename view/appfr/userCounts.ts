@@ -24,20 +24,27 @@ import { count, getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import type { UserCategory } from '../../idb/userTypes'
+import type { BrickLinkCategory } from '../stores/bricklink/catalog-download-page'
+import { userCategoryRef } from '../../idb/userCategory'
 
 /** The populations, by the entity key each is drawn under. */
 export const userCounts = ref<Record<string, number | undefined>>({})
 
 /**
- * Somebody's own categories, as the choices a picker offers.
+ * Every category an item of theirs may be filed under, as the choices a picker
+ * offers: theirs first, then BrickLink's by name.
  *
  * Read here rather than by the cell that draws them, because a `<select>` in a
  * table is drawn once per row and the categories are the same list every time:
  * one read when they change beats one read per cell. They change when this
  * refreshes, which is after every write — including the write that made a new
  * category.
+ *
+ * The value is the number the item's field holds — see [userCategoryRef] for
+ * why one of theirs is the negative of its id — as a string, a `<select>`
+ * holding nothing else.
  */
-export const userCategoryChoices = ref<{ value: string; label: string }[]>([])
+export const categoryChoices = ref<{ value: string; label: string }[]>([])
 
 /** The stores counted, under the entity key that draws each. */
 const COUNTED = {
@@ -68,17 +75,37 @@ export async function refreshUserCounts(): Promise<void> {
       counted[key] = await count(db, store)
     }
     userCounts.value = counted
-    userCategoryChoices.value = [
-      // Blank first: an item in none of somebody's own categories is the state
-      // every item starts in, and it has to be choosable again.
+    const own = ((await getAll<UserCategory>(db, stores.USER_CATEGORIES)) ?? []).map(
+      (category) => ({
+        value: String(userCategoryRef(category.id)),
+        label: category.name
+      })
+    )
+    // BrickLink's, once each by its own id — the download lists a category
+    // once per item type it sits under, and a picker wants it once.
+    const seen = new Set<number>()
+    const catalogue: { value: string; label: string }[] = []
+    for (const record of (await getAll<BrickLinkCategory>(db, stores.BRICK_LINK_CATEGORIES)) ?? []) {
+      const id = Number(record.categoryId)
+      if (!Number.isFinite(id) || seen.has(id)) {
+        continue
+      }
+      seen.add(id)
+      catalogue.push({
+        value: String(id),
+        label: record['Category Name']
+      })
+    }
+    catalogue.sort((a, b) => a.label.localeCompare(b.label))
+    categoryChoices.value = [
+      // Blank first: an item in no category is the state every item starts in,
+      // and it has to be choosable again.
       {
         value: '',
         label: 'None'
       },
-      ...((await getAll<UserCategory>(db, stores.USER_CATEGORIES)) ?? []).map((category) => ({
-        value: String(category.id),
-        label: category.name
-      }))
+      ...own,
+      ...catalogue
     ]
   } finally {
     db.close()

@@ -283,7 +283,23 @@ describe('the stores nobody scraped', () => {
     // Read by path rather than off `import.meta.url`: the tests run under
     // happy-dom, where that is an http URL and not a file one.
     const source = readFileSync('idb/idb.ts', 'utf8')
-    const cleared = source.slice(source.indexOf('async upgrade'))
+    const upgrade = source.slice(source.indexOf('async upgrade'))
+    // What is cleared, and not merely what is named: v26 walks USER_ITEMS to
+    // rewrite each row in place, which is exactly the thing that is allowed.
+    // A store is cleared one of two ways here — on its own, or in a list the
+    // loop over `store` clears — and both are read for the names they hold.
+    const cleared = new Set<string>()
+    for (const [, name] of upgrade.matchAll(/objectStore\(STORES\.(\w+)\.name\)\.clear\(\)/g)) {
+      cleared.add(name)
+    }
+    for (const [, list] of upgrade.matchAll(/for \(const store of \[([^\]]*)\]\)/g)) {
+      for (const [, name] of list.matchAll(/STORES\.(\w+)/g)) {
+        cleared.add(name)
+      }
+    }
+    // The assertion has teeth only if the reading finds the clears there are.
+    expect(cleared).toContain('COLOR_ITEMS')
+    expect(cleared).toContain('STORE_LOTS')
     for (const store of [
       'USER_CATEGORIES',
       'USER_ITEMS',
@@ -292,7 +308,7 @@ describe('the stores nobody scraped', () => {
       'SHOP_LISTS',
       'SHOP_LIST_ITEMS'
     ]) {
-      expect(cleared).not.toContain(`STORES.${store}`)
+      expect(cleared).not.toContain(store)
     }
   })
 })
