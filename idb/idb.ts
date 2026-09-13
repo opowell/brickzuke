@@ -18,7 +18,13 @@ const DB_NAME = 'brickzuke'
 // any upgrade, so a number nobody has seen yet is the whole fix.
 // 23 changes what a stored lot holds — the item's name and colour, and the
 // price split into the converted number and the seller's own figure.
-const DB_VERSION = 23
+// 24 adds the six stores nobody scraped: somebody's own categories, items and
+// sets, and the shopping lists they buy the parts from. They are made by the
+// loop below like any other, and they are the first stores here that must
+// never be cleared by it — every clearing above is safe because the rows are a
+// copy of BrickLink's and can be fetched again, and none of these is a copy of
+// anything. A shape that turns out to be wrong is migrated in place.
+const DB_VERSION = 24
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

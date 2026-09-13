@@ -30,14 +30,15 @@
  */
 import {DataShell,
   PARAM_ENTITY,
+  PARAM_EXPR,
   ResultsArea,
   createVueRouterAdapter,
   isTypeCardsQuery,
   parseQuery,
   serializeQuery} from 'header-content-layout'
-import type { ShellQuery } from 'header-content-layout'
+import type { EntitySchema, Selection, ShellQuery } from 'header-content-layout'
 import 'header-content-layout/style.css'
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { refreshCounts } from '../appfr/catalogCounts'
 import { startHomeFill, stopHomeFill } from '../appfr/homeFill'
@@ -47,6 +48,9 @@ import { colorItemsNotice } from '../appfr/colorItemsNotice'
 import { storeLotsNotice } from '../appfr/storeLotsNotice'
 import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 import { rememberType } from '../appfr/recentTypes'
+import { refreshUserCounts } from '../appfr/userCounts'
+import { createRecordFor, deleteRecordsFor, shopPartsOf } from '../appfr/userWrites'
+import { narrowTo } from '../appfr/catalogSchema'
 import HomeCards from '../appfr/HomeCards.vue'
 
 const router = useRouter()
@@ -153,6 +157,79 @@ onMounted(() => {
   onQueryChange(parseQuery(window.location.search, catalogSchema.value, shellDefaults.value))
 })
 
+/**
+ * The three gestures the shell reports and applies nothing of.
+ *
+ * It draws the buttons — `+ New…` on the bar over a type that names `create`,
+ * the ticks and `Delete` for one that names `delete` — and leaves the doing to
+ * the host, the same way it leaves narrowing to one. Only the types somebody
+ * writes themselves name either, so nothing else on the wall grows a button.
+ *
+ * The expression goes in with the create because a detail type makes its record
+ * under the one in the URL: a part added to an inventory has to go under the
+ * inventory whose parts are on screen. See [userWrites].
+ */
+function onCreate(entity: EntitySchema) {
+  void createRecordFor(entity, String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
+}
+
+function onDelete(selection: Selection) {
+  void deleteRecordsFor(selection)
+}
+
+/**
+ * The set whose parts are on screen, if one is — which is the whole condition
+ * for offering to buy them.
+ *
+ * `record:` is what addresses a set's inventory, so its presence under the
+ * `inventory` type is the same thing as saying somebody is looking at what a
+ * set is made of.
+ */
+const openSet = computed(() => {
+  if (router.currentRoute.value.query[PARAM_ENTITY] !== 'inventory') {
+    return ''
+  }
+  const expr = String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
+  return /record:"?([A-Za-z0-9-]+)"?/.exec(expr)?.[1] ?? ''
+})
+
+/** Whether the list is being made, so the press cannot be made twice. */
+const shopping = ref(false)
+
+/**
+ * "Shop parts" on a set BrickLink lists.
+ *
+ * A list of everything in it, and then the plan — one press for what would
+ * otherwise be making a list and copying a few hundred parts onto it by hand.
+ * It sits on the bar rather than in a column because it is about the whole set
+ * and not about any row: the shell's `#actions` slot is where a host puts what
+ * belongs to the screen, which is where the two fetch caveats already are.
+ *
+ * Nothing happens for a set whose inventory has not been fetched — there are no
+ * parts stored to copy, and a list with nothing on it would read as a set with
+ * nothing in it. See [shopListFromRecord].
+ */
+async function shopOpenSet() {
+  if (!openSet.value || shopping.value) {
+    return
+  }
+  shopping.value = true
+  try {
+    const listId = await shopPartsOf(openSet.value)
+    if (listId) {
+      narrowTo('shopPlan', 'shoplist', String(listId))
+    }
+  } finally {
+    shopping.value = false
+  }
+}
+
+/* The populations the four standing user types are headed by, which are also
+   what tells the shell to look again after one is written — see [userCounts]. */
+onMounted(() => {
+  void refreshUserCounts()
+})
+
 const plainTokens = {
   '--dc-accent': 'currentColor' 
 }
@@ -184,6 +261,8 @@ const plainTokens = {
       :tokens="plainTokens"
       :defaults="shellDefaults"
       @query-change="onQueryChange"
+      @create="onCreate"
+      @delete="onDelete"
     >
       <!--
         A colour or a seller too long to fetch whole says so beside the count,
@@ -191,6 +270,21 @@ const plainTokens = {
         both at once: they are two different tables.
       -->
       <template #actions>
+        <!--
+          Buying what is in the set on screen. Beside the caveats rather than
+          among the rows, being about the whole table and not about any line of
+          it.
+        -->
+        <button
+          v-if="openSet"
+          class="items-shell__shop"
+          type="button"
+          :disabled="shopping"
+          title="Make a shopping list of every part in this set, and price it across the sellers brickzuke holds lots for"
+          @click="shopOpenSet"
+        >
+          {{ shopping ? 'Listing…' : 'Shop parts' }}
+        </button>
         <span
           v-if="colorItemsNotice"
           class="items-shell__partial"
@@ -379,6 +473,16 @@ const plainTokens = {
  */
 .items-shell__partial {
   opacity: 0.7;
+  white-space: nowrap;
+}
+
+/*
+ * The one thing on the bar that is not a caveat. It takes the same button the
+ * rest of the shell takes — the rule above hands every button here the
+ * browser's own — so nothing is stated for it but the room it needs not to run
+ * into the count beside it.
+ */
+.items-shell__shop {
   white-space: nowrap;
 }
 

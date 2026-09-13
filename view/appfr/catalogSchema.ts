@@ -30,6 +30,11 @@ import CellImage from './CellImage.vue'
 import CellParts from './CellParts.vue'
 import CellSetting from './CellSetting.vue'
 import { SETTINGS } from './settings'
+import {shopListItemsEntity,
+  shopPlanEntity,
+  shopStoresEntity,
+  standingUserEntities,
+  userInventoryLinesEntity} from './userSchema'
 
 /** Verbatim from the `weight` column in model.ts. */
 const weightBreakpoints = [
@@ -68,7 +73,7 @@ const weightBreakpoints = [
  * because a different result set makes a position in the old one meaningless.
  * `addTerm` handles the quoting and refuses to add a term twice.
  */
-function narrowBy(field: string, value: string) {
+export function narrowBy(field: string, value: string) {
   if (!value) {
     return
   }
@@ -393,8 +398,11 @@ export const itemColumns: ColumnDef[] = [
  * holds; a record has a line of its own, so that column states the record —
  * `S-75884-1`, the type letter still in front of it.
  *
- * Every press here leads back out to the items table, because a record is the
- * end of the road — there is nothing below it to open.
+ * Type, category, year and dimensions all narrow this same table, the way the
+ * items table's own columns do: a record carries every one of those fields
+ * itself, so pressing one is asking to see the other records of this item that
+ * share it, not to leave for the whole catalogue and lose which item this was
+ * — the same fix `inventoryColumns` needed for its Type and Category.
  */
 export const itemRecordColumns: ColumnDef[] = [
   {
@@ -429,7 +437,7 @@ export const itemRecordColumns: ColumnDef[] = [
     width: '150px',
     mono: true,
     sort: 'record',
-    click: (row) => narrowTo('items', 'type', String(row.fields.typeId ?? ''))
+    click: (row) => narrowBy('type', String(row.fields.typeId ?? ''))
   },
   // Pressing a record's name opens what it is made of.
   {
@@ -448,14 +456,14 @@ export const itemRecordColumns: ColumnDef[] = [
     // By the name the cell shows, not by the id behind it.
     sort: 'categoryName',
     value: (row) => row.fields.categoryName,
-    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
+    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
   },
   {
     key: 'year',
     label: 'Year',
     width: '95px',
     sort: 'year',
-    click: (row) => narrowTo('items', 'year', String(row.fields.year ?? ''))
+    click: (row) => narrowBy('year', String(row.fields.year ?? ''))
   },
   // As on the items table, so opening an item changes what is listed and
   // nothing about how it looks.
@@ -487,7 +495,7 @@ export const itemRecordColumns: ColumnDef[] = [
     hint: 'The footprint BrickLink records for the part, in studs',
     width: '150px',
     sort: 'dimensions',
-    click: (row) => narrowTo('items', 'dimensions', String(row.fields.dimensions ?? ''))
+    click: (row) => narrowBy('dimensions', String(row.fields.dimensions ?? ''))
   }
 ]
 
@@ -496,13 +504,15 @@ export const itemRecordColumns: ColumnDef[] = [
  * order: the variant picture, its type, the item, its category, its colour and
  * how many of them.
  *
- * Type and category both lead back to the items table. A variant's `catString`
- * is the same id an item carries in `category` — checked against a real
- * inventory: the parts of 10511-1 sit in `417`, and `category:"417"` is 92
- * items, every one of them a DUPLO brick.
+ * Type and category both narrow this same table rather than leaving it, the
+ * way colour already did: `record:` is what fetched these rows, not a filter
+ * over them, so pressing either leaves the parts of this set that match —
+ * exactly the same move as pressing a colour. Pivoting to the items table
+ * instead, as this used to, dropped `record:` on the way there and turned "the
+ * DUPLO bricks in this set" into "every DUPLO brick BrickLink lists".
  *
- * Colour leads nowhere, and cannot: an item row carries no colour at all, which
- * is the same reason the colours table narrows nothing.
+ * Colour cannot do the same trick in reverse: an item row carries no colour at
+ * all, which is the same reason the colours table narrows nothing.
  */
 export const inventoryColumns: ColumnDef[] = [
   {
@@ -528,7 +538,7 @@ export const inventoryColumns: ColumnDef[] = [
     hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
+    click: (row) => narrowBy('type', String(row.fields.type ?? ''))
   },
   {
     key: 'name',
@@ -547,7 +557,7 @@ export const inventoryColumns: ColumnDef[] = [
     label: 'Category',
     width: '160px',
     sort: 'categoryName',
-    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
+    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
   },
   {
     key: 'color',
@@ -837,7 +847,7 @@ export const itemInventoryColumns: ColumnDef[] = [
     hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
+    click: (row) => narrowBy('type', String(row.fields.type ?? ''))
   },
   {
     key: 'name',
@@ -864,7 +874,7 @@ export const itemInventoryColumns: ColumnDef[] = [
     label: 'Category',
     width: '160px',
     sort: 'categoryName',
-    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
+    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
   },
   {
     key: 'color',
@@ -913,7 +923,7 @@ export const itemVariantColumns: ColumnDef[] = [
     label: 'Type',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
+    click: (row) => narrowBy('type', String(row.fields.type ?? ''))
   },
   {
     key: 'name',
@@ -929,7 +939,7 @@ export const itemVariantColumns: ColumnDef[] = [
     label: 'Category',
     width: '160px',
     sort: 'categoryName',
-    click: (row) => narrowTo('items', 'category', String(row.fields.category ?? ''))
+    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
   },
   {
     key: 'color',
@@ -1055,8 +1065,8 @@ const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXP
  * where the seller is, who they are, the condition, how many and their
  * feedback.
  *
- * Country and store both lead to their own tables, which is what the original
- * does with country and what it never got round to doing with the store.
+ * Country narrows this same table — a lot carries its own country — and store
+ * leads out to that seller's own front, which this table cannot otherwise show.
  */
 export const storeInventoryColumns: ColumnDef[] = [
   {
@@ -1375,7 +1385,11 @@ export const storeColumns: ColumnDef[] = [
     label: 'Country',
     width: '120px',
     sort: 'country',
-    click: (row) => narrowTo('countries', 'country', String(row.fields.country ?? ''))
+    // Narrows the sellers on screen to that country, as `storeInventoryColumns`
+    // already does with the same field — a store row carries `country` itself,
+    // so pressing it need not leave for the countries directory and lose the
+    // rest of whatever this list was narrowed to.
+    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
   },
   {
     key: 'province',
@@ -1568,6 +1582,14 @@ const recordNamed = computed(() => {
 })
 const openInventory = computed(() => openEntity.value === 'inventory')
 const openColorItems = computed(() => openEntity.value === 'colorItems')
+/*
+ * And the four details over somebody's own records, on the same rule: declared
+ * exactly while the URL is on them. See [userSchema].
+ */
+const openUserInventoryLines = computed(() => openEntity.value === 'userInventoryLines')
+const openShopListItems = computed(() => openEntity.value === 'shopListItems')
+const openShopPlan = computed(() => openEntity.value === 'shopPlan')
+const openShopStores = computed(() => openEntity.value === 'shopStores')
 
 const itemRecordsEntity: EntitySchema = {
   key: 'itemRecords',
@@ -1623,7 +1645,15 @@ const inventoryEntity: EntitySchema = {
   key: 'inventory',
   label: 'Inventory',
   count: '',
-  facets: [],
+  facets: [
+    {
+      kind: 'range',
+      key: 'quantity',
+      label: 'Quantity',
+      min: 0,
+      max: 1_000
+    }
+  ],
   tabs: [],
   samples: [],
   columns: inventoryColumns,
@@ -1951,7 +1981,22 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       key: 'inventories',
       label: 'Store inventories',
       count: browsed('inventories'),
-      facets: [],
+      facets: [
+        {
+          kind: 'range',
+          key: 'quantity',
+          label: 'Quantity',
+          min: 0,
+          max: 1_000
+        },
+        {
+          kind: 'range',
+          key: 'priceValue',
+          label: 'Price',
+          min: 0,
+          max: 1_000
+        }
+      ],
       tabs: [],
       samples: [],
       columns: pricedIn(informative(storeInventoryColumns, openExpr.value), priceCurrency.value),
@@ -2173,8 +2218,20 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         }
       ]
     },
+    /*
+     * And the types nobody scraped, last on the wall: somebody's own
+     * categories, items and sets, and the shopping lists they buy the parts
+     * from. Standing types like the catalogue's own — each with a card, a
+     * table and a population — and the first four here that are also written
+     * from the screen that draws them. See [userSchema].
+     */
+    ...standingUserEntities(),
     ...(openItemRecords.value || recordNamed.value ? [itemRecordsEntity] : []),
     ...(openInventory.value ? [inventoryEntity] : []),
-    ...(openColorItems.value ? [colorItemsEntity] : [])
+    ...(openColorItems.value ? [colorItemsEntity] : []),
+    ...(openUserInventoryLines.value ? [userInventoryLinesEntity] : []),
+    ...(openShopListItems.value ? [shopListItemsEntity] : []),
+    ...(openShopPlan.value ? [shopPlanEntity] : []),
+    ...(openShopStores.value ? [shopStoresEntity] : [])
   ]
 }))

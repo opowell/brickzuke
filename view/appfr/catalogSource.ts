@@ -10,6 +10,7 @@ import { watch } from 'vue'
 import { matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
   EntitySchema,
+  FacetValue,
   QueryRequest,
   QueryResult,
   QuerySink,
@@ -44,6 +45,10 @@ import {imagesFor,
 import { readAllStoreLots, readStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import type { ItemImage } from './itemPageFetch'
+import {shopListItemRows,
+  shopPlanRows,
+  shopStoreRows,
+  userInventoryLineRows} from './userRows'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
 
@@ -1187,6 +1192,58 @@ const fetched: Record<string, Fetched> = {
   years: {
     addresses: [],
     rows: yearRows
+  },
+  /*
+   * The four detail types over somebody's own records. Each is addressed by the
+   * record it belongs to and fetches nothing — everything they read is already
+   * stored, these being the one part of brickzuke that was never scraped — so
+   * none of them takes the `fetching` flag the catalogue's own types turn on.
+   */
+  userInventoryLines: {
+    addresses: ['userinventory'],
+    rows: (request) =>
+      reading((db) => userInventoryLineRows(db, openedUserId(request, 'userinventory')))
+  },
+  shopListItems: {
+    addresses: ['shoplist'],
+    rows: (request) => reading((db) => shopListItemRows(db, openedUserId(request, 'shoplist')))
+  },
+  /*
+   * And the two the planner draws. Both are worked out from the one walk over
+   * every lot held, which is why they share a held answer rather than each
+   * making their own — see [shopPlan].
+   */
+  shopPlan: {
+    addresses: ['shoplist'],
+    rows: (request) => shopPlanRows(openedUserId(request, 'shoplist'))
+  },
+  shopStores: {
+    addresses: ['shoplist'],
+    rows: (request) => shopStoreRows(openedUserId(request, 'shoplist'))
+  }
+}
+
+/**
+ * The record of somebody's own that a detail table is showing.
+ *
+ * The same read `openItemId` makes of `item:`, over the term that opens one of
+ * these instead — the id of the inventory whose parts are up, or of the list
+ * whose wanted parts are. An address rather than a filter, for the reason
+ * stated on [Fetched]: these rows came back *because* of the term.
+ */
+function openedUserId(request: QueryRequest, field: string): number | undefined {
+  const value = termValue(request, field)
+  const id = Number(value)
+  return value !== undefined && Number.isFinite(id) && id > 0 ? id : undefined
+}
+
+/** One connection, opened for the read and closed after it. */
+async function reading(read: (db: IDBPDatabase) => Promise<ShellRow[]>): Promise<ShellRow[]> {
+  const db = await getDbConnection()
+  try {
+    return await read(db)
+  } finally {
+    db.close()
   }
 }
 
@@ -1241,13 +1298,42 @@ export function sorted(
   })
 }
 
+/**
+ * The min/max window a range facet narrowed a field to, read straight off the
+ * query — a store's own inventory has a quantity and a price to bound, and an
+ * item's has a quantity, so both are told by the same window rather than by a
+ * term the query language would have to grow a new syntax for.
+ */
+function activeRanges(request: QueryRequest): [string, Extract<FacetValue, { kind: 'range' }>][] {
+  return Object.entries(request.query.facets ?? {}).filter(
+    (entry): entry is [string, Extract<FacetValue, { kind: 'range' }>] =>
+      entry[1].kind === 'range' && (entry[1].min !== null || entry[1].max !== null)
+  )
+}
+
+function facetMatcher(request: QueryRequest): (row: ShellRow) => boolean {
+  const ranges = activeRanges(request)
+  if (!ranges.length) {
+    return () => true
+  }
+  return (row) =>
+    ranges.every(([key, range]) => {
+      const value = row.fields[key]
+      if (typeof value !== 'number') return true
+      if (range.min !== null && value < range.min) return false
+      if (range.max !== null && value > range.max) return false
+      return true
+    })
+}
+
 /** The small types, filtered and ordered the way the shell asked for them. */
 function present(
   rows: readonly ShellRow[],
   request: QueryRequest,
   matches: (row: ShellRow) => boolean = matcherFor(request)
 ): ShellRow[] {
-  return sorted(rows.filter(matches), request.query.sort, request.query.dir)
+  const inRange = facetMatcher(request)
+  return sorted(rows.filter((row) => matches(row) && inRange(row)), request.query.sort, request.query.dir)
 }
 
 export const catalogSource: DataSource = {
@@ -1262,7 +1348,7 @@ export const catalogSource: DataSource = {
    */
   async query(request: QueryRequest): Promise<QueryResult> {
     const key = entityKey(request)
-    const unfiltered = !request.query.expr.trim()
+    const unfiltered = !request.query.expr.trim() && !activeRanges(request).length
     if (unfiltered) {
       return {
         rows: [],

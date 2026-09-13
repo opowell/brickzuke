@@ -16,6 +16,8 @@ const indices: {
   COLOR_ITEMS_BY_SCOPE: IndexDefinition
   BRICK_LINK_STORES_BY_COUNTRY: IndexDefinition
   STORE_LOTS_BY_STORE: IndexDefinition
+  USER_INVENTORY_LINES_BY_INVENTORY: IndexDefinition
+  SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -86,6 +88,23 @@ const indices: {
     name: 'store',
     keyPath: 'store'
   },
+  /**
+   * Every part of one set of somebody's own. The fifth of the same shape as
+   * ITEM_INVENTORIES_BY_RECORD, and the same one indexed lookup answering
+   * "what is in this" — over the inventory they wrote rather than the one
+   * BrickLink states.
+   */
+  USER_INVENTORY_LINES_BY_INVENTORY: {
+    store: stores.USER_INVENTORY_LINES,
+    name: 'inventoryId',
+    keyPath: 'inventoryId'
+  },
+  /** Every part one shopping list wants. The sixth, and the last of them. */
+  SHOP_LIST_ITEMS_BY_LIST: {
+    store: stores.SHOP_LIST_ITEMS,
+    name: 'listId',
+    keyPath: 'listId'
+  }
 }
 
 export default indices

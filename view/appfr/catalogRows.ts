@@ -18,6 +18,10 @@ import { SETTINGS } from './settings'
 import type { IDBPDatabase } from 'idb'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
+import {shopListRows,
+  userCategoryRows,
+  userInventoryRows,
+  userItemRows} from './userRows'
 import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
 import indices from '../../idb/indices'
 import stores from '../../idb/stores'
@@ -302,7 +306,17 @@ const loaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
 const liveLoaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
   itemInventories: itemInventoryRows,
   itemVariants: itemVariantRows,
-  settings: settingRows
+  settings: settingRows,
+  /*
+   * And the four types somebody writes themselves — live for the same reason
+   * the settings are, and more so: these change because somebody just typed
+   * into them, and a held answer would be the table before the edit. See
+   * [userRows].
+   */
+  userCategories: userCategoryRows,
+  userItems: userItemRows,
+  userInventories: userInventoryRows,
+  shopLists: shopListRows
 }
 
 /**

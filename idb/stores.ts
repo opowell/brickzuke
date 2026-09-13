@@ -24,6 +24,12 @@ const stores: {
   BRICK_LINK_STORES: StoreDefinition
   STORE_LOTS: StoreDefinition
   STORE_LOT_SCOPES: StoreDefinition
+  USER_CATEGORIES: StoreDefinition
+  USER_ITEMS: StoreDefinition
+  USER_INVENTORIES: StoreDefinition
+  USER_INVENTORY_LINES: StoreDefinition
+  SHOP_LISTS: StoreDefinition
+  SHOP_LIST_ITEMS: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -164,6 +170,75 @@ const stores: {
   STORE_LOT_SCOPES: {
     name: 'storeLotScopes',
     keyPath: 'store'
+  },
+  /*
+   * The six below are the first stores here that nobody scraped.
+   *
+   * Everything above is a copy of something BrickLink has, which is what makes
+   * the clearing in idb.ts's upgrade safe: a store dropped because its rows
+   * are the wrong shape is a store fetched again the next time someone asks.
+   * These hold what somebody typed. There is nowhere to fetch them from, no
+   * second copy anywhere, and no way to tell a reader that what they wrote is
+   * gone — so none of them may ever appear in a version-gated `.clear()`, and
+   * a shape that turns out to be wrong is migrated in place instead.
+   *
+   * Keyed by an auto-increment number rather than by a name, because a name is
+   * the one field somebody will want to change and a key cannot be: renaming
+   * a list must not make a second one.
+   */
+  /** A category of somebody's own, for the items BrickLink has no category for. */
+  USER_CATEGORIES: {
+    name: 'userCategories',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /**
+   * An item of somebody's own: a piece BrickLink does not list, or one they
+   * would rather describe themselves.
+   */
+  USER_ITEMS: {
+    name: 'userItems',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /**
+   * A set of somebody's own, and what is in it — a MOC, or the parts they mean
+   * to add to a set the catalogue already knows.
+   *
+   * Parallel to ITEM_INVENTORIES rather than written into it, and deliberately:
+   * that store is keyed by BrickLink's own record id, so a line written into it
+   * is a line that can collide with a real one, and it is cleared when a
+   * fetched inventory's shape changes.
+   */
+  USER_INVENTORIES: {
+    name: 'userInventories',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /** One part of one such set, under the inventory holding it. */
+  USER_INVENTORY_LINES: {
+    name: 'userInventoryLines',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /**
+   * A list of parts to buy.
+   *
+   * The intent rather than the purchase: what somebody wants, how many, and
+   * what they will pay. Which seller to buy each line from is worked out from
+   * the lots on offer whenever they ask — see [shopParts] — and is not stored,
+   * a price being true only while the lot is there.
+   */
+  SHOP_LISTS: {
+    name: 'shopLists',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /** One wanted part, under the list wanting it. */
+  SHOP_LIST_ITEMS: {
+    name: 'shopListItems',
+    keyPath: 'id',
+    autoIncrement: true
   }
 }
 
