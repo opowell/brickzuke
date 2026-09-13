@@ -8,10 +8,11 @@
  * and published as records so the shell can draw them as a table like any
  * other type.
  *
- * Two kinds: numbers, which have one obvious control and one obvious
- * validation, and a country, which is one of the directory's own and so is
- * picked rather than typed. Which kind a setting is decides which control the
- * value cell draws — see [CellSetting].
+ * Three kinds: numbers, which have one obvious control and one obvious
+ * validation; a country, which is one of the directory's own and so is picked
+ * rather than typed; and a cart, which is one of somebody's own and picked the
+ * same way. Which kind a setting is decides which control the value cell draws
+ * — see [CellSetting].
  */
 import { useStorage } from '@vueuse/core'
 import type { Ref } from 'vue'
@@ -56,6 +57,24 @@ export const reachGapMs = useStorage('brickzuke-reach-gap-ms', 1_500)
  */
 export const shipTo = useStorage('brickzuke-ship-to', '')
 
+/**
+ * The cart being filled, as the id of a CARTS row — `'3'` — or blank while
+ * none is.
+ *
+ * The quantity box on every lot of the store inventories table writes into
+ * this cart and no other, so with none chosen the boxes are drawn but take
+ * nothing. Held as a string because that is what a `<select>` hands back and
+ * what every other setting here holds; read as a number through
+ * [activeCartId].
+ */
+export const activeCart = useStorage('brickzuke-active-cart', '')
+
+/** The active cart's key, or nothing where none is chosen. */
+export function activeCartId(): number | undefined {
+  const id = Number(activeCart.value)
+  return activeCart.value !== '' && Number.isFinite(id) && id > 0 ? id : undefined
+}
+
 /** What every knob states: its row's id, its name, and what turning it does. */
 interface SettingBase {
   /** The row's id, and what a `setting:` term names it by. */
@@ -86,8 +105,20 @@ export interface CountrySetting extends SettingBase {
   value: Ref<string>
 }
 
+/**
+ * A knob that is one of somebody's own carts, by id, or blank.
+ *
+ * As with a country, the choices are not declared here: they are whatever
+ * carts are stored, which [userCounts] reads after every write and the cell
+ * draws — see [CellSetting].
+ */
+export interface CartSetting extends SettingBase {
+  kind: 'cart'
+  value: Ref<string>
+}
+
 /** One knob, as the table draws it. */
-export type Setting = NumberSetting | CountrySetting
+export type Setting = NumberSetting | CountrySetting | CartSetting
 
 /**
  * Every setting, in the order the table lists them.
@@ -125,6 +156,14 @@ export const SETTINGS: Setting[] = [
     detail:
       'The country an order would be posted to, which is what a seller’s shipping charge depends on.',
     value: shipTo
+  },
+  {
+    kind: 'cart',
+    key: 'activeCart',
+    name: 'Active cart',
+    detail:
+      'The cart the quantity box on every lot puts that lot into. Make one on the Carts table first.',
+    value: activeCart
   }
 ]
 
@@ -139,15 +178,16 @@ export function settingFor(key: string): Setting | undefined {
  * A number is clamped rather than refused: the control is a number field, so a
  * reader can type anything into it, and the nearest legal value is a better
  * answer than either a silent nought or a dialog. A country is taken as the
- * code it is — the control is a picker, so what arrives is one of the choices
- * or blank — and a value of the wrong kind changes nothing.
+ * code it is and a cart as the id it is — the control is a picker either way,
+ * so what arrives is one of the choices or blank — and a value of the wrong
+ * kind changes nothing.
  */
 export function setSetting(key: string, value: number | string): void {
   const setting = settingFor(key)
   if (!setting) {
     return
   }
-  if (setting.kind === 'country') {
+  if (setting.kind === 'country' || setting.kind === 'cart') {
     if (typeof value === 'string') {
       setting.value.value = value.trim()
     }

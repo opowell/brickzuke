@@ -27,7 +27,9 @@ import type { ShellRow } from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import { getAll } from '../../idb/db'
 import stores from '../../idb/stores'
-import type {ShopList,
+import type {Cart,
+  CartLine,
+  ShopList,
   ShopListItem,
   UserCategory,
   UserInventoryLine,
@@ -38,7 +40,9 @@ import { userCategoryIdOf, userCategoryRef } from '../../idb/userCategory'
 import { userItemIdOf, userItemRecord } from '../../idb/userItem'
 import { loadAllInventoryLines, loadInventoryLines } from '../../idb/userInventory'
 import { loadShopListItems } from '../../idb/shopList'
+import { loadCartLines } from '../../idb/cart'
 import { planFor } from './shopPlan'
+import { activeCartId } from './settings'
 
 /** Newest first, as [listRecords] hands them over and for the same reason. */
 function newestFirst<T extends { id: number }>(records: T[]): T[] {
@@ -331,6 +335,92 @@ export async function shopStoreRows(listId: number | undefined): Promise<ShellRo
       quantity: store.quantity,
       short: store.short,
       cost: store.cost
+    }
+  }))
+}
+
+/** What a line comes to — its price times how many, or nothing without a price. */
+function lineCost(line: CartLine): number | undefined {
+  return line.price === undefined ? undefined : line.price * line.quantity
+}
+
+/**
+ * Somebody's carts, each with what it holds summed off its lines — as the
+ * shopping lists are, and for the reason at the top.
+ *
+ * `active` says which one the setting names, so the table can show it and
+ * offer the others: the same fact the settings table states, read where the
+ * carts are.
+ */
+export async function cartRows(db: IDBPDatabase): Promise<ShellRow[]> {
+  const carts = await held<Cart>(db, stores.CARTS)
+  const lines = (await getAll<CartLine>(db, stores.CART_LINES)) ?? []
+  const active = activeCartId()
+  return carts.map((cart) => {
+    const own = lines.filter((line) => line.cartId === cart.id)
+    const priced = own.filter((line) => line.price !== undefined)
+    return {
+      id: String(cart.id),
+      entityKey: 'carts',
+      entityLabel: 'Carts',
+      fields: {
+        id: cart.id,
+        own: true,
+        cart: cart.id,
+        name: cart.name,
+        active: cart.id === active,
+        lots: own.length,
+        pieces: own.reduce((sum, line) => sum + (line.quantity ?? 0), 0),
+        // How many sellers the cart would be orders to, which is what a cart
+        // of lots costs in postage before it costs anything in parts.
+        sellers: new Set(own.map((line) => line.store)).size,
+        // Summed over the lines that carry a price, and absent where none do:
+        // a cart of unpriced lots is not a cart costing nothing.
+        cost: priced.length ? priced.reduce((sum, line) => sum + lineCost(line)!, 0) : undefined,
+        created: made(cart.createdAt)
+      }
+    }
+  })
+}
+
+/**
+ * The lots in one cart, under the names the lots table carries the same facts
+ * in — `itemName`, `storeName`, `priceValue` — so a reader moving between the
+ * two tables meets one vocabulary, and a `store:` or `record:` term narrows
+ * both alike.
+ */
+export async function cartLineRows(
+  db: IDBPDatabase,
+  cartId: number | undefined
+): Promise<ShellRow[]> {
+  if (!cartId) {
+    return []
+  }
+  return (await loadCartLines(db, cartId)).map((line) => ({
+    id: String(line.id),
+    entityKey: 'cartLines',
+    entityLabel: 'Cart lines',
+    fields: {
+      id: line.id,
+      own: true,
+      cart: line.cartId,
+      lot: line.lotId,
+      record: line.record,
+      itemName: line.name,
+      colorName: line.colorName,
+      colorid: line.colorId === undefined ? undefined : Number(line.colorId),
+      store: line.store,
+      storeName: line.storeName ?? line.store,
+      condition: line.condition,
+      conditionName: line.condition === 'N' ? 'New' : line.condition === 'U' ? 'Used' : undefined,
+      // The three the price cell reads — the number it draws, and the two
+      // printed figures it puts on the hover.
+      priceValue: line.price,
+      price: line.displayPrice,
+      nativePrice: line.nativePrice,
+      quantity: line.quantity,
+      available: line.available,
+      cost: lineCost(line)
     }
   }))
 }

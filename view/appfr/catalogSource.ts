@@ -49,11 +49,13 @@ import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePoli
 import type { StoredShippingMethod, StoredStorePolicy } from '../stores/bricklink/store-policy-page'
 import { ratesApplying, termsOf, withPostage } from './shopPostage'
 import type { ItemImage } from './itemPageFetch'
-import {shopListItemRows,
+import {cartLineRows,
+  shopListItemRows,
   shopPlanRows,
   shopStoreRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
+import { cartQuantityOf } from './activeCart'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
@@ -517,7 +519,10 @@ function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): Shel
       feedback: lot.sellerFeedbackScore,
       type: lot.itemType,
       itemId: lot.itemNumber,
-      colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
+      colorid: lot.colorId === undefined ? undefined : Number(lot.colorId),
+      // How many of this lot are in the active cart — the one field on a lot
+      // that is somebody's own, read off the held lines: see [activeCart].
+      cartQuantity: cartQuantityOf(lot.invId)
     }
   }
 }
@@ -611,7 +616,8 @@ function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
         quantity: lot.quantity,
         type: lot.itemType,
         itemId: lot.itemNumber,
-        colorid: lot.colorId === undefined ? undefined : Number(lot.colorId)
+        colorid: lot.colorId === undefined ? undefined : Number(lot.colorId),
+        cartQuantity: cartQuantityOf(lot.id)
       }
     }
   }
@@ -1451,6 +1457,11 @@ const fetched: Record<string, Fetched> = {
   shopListItems: {
     addresses: ['shoplist'],
     rows: (request) => reading((db) => shopListItemRows(db, openedUserId(request, 'shoplist')))
+  },
+  /* The lots in one cart, addressed by the cart the same way. */
+  cartLines: {
+    addresses: ['cart'],
+    rows: (request) => reading((db) => cartLineRows(db, openedUserId(request, 'cart')))
   },
   /*
    * And the two the planner draws. Both are worked out from the one walk over

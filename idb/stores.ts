@@ -30,6 +30,8 @@ const stores: {
   USER_INVENTORY_LINES: StoreDefinition
   SHOP_LISTS: StoreDefinition
   SHOP_LIST_ITEMS: StoreDefinition
+  CARTS: StoreDefinition
+  CART_LINES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -186,7 +188,7 @@ const stores: {
     keyPath: 'store'
   },
   /*
-   * The six below are the first stores here that nobody scraped.
+   * The stores below are the ones nobody scraped.
    *
    * Everything above is a copy of something BrickLink has, which is what makes
    * the clearing in idb.ts's upgrade safe: a store dropped because its rows
@@ -245,6 +247,25 @@ const stores: {
   /** One wanted part, under the list wanting it. */
   SHOP_LIST_ITEMS: {
     name: 'shopListItems',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /**
+   * A cart: which lots, from whom, how many.
+   *
+   * The purchase rather than the intent — what SHOP_LISTS is not. One is picked
+   * as the active cart in the settings, and the quantity box on every lot of the
+   * store inventories table writes into it. Nobody scraped it either, so it is
+   * under the same rule as the six above: never cleared.
+   */
+  CARTS: {
+    name: 'carts',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /** One lot in one cart, under the cart holding it. */
+  CART_LINES: {
+    name: 'cartLines',
     keyPath: 'id',
     autoIncrement: true
   }

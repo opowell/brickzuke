@@ -11,7 +11,8 @@ describe('the ship-to country', () => {
     expect(SETTINGS.map((setting) => setting.key)).toEqual([
       'reachPatience',
       'reachGapMs',
-      'shipTo'
+      'shipTo',
+      'activeCart'
     ])
   })
 
@@ -32,6 +33,22 @@ describe('the ship-to country', () => {
     const before = patience!.value.value
     setSetting('reachPatience', 'DE')
     expect(patience!.value.value).toBe(before)
+  })
+})
+
+describe('the active cart', () => {
+  it('is a knob of its own kind, holding a cart’s id or blank', async () => {
+    const {
+      activeCart, activeCartId
+    } = await import('../settings')
+    expect(settingFor('activeCart')?.kind).toBe('cart')
+    setSetting('activeCart', '3')
+    expect(activeCart.value).toBe('3')
+    expect(activeCartId()).toBe(3)
+    // Blank is a real choice — no cart being filled — and reads as no id.
+    setSetting('activeCart', '')
+    expect(activeCart.value).toBe('')
+    expect(activeCartId()).toBeUndefined()
   })
 })
 

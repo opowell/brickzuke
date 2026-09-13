@@ -33,9 +33,17 @@ import {addShopListItem,
   shopListFromRecord,
   updateShopList,
   updateShopListItem} from '../../idb/shopList'
+import {createCart,
+  deleteCart,
+  removeCartLine,
+  setCartLine,
+  updateCart,
+  updateCartLine} from '../../idb/cart'
+import type { CartLot } from '../../idb/cart'
 import { forgetPlan } from './shopPlan'
 import { forgetCatalogRows } from './catalogRows'
 import { forgetPartCounts } from './partCounts'
+import { activeCart, activeCartId } from './settings'
 
 /**
  * One connection per write, opened and closed — as every reader here does.
@@ -144,6 +152,8 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
         return void (await createUserItem(db))
       case 'shopLists':
         return void (await createShopList(db))
+      case 'carts':
+        return void (await createCart(db))
       // A part goes under the set whose parts are on screen, and only where
       // that set is theirs: nothing can be added to what BrickLink states.
       case 'inventory': {
@@ -220,6 +230,17 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
         case 'shopListItems':
           await removeShopListItem(db, id)
           break
+        case 'carts':
+          await deleteCart(db, id)
+          // A setting naming a cart that has gone names nothing, so it is
+          // cleared rather than left pointing at a key nothing will answer to.
+          if (id === activeCartId()) {
+            activeCart.value = ''
+          }
+          break
+        case 'cartLines':
+          await removeCartLine(db, id)
+          break
       }
     }
   })
@@ -228,7 +249,7 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
 /**
  * Where a column's key is not the field on the record.
  *
- * Two of them, and both for a reason the tables cannot give up. A column a term
+ * A few of them, and all for a reason the tables cannot give up. A column a term
  * can be written against has to be lowercase, the expression parser lowercasing
  * a term's field — so the colour is `colorid` in a row and `colorId` on the
  * record. And a wanted part's `minQuantity` is drawn as `quantity`, because a
@@ -248,6 +269,9 @@ const FIELD_OF: Record<string, Record<string, string>> = {
   shopListItems: {
     colorid: 'colorId',
     quantity: 'minQuantity'
+  },
+  cartLines: {
+    colorid: 'colorId'
   }
 }
 
@@ -279,10 +303,59 @@ export async function writeField(
         return void (await updateShopList(db, id, changes))
       case 'shopListItems':
         return void (await updateShopListItem(db, id, changes))
+      case 'carts':
+        return void (await updateCart(db, id, changes))
+      case 'cartLines':
+        return void (await updateCartLine(db, id, changes))
       default:
         return undefined
     }
   })
+}
+
+/**
+ * The quantity box on a lot: this many of it in the active cart.
+ *
+ * The lot's row is what the box has, so the line is written from it — the
+ * fields under the names the lots table carries them, which are the names
+ * [toStoreInventoryRow] and [toStoreLotRow] both write. Held to what the
+ * seller has, the box's own `max` notwithstanding: a number typed past it
+ * still arrives here. Nothing is written where no cart is active, the box
+ * being disabled then and this being the guard behind it.
+ */
+export async function setCartQuantity(
+  lot: Record<string, unknown>,
+  quantity: number
+): Promise<void> {
+  const cartId = activeCartId()
+  const lotId = String(lot.id ?? '')
+  if (!cartId || !lotId) {
+    return
+  }
+  const available = Number(lot.quantity)
+  const held = Number.isFinite(available) && available > 0 ? Math.min(quantity, available) : quantity
+  await writing('cartLines', (db) => setCartLine(db, cartId, cartLotOf(lot), held))
+}
+
+/** What a line keeps of the lot, read off the lot's row. */
+function cartLotOf(lot: Record<string, unknown>): CartLot {
+  const text = (value: unknown) => (value === undefined || value === null ? undefined : String(value))
+  const available = Number(lot.quantity)
+  const price = Number(lot.priceValue)
+  return {
+    lotId: String(lot.id ?? ''),
+    store: text(lot.store) ?? '',
+    storeName: text(lot.storeName),
+    record: text(lot.record),
+    name: text(lot.itemName),
+    colorId: text(lot.colorid),
+    colorName: text(lot.colorName),
+    condition: text(lot.condition),
+    price: Number.isFinite(price) ? price : undefined,
+    displayPrice: text(lot.price),
+    nativePrice: text(lot.nativePrice),
+    available: Number.isFinite(available) && available > 0 ? available : undefined
+  }
 }
 
 /**

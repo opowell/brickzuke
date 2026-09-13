@@ -19,13 +19,15 @@
  * An edited *field* needs none of this. The cell holds what was typed, the way
  * [CellSetting]'s does, so nothing has to be read back to show it.
  */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { count, getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
-import type { UserCategory } from '../../idb/userTypes'
+import type { Cart, UserCategory } from '../../idb/userTypes'
 import type { BrickLinkCategory } from '../stores/bricklink/catalog-download-page'
 import { userCategoryRef } from '../../idb/userCategory'
+import { refreshActiveCartLines } from './activeCart'
+import { activeCart } from './settings'
 
 /** The populations, by the entity key each is drawn under. */
 export const userCounts = ref<Record<string, number | undefined>>({})
@@ -46,21 +48,31 @@ export const userCounts = ref<Record<string, number | undefined>>({})
  */
 export const categoryChoices = ref<{ value: string; label: string }[]>([])
 
+/**
+ * Every cart, as the choices the active-cart setting's picker offers — newest
+ * first, as the carts table lists them. Read here for the reason the
+ * categories are: they change when this refreshes, which is after every write,
+ * including the one that made a new cart.
+ */
+export const cartChoices = ref<{ value: string; label: string }[]>([])
+
 /** The stores counted, under the entity key that draws each. */
 const COUNTED = {
   userCategories: stores.USER_CATEGORIES,
   userItems: stores.USER_ITEMS,
   userInventoryLines: stores.USER_INVENTORY_LINES,
   shopLists: stores.SHOP_LISTS,
-  shopListItems: stores.SHOP_LIST_ITEMS
+  shopListItems: stores.SHOP_LIST_ITEMS,
+  carts: stores.CARTS,
+  cartLines: stores.CART_LINES
 }
 
 /**
- * Counts all six, in one connection.
+ * Counts them all, in one connection.
  *
- * Six `count`s rather than a cursor: these are tens of records rather than the
- * catalogue's hundreds of thousands, so the cheap call is the right one and
- * there is nothing to fold.
+ * One `count` each rather than a cursor: these are tens of records rather than
+ * the catalogue's hundreds of thousands, so the cheap call is the right one
+ * and there is nothing to fold.
  *
  * Not guarded against running twice over, unlike [refreshCounts]: this is
  * called after a write, and the whole point is that the write it follows is the
@@ -73,7 +85,6 @@ export async function refreshUserCounts(): Promise<void> {
     for (const [key, store] of Object.entries(COUNTED)) {
       counted[key] = await count(db, store)
     }
-    userCounts.value = counted
     const own = ((await getAll<UserCategory>(db, stores.USER_CATEGORIES)) ?? []).map(
       (category) => ({
         value: String(userCategoryRef(category.id)),
@@ -106,10 +117,31 @@ export async function refreshUserCounts(): Promise<void> {
       ...own,
       ...catalogue
     ]
+    cartChoices.value = ((await getAll<Cart>(db, stores.CARTS)) ?? [])
+      .sort((a, b) => b.id - a.id)
+      .map((cart) => ({
+        value: String(cart.id),
+        label: cart.name
+      }))
+    // And what the active cart holds, which every lot's row reads — see
+    // [activeCart]. In the same connection, and before the counts land, so the
+    // query they re-run finds the lines already in hand.
+    await refreshActiveCartLines(db)
+    userCounts.value = counted
   } finally {
     db.close()
   }
 }
+
+/*
+ * A different cart made active is a different answer on every lot's row, and
+ * nothing was written to bring it about — so the setting is watched, and the
+ * same refresh runs: the lines are re-read, and assigning the counts is what
+ * re-runs the query over them.
+ */
+watch(activeCart, () => {
+  void refreshUserCounts()
+})
 
 /**
  * One population, written the way the rest of the wall writes one.

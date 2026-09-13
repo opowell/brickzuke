@@ -385,6 +385,9 @@ describe('the catalogue this summarises', () => {
       // somebody writes themselves — a category, an item, a set — is a row
       // of the catalogue's own table for that kind of thing. See [userSchema].
       'shopLists',
+      // And the other: the lots somebody means to order, filled from the
+      // store inventories table one quantity box at a time.
+      'carts',
     ])
   })
 

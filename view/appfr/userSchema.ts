@@ -21,13 +21,14 @@
  * theirs are rows of the catalogue's own `categories`, `items` and `inventory`
  * — see [categoryRows], [userItemRows] and [userInventoryLineRows] — and
  * those three are the catalogue types that name `create` and `delete`, in
- * [catalogSchema]. What is left here is the one type that is theirs alone: a
- * shopping list, which the catalogue has no counterpart to.
+ * [catalogSchema]. What is left here are the two types that are theirs alone: a
+ * shopping list, and a cart, which the catalogue has no counterpart to.
  */
 import type { ColumnDef, EntitySchema } from 'header-content-layout'
 import type { ShellRow } from 'header-content-layout'
 import { narrowBy, narrowTo } from './catalogSchema'
 import { userPopulation } from './userCounts'
+import { setSetting } from './settings'
 import CellPrice from './CellPrice.vue'
 import CellPostage from './CellPostage.vue'
 import CellUserNumber from './CellUserNumber.vue'
@@ -178,6 +179,161 @@ export const shopListItemColumns: ColumnDef[] = [
     component: CellUserPick,
     width: '120px',
     sort: 'condition'
+  }
+]
+
+/**
+ * The carts: what each holds, what it comes to, and which one the boxes on the
+ * lots table write into.
+ *
+ * `Use` is the same fact the settings table states, offered where the carts
+ * are: a press makes that cart the active one, and the row that already is
+ * says so. Both read `active`, which [cartRows] writes off the setting.
+ */
+export const cartColumns: ColumnDef[] = [
+  ordinal,
+  {
+    key: 'name',
+    role: 'identity',
+    label: 'Name',
+    kind: 'component',
+    component: CellUserText,
+    width: '280px',
+    sort: 'name'
+  },
+  {
+    key: 'use',
+    label: 'Use',
+    hint: 'Which cart the quantity box on every lot writes into — press to make it this one',
+    // Room for `Make active` whole, which the shorter width cut.
+    width: '130px',
+    value: (row) => (row.fields.active ? 'Active' : 'Make active'),
+    click: (row) => setSetting('activeCart', idOf(row))
+  },
+  {
+    key: 'lots',
+    role: 'metric',
+    label: 'Lots',
+    hint: 'How many different lots are in it — press to see them',
+    width: '90px',
+    sort: 'lots',
+    click: (row) => narrowTo('cartLines', 'cart', idOf(row))
+  },
+  {
+    key: 'pieces',
+    role: 'metric',
+    label: 'Pieces',
+    hint: 'How many pieces in all, counting every one of each lot',
+    width: '90px',
+    sort: 'pieces'
+  },
+  {
+    key: 'sellers',
+    role: 'metric',
+    label: 'Sellers',
+    hint: 'How many sellers the lots come from, which is how many orders the cart is',
+    width: '90px',
+    sort: 'sellers'
+  },
+  {
+    key: 'cost',
+    role: 'metric',
+    label: 'Cost',
+    hint: 'What the lots come to at the prices they were put in at, converted, postage aside',
+    kind: 'component',
+    component: CellPrice,
+    width: '110px',
+    sort: 'cost'
+  },
+  created
+]
+
+/**
+ * The lots in one cart — the table a cart is read from.
+ *
+ * The lots table's own names for the same facts, so a reader moving between
+ * the two meets one vocabulary; and one box, the quantity, which is the one
+ * thing about a lot that is theirs to change. The rest is what the lot said
+ * of itself when it went in, and leads back to the lot's own tables.
+ */
+export const cartLineColumns: ColumnDef[] = [
+  ordinal,
+  {
+    key: 'item',
+    role: 'identity',
+    label: 'Item',
+    width: '280px',
+    sort: 'itemName',
+    value: (row) => row.fields.itemName,
+    // The lots on offer for this item, which is where the line came from.
+    click: (row) => narrowTo('inventories', 'record', String(row.fields.record ?? ''))
+  },
+  {
+    key: 'record',
+    label: 'Record',
+    width: '120px',
+    mono: true,
+    sort: 'record'
+  },
+  {
+    key: 'color',
+    label: 'Color',
+    width: '110px',
+    sort: 'colorName',
+    value: (row) => row.fields.colorName
+  },
+  {
+    key: 'storeName',
+    role: 'reference',
+    label: 'Store',
+    hint: 'Who is selling it — press for the seller',
+    width: '200px',
+    sort: 'storeName',
+    click: (row) => narrowTo('stores', 'store', String(row.fields.store ?? ''))
+  },
+  {
+    key: 'conditionName',
+    label: 'Condition',
+    width: '110px',
+    sort: 'conditionName'
+  },
+  {
+    key: 'priceValue',
+    role: 'metric',
+    label: 'Each',
+    hint: 'What one cost, converted, when it was put in the cart',
+    kind: 'component',
+    component: CellPrice,
+    width: '100px',
+    sort: 'priceValue'
+  },
+  {
+    key: 'quantity',
+    role: 'metric',
+    label: 'Quantity',
+    hint: 'How many of the lot to order — the same figure as the box on the lot',
+    kind: 'component',
+    component: CellUserNumber,
+    width: '110px',
+    sort: 'quantity'
+  },
+  {
+    key: 'available',
+    label: 'Of',
+    hint: 'How many the seller had when it was put in',
+    width: '80px',
+    sort: 'available',
+    muted: true
+  },
+  {
+    key: 'cost',
+    role: 'metric',
+    label: 'Cost',
+    hint: 'What this line comes to — the price times the quantity',
+    kind: 'component',
+    component: CellPrice,
+    width: '100px',
+    sort: 'cost'
   }
 ]
 
@@ -356,10 +512,10 @@ export const shopStoreColumns: ColumnDef[] = [
 ]
 
 /**
- * The one type that stands whether or not anything is open, and is theirs
- * alone: the catalogue has no shopping list to file one under.
+ * The two types that stand whether or not anything is open, and are theirs
+ * alone: the catalogue has no shopping list and no cart to file one under.
  *
- * It names `create` and `delete`, which is the whole of how one is made and
+ * Each names `create` and `delete`, which is the whole of how one is made and
  * unmade: the shell draws `+ New…` and the ticks, and reports both.
  */
 export const userEntities: EntitySchema[] = [
@@ -390,6 +546,44 @@ export const userEntities: EntitySchema[] = [
       {
         key: 'record',
         label: 'From'
+      },
+      {
+        key: 'created',
+        label: 'Made'
+      }
+    ]
+  },
+  {
+    key: 'carts',
+    label: 'Carts',
+    scope: 'cart',
+    count: '',
+    create: 'New cart',
+    delete: 'Delete',
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: cartColumns,
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'lots',
+        label: 'Lots'
+      },
+      {
+        key: 'pieces',
+        label: 'Pieces'
+      },
+      {
+        key: 'sellers',
+        label: 'Sellers'
+      },
+      {
+        key: 'cost',
+        label: 'Cost'
       },
       {
         key: 'created',
@@ -546,6 +740,71 @@ export const shopStoresEntity: EntitySchema = {
     {
       key: 'countryName',
       label: 'Country'
+    }
+  ]
+}
+
+/**
+ * The lots in one cart, declared only while one is open.
+ *
+ * No `create`: a line is a lot, and a lot is put in from the lots table, where
+ * the box beside it knows which lot it is. `delete` takes one out, which the
+ * box does too at nought — two ways to the one write, the ticks being how a
+ * dozen go at once.
+ */
+export const cartLinesEntity: EntitySchema = {
+  key: 'cartLines',
+  label: 'Cart lines',
+  count: '',
+  delete: 'Remove',
+  facets: [
+    {
+      kind: 'range',
+      key: 'quantity',
+      label: 'Quantity',
+      min: 0,
+      max: 1_000
+    }
+  ],
+  tabs: [],
+  samples: [],
+  columns: cartLineColumns,
+  sorts: [
+    {
+      key: 'itemName',
+      label: 'Item'
+    },
+    {
+      key: 'record',
+      label: 'Record'
+    },
+    {
+      key: 'colorName',
+      label: 'Color'
+    },
+    {
+      key: 'storeName',
+      label: 'Store'
+    },
+    {
+      key: 'conditionName',
+      label: 'Condition'
+    },
+    {
+      key: 'priceValue',
+      label: 'Each'
+    },
+    {
+      key: 'quantity',
+      label: 'Quantity'
+    },
+    {
+      key: 'available',
+      label: 'Of'
+    },
+    {
+      key: 'cost',
+      label: 'Cost'
     }
   ]
 }

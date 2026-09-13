@@ -30,13 +30,15 @@ import CellImage from './CellImage.vue'
 import CellFlag from './CellFlag.vue'
 import CellParts from './CellParts.vue'
 import CellSetting from './CellSetting.vue'
+import CellCartQuantity from './CellCartQuantity.vue'
 import CellUserNumber from './CellUserNumber.vue'
 import CellUserPick from './CellUserPick.vue'
 import CellUserText from './CellUserText.vue'
 import { openedOwnSet } from './userWrites'
 import { SETTINGS } from './settings'
 import { userCounts } from './userCounts'
-import {shopListItemsEntity,
+import {cartLinesEntity,
+  shopListItemsEntity,
   shopPlanEntity,
   shopStoresEntity,
   standingUserEntities} from './userSchema'
@@ -1265,6 +1267,19 @@ export const storeInventoryColumns: ColumnDef[] = [
     sort: 'quantity',
     format: counted
   },
+  // The one column here that is somebody's own: how many of the lot are in
+  // the active cart, as the box that changes it. Beside the seller's quantity
+  // because it is capped by it, and because the two are read together — how
+  // many there are, how many to take. See [CellCartQuantity].
+  {
+    key: 'cartQuantity',
+    label: 'Cart',
+    hint: 'How many of this lot to put in the active cart — pick the cart in Settings',
+    kind: 'component',
+    component: CellCartQuantity,
+    width: '100px',
+    sort: 'cartQuantity'
+  },
   {
     key: 'feedback',
     label: 'Feedback',
@@ -1947,6 +1962,8 @@ const openColorItems = computed(() => openEntity.value === 'colorItems')
 const openShopListItems = computed(() => openEntity.value === 'shopListItems')
 const openShopPlan = computed(() => openEntity.value === 'shopPlan')
 const openShopStores = computed(() => openEntity.value === 'shopStores')
+/* And the lots in one cart, on the same rule. */
+const openCartLines = computed(() => openEntity.value === 'cartLines')
 
 const itemRecordsEntity: EntitySchema = {
   key: 'itemRecords',
@@ -2432,6 +2449,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
           label: 'Quant.'
         },
         {
+          key: 'cartQuantity',
+          label: 'Cart'
+        },
+        {
           key: 'feedback',
           label: 'Feedback'
         }
@@ -2751,10 +2772,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
     },
     /*
      * And the types nobody scraped, last on the wall: somebody's own
-     * categories, items and sets, and the shopping lists they buy the parts
-     * from. Standing types like the catalogue's own — each with a card, a
-     * table and a population — and the first four here that are also written
-     * from the screen that draws them. See [userSchema].
+     * categories, items and sets, the shopping lists they buy the parts from,
+     * and the carts they put lots in. Standing types like the catalogue's own
+     * — each with a card, a table and a population — and the first here that
+     * are also written from the screen that draws them. See [userSchema].
      */
     ...standingUserEntities(),
     ...(openItemRecords.value || recordNamed.value ? [itemRecordsEntity] : []),
@@ -2762,6 +2783,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
     ...(openColorItems.value ? [colorItemsEntity] : []),
     ...(openShopListItems.value ? [shopListItemsEntity] : []),
     ...(openShopPlan.value ? [shopPlanEntity] : []),
-    ...(openShopStores.value ? [shopStoresEntity] : [])
+    ...(openShopStores.value ? [shopStoresEntity] : []),
+    ...(openCartLines.value ? [cartLinesEntity] : [])
   ]
 }))

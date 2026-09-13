@@ -38,7 +38,10 @@ const DB_NAME = 'brickzuke'
 // re-filed under the new item's record, and the two places a line or a list
 // item could name a part by key name it by record instead. Every row is
 // carried; see the last block of `upgrade`.
-const DB_VERSION = 27
+// 28 adds CARTS and CART_LINES — which lots somebody means to order, from whom
+// and how many. Made by the loop below like any other, and under the same rule
+// as the other stores nobody scraped: never cleared.
+const DB_VERSION = 28
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

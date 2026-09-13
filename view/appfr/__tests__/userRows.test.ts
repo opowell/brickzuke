@@ -34,6 +34,8 @@ vi.mock('../../../model', async () => {
 })
 
 const {
+  cartLineRows,
+  cartRows,
   shopListItemRows,
   shopListRows,
   userInventoryLineRows,
@@ -66,6 +68,8 @@ beforeEach(async () => {
     STORES.USER_INVENTORY_LINES,
     STORES.SHOP_LISTS,
     STORES.SHOP_LIST_ITEMS,
+    STORES.CARTS,
+    STORES.CART_LINES,
     STORES.CATEGORIES,
     STORES.BRICK_LINK_CATEGORIES,
     STORES.BRICK_LINK_COLORS
@@ -282,6 +286,79 @@ describe('shopping lists', () => {
   })
 })
 
+describe('carts', () => {
+  it('sums what a cart holds off its lines, and says which one is active', async () => {
+    const {
+      createCart, setCartLine
+    } = await import('../../../idb/cart')
+    const {
+      setSetting
+    } = await import('../settings')
+    const db = await connection()
+    const cart = await createCart(db, 'Birthday')
+    const other = await createCart(db, 'Later')
+    await setCartLine(db, cart.id, {
+      lotId: '1001',
+      store: 'brickshop',
+      storeName: 'Brick Shop',
+      record: 'P-3001',
+      name: 'Brick 2 x 4',
+      price: 0.1
+    }, 4)
+    await setCartLine(db, cart.id, {
+      lotId: '1002',
+      store: 'other',
+      record: 'P-3002'
+      // No price: this lot's contribution to the cost is unknown, not nought.
+    }, 2)
+    setSetting('activeCart', String(cart.id))
+
+    const rows = await cartRows(db)
+    // Newest first, as every table of theirs opens.
+    expect(rows.map((row) => row.fields.name)).toEqual(['Later', 'Birthday'])
+    const [later, birthday] = rows
+    expect(birthday.fields).toMatchObject({
+      own: true,
+      cart: cart.id,
+      active: true,
+      lots: 2,
+      pieces: 6,
+      sellers: 2,
+      cost: 0.4
+    })
+    expect(later.fields).toMatchObject({
+      active: false,
+      lots: 0,
+      pieces: 0,
+      cost: undefined
+    })
+    // The cart's id is what `cart:` names it by, and the row's key is the
+    // number the writing cells write back through.
+    expect(birthday.id).toBe(String(cart.id))
+    expect(other.id).toBeGreaterThan(cart.id)
+
+    const lines = await cartLineRows(db, cart.id)
+    expect(lines).toHaveLength(2)
+    const priced = lines.find((line) => line.fields.lot === '1001')!
+    // The lots table's own names for the same facts, so one vocabulary
+    // reads both tables — and the line's cost, worked out rather than stored.
+    expect(priced.fields).toMatchObject({
+      own: true,
+      cart: cart.id,
+      itemName: 'Brick 2 x 4',
+      record: 'P-3001',
+      store: 'brickshop',
+      storeName: 'Brick Shop',
+      priceValue: 0.1,
+      quantity: 4,
+      cost: 0.4
+    })
+    expect(await cartLineRows(db, undefined)).toEqual([])
+    setSetting('activeCart', '')
+    db.close()
+  })
+})
+
 describe('what the shell is told it may do', () => {
   it('offers making and unmaking on every standing type', () => {
     // These two are the whole of the UI for it: the shell draws `+ New…` and
@@ -308,11 +385,12 @@ describe('what the shell is told it may do', () => {
     // a column naming a sort its type does not offer is a heading that quietly
     // is not a button.
     const {
+      cartLinesEntity,
       shopListItemsEntity,
       shopPlanEntity,
       shopStoresEntity
     } = await import('../userSchema')
-    for (const entity of [shopListItemsEntity, shopPlanEntity, shopStoresEntity]) {
+    for (const entity of [shopListItemsEntity, shopPlanEntity, shopStoresEntity, cartLinesEntity]) {
       const offered = new Set((entity.sorts ?? []).map((sort) => sort.key))
       const missing = (entity.columns ?? [])
         .filter((column) => column.sort && !offered.has(column.sort))
@@ -329,7 +407,10 @@ describe('what the shell is told it may do', () => {
     // BrickLink's. A set's parts are the third, but only while the set on
     // screen is theirs, which no URL here names.
     const scraped = catalogSchema.value.entities.filter(
-      (entity) => !entity.key.startsWith('user') && !entity.key.startsWith('shop')
+      (entity) =>
+        !entity.key.startsWith('user') &&
+        !entity.key.startsWith('shop') &&
+        !entity.key.startsWith('cart')
     )
     expect(
       scraped.filter((entity) => entity.create || entity.delete).map((e) => e.key)

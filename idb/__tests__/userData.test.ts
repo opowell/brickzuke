@@ -36,6 +36,12 @@ import {addShopListItem,
   loadShopLists,
   shopListFromRecord,
   updateShopListItem} from '../shopList'
+import {createCart,
+  deleteCart,
+  loadCartLines,
+  loadCarts,
+  setCartLine,
+  updateCartLine} from '../cart'
 
 let db: IDBPDatabase
 
@@ -48,6 +54,8 @@ beforeEach(async () => {
     STORES.USER_INVENTORY_LINES,
     STORES.SHOP_LISTS,
     STORES.SHOP_LIST_ITEMS,
+    STORES.CARTS,
+    STORES.CART_LINES,
     STORES.ITEM_INVENTORIES
   ]) {
     await db.clear(store.name)
@@ -329,5 +337,78 @@ describe('the stores nobody scraped', () => {
     ]) {
       expect(cleared).not.toContain(store)
     }
+  })
+})
+
+describe('carts', () => {
+  const lot = {
+    lotId: '4219',
+    store: 'brickshop',
+    record: 'P-3001',
+    name: 'Brick 2 x 4',
+    price: 0.12,
+    available: 50
+  }
+
+  it('finds a lot’s line by the lot, so a quantity makes, changes or removes one', async () => {
+    const cart = await createCart(db, 'Birthday')
+    expect((await loadCarts(db))[0].name).toBe('Birthday')
+
+    const made = await setCartLine(db, cart.id, lot, 4)
+    expect(made?.quantity).toBe(4)
+    expect(await loadCartLines(db, cart.id)).toHaveLength(1)
+
+    // The same lot again is the same line, at the new figure — not a second
+    // line for the one lot.
+    const changed = await setCartLine(db, cart.id, {
+      ...lot,
+      price: 0.11 
+    }, 7)
+    expect(changed?.id).toBe(made!.id)
+    expect(await loadCartLines(db, cart.id)).toHaveLength(1)
+    const [held] = await loadCartLines(db, cart.id)
+    expect(held.quantity).toBe(7)
+    // What the lot said of itself is written over: the price is the one the
+    // box was beside when it was last touched.
+    expect(held.price).toBe(0.11)
+
+    // Nought takes it out, and nought for a lot not in the cart does nothing.
+    expect(await setCartLine(db, cart.id, lot, 0)).toBeUndefined()
+    expect(await loadCartLines(db, cart.id)).toHaveLength(0)
+    expect(await setCartLine(db, cart.id, lot, 0)).toBeUndefined()
+    expect(await loadCartLines(db, cart.id)).toHaveLength(0)
+  })
+
+  it('rounds a quantity to a whole one, and reads anything not a count as nought', async () => {
+    const cart = await createCart(db)
+    expect((await setCartLine(db, cart.id, lot, 2.6))?.quantity).toBe(3)
+    expect(await setCartLine(db, cart.id, lot, Number.NaN)).toBeUndefined()
+    expect(await loadCartLines(db, cart.id)).toHaveLength(0)
+  })
+
+  it('keeps lines apart by cart, and takes them with the cart when it goes', async () => {
+    const one = await createCart(db, 'One')
+    const two = await createCart(db, 'Two')
+    await setCartLine(db, one.id, lot, 1)
+    await setCartLine(db, two.id, lot, 2)
+    expect((await loadCartLines(db, one.id))[0].quantity).toBe(1)
+    expect((await loadCartLines(db, two.id))[0].quantity).toBe(2)
+
+    await deleteCart(db, one.id)
+    expect(await loadCarts(db)).toHaveLength(1)
+    expect(await loadCartLines(db, one.id)).toHaveLength(0)
+    expect(await loadCartLines(db, two.id)).toHaveLength(1)
+  })
+
+  it('edits one field of a line and leaves the rest', async () => {
+    const cart = await createCart(db)
+    const made = (await setCartLine(db, cart.id, lot, 3))!
+    await updateCartLine(db, made.id, {
+      quantity: 9 
+    })
+    const [held] = await loadCartLines(db, cart.id)
+    expect(held.quantity).toBe(9)
+    expect(held.record).toBe('P-3001')
+    expect(held.available).toBe(50)
   })
 })

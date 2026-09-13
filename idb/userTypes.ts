@@ -2,12 +2,12 @@
  * What somebody wrote themselves.
  *
  * Every other type in brickzuke describes something BrickLink has: a category
- * it lists, an item it catalogues, a lot a seller is offering. These six
- * describe what a reader has of their own — a piece the catalogue does not
- * carry, a set they designed, a list of parts they mean to buy — and they are
- * the only records here that cannot be fetched again if they are lost. That is
- * the whole of what makes them different, and it is why the stores holding them
- * are exempt from the clearing in idb.ts.
+ * it lists, an item it catalogues, a lot a seller is offering. These describe
+ * what a reader has of their own — a piece the catalogue does not carry, a set
+ * they designed, a list of parts they mean to buy, a cart of lots they mean to
+ * order — and they are the only records here that cannot be fetched again if
+ * they are lost. That is the whole of what makes them different, and it is why
+ * the stores holding them are exempt from the clearing in idb.ts.
  *
  * Not to be confused with `idb/types.ts`, which declares a `ShopList` and a
  * `ShopListItem` of its own. That file is the older model's type dump and
@@ -100,4 +100,54 @@ export interface ShopListItem {
   maxPrice?: number
   /** BrickLink's own code — `N` or `U` — or absent for either. */
   condition?: 'N' | 'U'
+}
+
+/**
+ * A cart: lots picked off sellers' tables, to be ordered.
+ *
+ * The other half of a shopping list. A list says what is wanted and leaves the
+ * seller to the planner; a cart says which lots, from whom, and how many of
+ * each — the decision, once it is made. Several can stand at once, and the one
+ * being filled is the `activeCart` setting: the quantity box on every lot
+ * writes into that one and no other.
+ */
+export interface Cart {
+  id: number
+  name: string
+  createdAt: Date
+}
+
+/**
+ * One lot in one cart, and how many of it.
+ *
+ * Keyed to the lot by BrickLink's own inventory id — the `id` every row of the
+ * lots table carries, whether it came off an item's page or a seller's front —
+ * so the box on a lot can find its own line. The rest is what the lot said of
+ * itself when it was put in, kept here so the cart reads as parts and prices
+ * rather than as ids: a lot goes stale, is re-fetched, or is sold out, and a
+ * cart drawn only from lots still held would go blank line by line.
+ */
+export interface CartLine {
+  id: number
+  cartId: number
+  /** BrickLink's inventory id for the lot — `421934511`. */
+  lotId: string
+  /** The seller's username, as a lot and a `store:` term carry it. */
+  store: string
+  storeName?: string
+  /** The item the lot is of — `P-3001`. */
+  record?: string
+  name?: string
+  colorId?: string
+  colorName?: string
+  /** BrickLink's own code, `N` or `U`. */
+  condition?: string
+  /** What one cost, converted, when it was put in. */
+  price?: number
+  /** The same, as BrickLink printed it — `EUR 0.11` — and in the seller's own currency. */
+  displayPrice?: string
+  nativePrice?: string
+  /** How many the seller had, when it was put in: the most the box allows. */
+  available?: number
+  quantity: number
 }

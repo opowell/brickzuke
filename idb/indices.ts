@@ -18,6 +18,7 @@ const indices: {
   STORE_LOTS_BY_STORE: IndexDefinition
   USER_INVENTORY_LINES_BY_RECORD: IndexDefinition
   SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
+  CART_LINES_BY_CART: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -99,11 +100,17 @@ const indices: {
     name: 'record',
     keyPath: 'record'
   },
-  /** Every part one shopping list wants. The sixth, and the last of them. */
+  /** Every part one shopping list wants. The sixth of them. */
   SHOP_LIST_ITEMS_BY_LIST: {
     store: stores.SHOP_LIST_ITEMS,
     name: 'listId',
     keyPath: 'listId'
+  },
+  /** Every lot in one cart. The seventh, and the last of them. */
+  CART_LINES_BY_CART: {
+    store: stores.CART_LINES,
+    name: 'cartId',
+    keyPath: 'cartId'
   }
 }
 
