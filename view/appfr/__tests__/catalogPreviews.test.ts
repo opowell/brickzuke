@@ -166,7 +166,7 @@ describe('colour previews', () => {
   it('is pictures alone, the name and the count being the hover', async () => {
     const preview = await previewFor('colors')
     expect(preview.kind).toBe('pictures')
-    expect(preview.tiles[0].detail).toBe('900')
+    expect(preview.tiles[0].detail).toBe('900 parts')
   })
 
   it('leaves out the colour that is not one', async () => {
@@ -181,7 +181,7 @@ describe('category previews', () => {
     expect(preview.kind).toBe('pills')
     const brick = preview.tiles[0]
     expect(brick.label).toBe('Brick (1)')
-    expect(brick.detail).toBe('4.0k')
+    expect(brick.detail).toBe('4.0k items')
     expect(brick.image).toBeUndefined()
     // And it leads where the table's own name cell leads: the items in it.
     expect(typeof brick.press).toBe('function')
@@ -207,7 +207,7 @@ describe('the types whose records have no pictures', () => {
     // draws that column — parts being the items of every category of that
     // type. Sets have no categories here and so no count, and a pill states
     // none rather than nought, which is the rule the whole catalogue keeps.
-    expect(preview.tiles.map((tile) => tile.detail)).toEqual(['5.5k', ''])
+    expect(preview.tiles.map((tile) => tile.detail)).toEqual(['5.5k items', ''])
     // And it leads where the table's own name cell leads.
     expect(typeof preview.tiles[0].press).toBe('function')
   })

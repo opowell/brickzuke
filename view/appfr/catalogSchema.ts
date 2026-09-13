@@ -1275,6 +1275,9 @@ export const settingsColumns: ColumnDef[] = [
     label: 'Value',
     kind: 'component',
     component: CellSetting,
+    // What the cell's text is, where the cell is text rather than the control
+    // — `5000 ms`, as the control itself writes it.
+    format: (value, row) => [value, row.fields.unit].filter(Boolean).join(' '),
     // Room for a country's name in the picker, not only five figures in the
     // number field — `United Kingdom` is the widest value a setting takes.
     width: '200px'
@@ -1638,6 +1641,9 @@ export const shippingCostColumns: ColumnDef[] = [
     hint: 'What the seller wrote, in the seller’s currency — not converted',
     kind: 'component',
     component: CellPrice,
+    // The figure with its currency, where the cell is text rather than the
+    // component — the home screen's pill says `49.99 EUR`, not `49.99 cost`.
+    format: (value, row) => [value, row.fields.currency].filter(Boolean).join(' '),
     width: '90px',
     sort: 'cost'
   },

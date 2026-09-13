@@ -340,6 +340,9 @@ async function settingRows(): Promise<ShellRow[]> {
       setting: setting.key,
       name: setting.name,
       value: setting.value.value,
+      // Said after the value wherever the cell's text stands for the cell —
+      // the home screen's pill, the hover — as the cell itself says it.
+      unit: 'unit' in setting ? setting.unit : undefined,
       detail: setting.detail
     }
   }))

@@ -104,7 +104,8 @@ export const SETTINGS: Setting[] = [
       'How many sellers in a row may add nothing new before a narrowed home screen stops fetching more.',
     value: reachPatience,
     min: 1,
-    max: 1_000
+    max: 1_000,
+    unit: 'sellers'
   },
   {
     kind: 'number',

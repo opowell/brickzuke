@@ -42,7 +42,10 @@ export interface PreviewTile {
   key: string
   /** What the record is called. The hover on a picture, the pill where not. */
   label: string
-  /** The number the record leads with, formatted; empty where there is none. */
+  /**
+   * The number the record leads with, formatted, and what it is a number of —
+   * `457 stores`; empty where there is none.
+   */
   detail: string
   /** The record's picture, where it has one. */
   image?: string
@@ -275,7 +278,8 @@ async function colorTiles(shown: number, expr: string): Promise<Preview> {
         {
           key: row.id,
           label: String(row.fields.name ?? ''),
-          detail: counted(row.fields.items),
+          // What the colours table heads that count with.
+          detail: saying(counted(row.fields.items), 'Parts'),
           image: brickIn(colorId),
           press: narrowingTo(row) ?? (() => narrowToColor('P', row))
         }
@@ -505,8 +509,46 @@ function pressFor(columns: ColumnDef[], row: ShellRow): (() => void) | undefined
 }
 
 /**
- * A record: what it is called, the first number said about it, and the picture
- * it carries where it has one.
+ * A figure and nothing else: what `counted` writes, and a price — digits, a
+ * separator, and the letter a count is abbreviated by.
+ */
+const BARE_FIGURE = /^~?[\d.,]+[kmb]?$/
+
+/**
+ * A number, and what it is a number of.
+ *
+ * `457` beside `Ontario` is a figure with no noun. In the table it came from
+ * the noun is the header over it, and a pill has no header — so the column's
+ * label follows the figure, in lowercase, which is the table read across one
+ * row: `457 stores`, `29 countries`, `9.4k items`.
+ *
+ * Only a bare figure gets one. A cell that already says its unit — `5000 ms`,
+ * `49.99 EUR` — has said what it is, and an empty cell stays empty rather
+ * than becoming a noun with no number in front of it.
+ */
+function saying(text: string, what: string | undefined): string {
+  if (!text || !what || !BARE_FIGURE.test(text)) {
+    return text
+  }
+  const noun = what.toLowerCase()
+  return text + ' ' + (text === '1' ? singular(noun) : noun)
+}
+
+/**
+ * One of them. A header names its column in the plural — `Countries`,
+ * `Stores` — and a region with one country in it is not `1 countries`.
+ */
+function singular(plural: string): string {
+  return plural.endsWith('ies')
+    ? plural.slice(0, -3) + 'y'
+    : plural.endsWith('s')
+      ? plural.slice(0, -1)
+      : plural
+}
+
+/**
+ * A record: what it is called, the first number said about it and what that
+ * number counts, and the picture it carries where it has one.
  */
 function tileFor(row: ShellRow, columns: ColumnDef[]): PreviewTile {
   const identity = roleColumn(columns, 'identity') ?? columns[0]
@@ -516,7 +558,7 @@ function tileFor(row: ShellRow, columns: ColumnDef[]): PreviewTile {
   return {
     key: row.id,
     label: identity ? cellText(identity, row) : row.id,
-    detail: number ? cellText(number, row) : '',
+    detail: number ? saying(cellText(number, row), number.label) : '',
     image: String(row.fields.image ?? '') || undefined,
     press: pressFor(columns, row)
   }
