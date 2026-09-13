@@ -69,6 +69,15 @@ const urlEntity = computed(() => {
 const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
 
 /**
+ * A colour or a seller too long to fetch whole says so under the pager's
+ * hover text — `1 / ~12` on the bar, and `first 1,200 of 30,200 lots` beneath
+ * the page it names — which is where the number it would otherwise be quietly
+ * contradicting is explained. Never both at once: they are two different
+ * tables, and the one that is up is the one that speaks.
+ */
+const pagesNote = computed(() => colorItemsNotice.value || storeLotsNotice.value)
+
+/**
  * Whether a press on a row means anything on the table that is up.
  *
  * appfr 0.21.0 made a row press narrow the whole result set to that record,
@@ -260,15 +269,11 @@ const plainTokens = {
       theme="mono-size"
       :tokens="plainTokens"
       :defaults="shellDefaults"
+      :pages-note="pagesNote"
       @query-change="onQueryChange"
       @create="onCreate"
       @delete="onDelete"
     >
-      <!--
-        A colour or a seller too long to fetch whole says so beside the count,
-        which is the number it would otherwise be quietly contradicting. Never
-        both at once: they are two different tables.
-      -->
       <template #actions>
         <!--
           Buying what is in the set on screen. Beside the caveats rather than
@@ -285,18 +290,6 @@ const plainTokens = {
         >
           {{ shopping ? 'Listing…' : 'Shop parts' }}
         </button>
-        <span
-          v-if="colorItemsNotice"
-          class="items-shell__partial"
-          title="This colour runs to more pages than brickzuke fetches at once, so the list below is not all of it."
-        >{{ colorItemsNotice }}</span
-        >
-        <span
-          v-if="storeLotsNotice"
-          class="items-shell__partial"
-          title="This seller has more lots than brickzuke fetches at once, so the list below is not all of them."
-        >{{ storeLotsNotice }}</span
-        >
       </template>
 
       <!--
@@ -466,21 +459,9 @@ const plainTokens = {
 }
 
 /*
- * The caveat is a caveat: present where the count is, and not competing with
- * it. Dimmed rather than coloured or shrunk, brickzuke's tables having no
- * palette to spend, one size throughout, and the shell exposing no token for
- * secondary ink.
- */
-.items-shell__partial {
-  opacity: 0.7;
-  white-space: nowrap;
-}
-
-/*
- * The one thing on the bar that is not a caveat. It takes the same button the
- * rest of the shell takes — the rule above hands every button here the
- * browser's own — so nothing is stated for it but the room it needs not to run
- * into the count beside it.
+ * It takes the same button the rest of the shell takes — the rule above hands
+ * every button here the browser's own — so nothing is stated for it but the
+ * room it needs not to run into the pager beside it.
  */
 .items-shell__shop {
   white-space: nowrap;

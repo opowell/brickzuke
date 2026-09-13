@@ -56,6 +56,6 @@ watchEffect(async () => {
   const scope = await readColorScope(colorScope(termValue(expr, 'type') ?? 'P', colorId))
   colorItemsNotice.value =
     scope && scope.pages > scope.fetchedPages
-      ? `first ${scope.fetchedPages} of ${scope.pages} pages`
+      ? `first ${scope.fetchedPages.toLocaleString()} of ${scope.pages.toLocaleString()} pages`
       : ''
 })
