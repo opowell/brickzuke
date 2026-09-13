@@ -209,36 +209,36 @@ describe('regions', () => {
 
 /**
  * The grouping between a country and its sellers, derived from the sellers:
- * BrickLink lists no states of its own, so a state is here exactly when a
- * seller under it is.
+ * BrickLink lists no provinces of its own, so a province is here exactly when
+ * a seller under it is.
  */
-describe('states', () => {
-  it('folds the sellers of one state into one row, and counts them', async () => {
+describe('provinces', () => {
+  it('folds the sellers of one province into one row, and counts them', async () => {
     const rows = await rowsOf({
-      entity: 'states'
+      entity: 'provinces'
     })
     const ohio = rows.find((row) => row.fields.name === 'Ohio')!
     expect(ohio.fields.stores).toBe(2)
-    // Every piece for sale in the state, off the directory's per-seller figure.
+    // Every piece for sale in the province, off the directory's per-seller figure.
     expect(ohio.fields.items).toBe(42_500)
     expect(ohio.fields.country).toBe('US')
     expect(ohio.fields.countryName).toBe('United States')
     expect(ohio.fields.region).toBe('North America')
   })
 
-  it('keys a state by its country as well as its name', async () => {
-    // A name alone is not one state — Limburg is Dutch and Belgian — so the
+  it('keys a province by its country as well as its name', async () => {
+    // A name alone is not one province — Limburg is Dutch and Belgian — so the
     // key a seller carries, and a term narrows by, has the country in front.
     const rows = await rowsOf({
-      entity: 'states'
+      entity: 'provinces'
     })
     expect(rows.map((row) => row.id).sort()).toEqual(['DE-Bayern', 'US-Ohio'])
   })
 
   it('leaves out the sellers of a country the directory does not group', async () => {
-    // Brickmeister carries no state, and a state with no name is not a state.
+    // Brickmeister carries no province, and a province with no name is not one.
     const rows = await rowsOf({
-      entity: 'states',
+      entity: 'provinces',
       expr: 'country:"DE"'
     })
     expect(rows.map((row) => row.id)).toEqual(['DE-Bayern'])
@@ -247,10 +247,10 @@ describe('states', () => {
   it('narrows the sellers by the same key', async () => {
     const rows = await rowsOf({
       entity: 'stores',
-      expr: 'country:"US" state:"US-Ohio"'
+      expr: 'country:"US" province:"US-Ohio"'
     })
     expect(rows.map((row) => row.fields.id).sort()).toEqual(['bricksusa', 'buckeyebricks'])
-    expect(rows[0]!.fields.stateName).toBe('Ohio')
+    expect(rows[0]!.fields.provinceName).toBe('Ohio')
   })
 })
 
@@ -630,7 +630,7 @@ describe('conditions', () => {
 describe.each([
   ['countries', 'country', 'DE', 'Germany'],
   ['regions', 'region', 'Europe', 'Europe'],
-  ['states', 'state', 'US-Ohio', 'Ohio'],
+  ['provinces', 'province', 'US-Ohio', 'Ohio'],
   ['stores', 'store', 'brickmeister', 'Brickmeister'],
   ['conditions', 'condition', 'N', 'New']
 ])('a %s term', (key, field, id, name) => {

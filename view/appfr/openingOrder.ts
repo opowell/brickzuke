@@ -53,7 +53,7 @@ const orders: Record<string, OpeningOrder> = {
     sort: 'stores',
     dir: 'desc'
   },
-  states: {
+  provinces: {
     sort: 'stores',
     dir: 'desc'
   },

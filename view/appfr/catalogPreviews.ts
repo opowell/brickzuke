@@ -576,7 +576,7 @@ function asPreview(entityKey: string, read: Read, expr: string): Preview {
  * are in, which is exactly what the directory is a list of — so the sellers
  * waiting in the countries the query names can be added up without fetching
  * one of them. Any other term is about the sellers themselves: `Instant`, a
- * state, a name. The directory says nothing about those, so a projection
+ * province, a name. The directory says nothing about those, so a projection
  * over them would be the whole world's sellers offered as an answer to a
  * question that will match three, and the card keeps to what it has read.
  */

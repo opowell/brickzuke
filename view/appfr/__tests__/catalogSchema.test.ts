@@ -360,7 +360,7 @@ describe('the catalogue this summarises', () => {
       // Not in either model: the grouping the directory puts a country's
       // sellers under, which the original drew as a column and never as a
       // table of its own.
-      'states',
+      'provinces',
       'stores',
       'images',
       // Not a table of the catalogue but a table all the same: the knobs, drawn

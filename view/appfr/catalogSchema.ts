@@ -979,7 +979,7 @@ const SETTLED_BY: Record<string, string[]> = {
   feedback: ['store'],
   conditionName: ['condition'],
   country: ['country'],
-  stateName: ['state'],
+  provinceName: ['province'],
   region: ['region']
 }
 
@@ -1368,15 +1368,16 @@ export const countryColumns: ColumnDef[] = [
 ]
 
 /**
- * The states a country's sellers are grouped under — the directory's own
+ * The provinces a country's sellers are grouped under — the directory's own
  * grouping, for the countries it groups at all.
  *
  * Between a country and its sellers, and derived from the sellers rather than
- * fetched: BrickLink lists no states of its own, so `stores` here is a count
- * over the sellers stored rather than a number off a page — see `statesOf` —
- * and a state nobody has fetched the country of is not here yet.
+ * fetched: BrickLink lists no provinces of its own, so `stores` here is a
+ * count over the sellers stored rather than a number off a page — see
+ * `provincesOf` — and a province nobody has fetched the country of is not
+ * here yet.
  */
-export const stateColumns: ColumnDef[] = [
+export const provinceColumns: ColumnDef[] = [
   {
     key: 'ordinal',
     kind: 'ordinal',
@@ -1389,9 +1390,9 @@ export const stateColumns: ColumnDef[] = [
     label: 'Name',
     width: '200px',
     sort: 'name',
-    // The country as well as the state, so the sellers table opens on the
+    // The country as well as the province, so the sellers table opens on the
     // country that fetches them and the header names both.
-    click: (row) => openWith('stores', stateTerms(row))
+    click: (row) => openWith('stores', provinceTerms(row))
   },
   {
     key: 'countryName',
@@ -1399,18 +1400,18 @@ export const stateColumns: ColumnDef[] = [
     label: 'Country',
     width: '140px',
     sort: 'countryName',
-    // Narrows the states on screen to that country, as the sellers table does
-    // with the same field — a state row carries `country` itself.
+    // Narrows the provinces on screen to that country, as the sellers table does
+    // with the same field — a province row carries `country` itself.
     click: (row) => narrowBy('country', String(row.fields.country ?? ''))
   },
   {
     key: 'stores',
     label: 'Stores',
-    hint: 'How many of the sellers fetched so far are in this state',
+    hint: 'How many of the sellers fetched so far are in this province',
     width: '110px',
     sort: 'stores',
     format: counted,
-    click: (row) => openWith('stores', stateTerms(row))
+    click: (row) => openWith('stores', provinceTerms(row))
   },
   {
     key: 'items',
@@ -1419,7 +1420,7 @@ export const stateColumns: ColumnDef[] = [
     width: '100px',
     sort: 'items',
     format: counted,
-    click: (row) => openWith('stores', stateTerms(row))
+    click: (row) => openWith('stores', provinceTerms(row))
   },
   {
     key: 'region',
@@ -1433,16 +1434,16 @@ export const stateColumns: ColumnDef[] = [
 ]
 
 /**
- * The expression that opens one state's sellers: the country, which is what
- * fetches the page, and the state, which narrows it.
+ * The expression that opens one province's sellers: the country, which is
+ * what fetches the page, and the province, which narrows it.
  */
-function stateTerms(row: ShellRow): string {
-  return `country:"${String(row.fields.country ?? '')}" state:"${String(row.fields.state ?? '')}"`
+function provinceTerms(row: ShellRow): string {
+  return `country:"${String(row.fields.country ?? '')}" province:"${String(row.fields.province ?? '')}"`
 }
 
 /**
  * The sellers themselves, as the original's `stores` columns state them:
- * country, state, the name with its id after it, the lot count and whether
+ * country, province, the name with its id after it, the lot count and whether
  * the seller takes instant checkout.
  */
 export const storeColumns: ColumnDef[] = [
@@ -1465,15 +1466,15 @@ export const storeColumns: ColumnDef[] = [
     click: (row) => narrowBy('country', String(row.fields.country ?? ''))
   },
   {
-    key: 'stateName',
+    key: 'provinceName',
     role: 'reference',
-    label: 'State',
-    hint: 'The state the directory groups the seller under — blank where it does not group the country at all',
+    label: 'Province',
+    hint: 'The province the directory groups the seller under — blank where it does not group the country at all',
     width: '125px',
-    sort: 'stateName',
-    // The key rather than the name: a name alone is not one state — see
-    // `stateId` — and the key is what the states table is scoped by.
-    click: (row) => narrowBy('state', String(row.fields.state ?? ''))
+    sort: 'provinceName',
+    // The key rather than the name: a name alone is not one province — see
+    // `provinceId` — and the key is what the provinces table is scoped by.
+    click: (row) => narrowBy('province', String(row.fields.province ?? ''))
   },
   {
     key: 'name',
@@ -2207,16 +2208,16 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       ]
     },
     {
-      // The key a seller carries its state under — the country code and the
-      // name together, since a name alone is not one state.
-      key: 'states',
-      label: 'States',
-      scope: 'state',
-      count: browsed('states'),
+      // The key a seller carries its province under — the country code and
+      // the name together, since a name alone is not one province.
+      key: 'provinces',
+      label: 'Provinces',
+      scope: 'province',
+      count: browsed('provinces'),
       facets: [],
       tabs: [],
       samples: [],
-      columns: informative(stateColumns, openExpr.value),
+      columns: informative(provinceColumns, openExpr.value),
       sorts: [
         {
           key: 'name',
@@ -2257,8 +2258,8 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
           label: 'Country'
         },
         {
-          key: 'stateName',
-          label: 'State'
+          key: 'provinceName',
+          label: 'Province'
         },
         {
           key: 'name',

@@ -36,7 +36,7 @@ import {countriesFor,
   readRegions,
   readStores,
   regionsFor,
-  stateId,
+  provinceId,
   storesFor} from './storesFetch'
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
 import {imagesFor,
@@ -488,9 +488,9 @@ function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): Shel
       // The part of the world that country is in, which a lot never states
       // and the directory does — see [lotDirectory].
       region: directory.countries.get(lot.sellerCountryCode ?? '')?.regionId,
-      // Nor the state, which is on the seller's directory record where that
-      // seller has been fetched, and nowhere at all where they have not.
-      state: seller ? stateId(seller) : undefined,
+      // Nor the province, which is on the seller's directory record where
+      // that seller has been fetched, and nowhere at all where they have not.
+      province: seller ? provinceId(seller) : undefined,
       store: lot.strSellerUsername,
       storeName: lot.sellerStoreName,
       // BrickLink's own code, `N` or `U`, which is what the conditions table
@@ -584,7 +584,7 @@ function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
         // As on the item's own lots: the region is the directory's, not the
         // lot's, and here the country record it comes off is already in hand.
         region: country?.regionId,
-        state: seller ? stateId(seller) : undefined,
+        province: seller ? provinceId(seller) : undefined,
         store: lot.store,
         // The trading name where the directory has it, and the username where
         // it does not: a blank cell in the column that says whose lot this is
@@ -759,10 +759,11 @@ function toStoreRow(store: Store, regions: Map<string, string>): ShellRow {
       // language fails quietly. Carried here so the term narrows sellers the
       // same way it narrows the countries they are in.
       region: regions.get(store.countryID),
-      // The key the states table is scoped by, and the name that key stands
-      // for: `state:"US-Ohio"` narrows the sellers, and the column reads Ohio.
-      state: stateId(store),
-      stateName: store.stateName,
+      // The key the provinces table is scoped by, and the name that key
+      // stands for: `province:"US-Ohio"` narrows the sellers, and the column
+      // reads Ohio.
+      province: provinceId(store),
+      provinceName: store.stateName,
       items: store.items,
       // A flag rather than a number, and drawn as the word or nothing: the
       // original prints the raw boolean, which puts `false` in every other row.
@@ -991,8 +992,8 @@ async function storeRows(request: QueryRequest, fetching = true): Promise<ShellR
   return stores.map((store) => toStoreRow(store, regions))
 }
 
-/** What the sellers of one state add up to, before it is a row. */
-interface StateTally {
+/** What the sellers of one province add up to, before it is a row. */
+interface ProvinceTally {
   country: string
   name: string
   stores: number
@@ -1000,26 +1001,27 @@ interface StateTally {
 }
 
 /**
- * The states a country's sellers are grouped under, as the sellers state them.
+ * The provinces a country's sellers are grouped under, as the sellers state
+ * them.
  *
  * Derived rather than stored, like the years: BrickLink has no page that lists
- * the states of the world, only a country's sellers grouped under theirs — so
- * a state exists here exactly when a seller in it does, and this is one fold
- * over the sellers rather than a store of its own that could disagree with
- * them. Where a country's directory page does not group at all — most of
- * them — its sellers carry no state, and they fold into nothing.
+ * the provinces of the world, only a country's sellers grouped under theirs —
+ * so a province exists here exactly when a seller in it does, and this is one
+ * fold over the sellers rather than a store of its own that could disagree
+ * with them. Where a country's directory page does not group at all — most of
+ * them — its sellers carry no province, and they fold into nothing.
  *
  * Addressed by country for the reason the sellers are: naming one is what
  * fetches its page, and un-narrowed this is whatever the fill has gathered.
  */
-export function statesOf(stores: readonly Store[]): Map<string, StateTally> {
-  const states = new Map<string, StateTally>()
+export function provincesOf(stores: readonly Store[]): Map<string, ProvinceTally> {
+  const provinces = new Map<string, ProvinceTally>()
   for (const store of stores) {
-    const id = stateId(store)
+    const id = provinceId(store)
     if (!id) {
       continue
     }
-    const tally = states.get(id) ?? {
+    const tally = provinces.get(id) ?? {
       country: store.countryID,
       name: store.stateName ?? '',
       stores: 0,
@@ -1027,31 +1029,31 @@ export function statesOf(stores: readonly Store[]): Map<string, StateTally> {
     }
     tally.stores++
     tally.items += Number.isFinite(store.items) ? Number(store.items) : 0
-    states.set(id, tally)
+    provinces.set(id, tally)
   }
-  return states
+  return provinces
 }
 
-async function stateRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+async function provinceRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
   const country = termValue(request, 'country')
   const stores = fetching ? await storesFor(country) : await readStores(country)
   const countries = new Map((await readCountries()).map((one) => [one.countryCode, one]))
-  return [...statesOf(stores)].map(([id, state]) => ({
+  return [...provincesOf(stores)].map(([id, province]) => ({
     id,
-    entityKey: 'states',
-    entityLabel: 'States',
+    entityKey: 'provinces',
+    entityLabel: 'Provinces',
     fields: {
       id,
       // The key a seller and a lot both carry, and this type's scope.
-      state: id,
-      name: state.name,
-      country: state.country,
-      countryName: countries.get(state.country)?.countryName,
-      region: countries.get(state.country)?.regionId,
-      stores: state.stores,
-      // Every piece for sale in the state, summed over its sellers from the
+      province: id,
+      name: province.name,
+      country: province.country,
+      countryName: countries.get(province.country)?.countryName,
+      region: countries.get(province.country)?.regionId,
+      stores: province.stores,
+      // Every piece for sale in the province, summed over its sellers from the
       // directory's own per-seller figure — see the stores table's `items`.
-      items: state.items
+      items: province.items
     }
   }))
 }
@@ -1263,9 +1265,9 @@ const fetched: Record<string, Fetched> = {
     addresses: ['country'],
     rows: storeRows
   },
-  states: {
+  provinces: {
     addresses: ['country'],
-    rows: stateRows
+    rows: provinceRows
   },
   years: {
     addresses: [],

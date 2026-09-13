@@ -32,15 +32,17 @@ const MISSING_EXTENSION =
   "app's behalf — check it is installed and that you are signed in to BrickLink."
 
 /**
- * The key a seller's state goes under, for the sellers that have one.
+ * The key a seller's province goes under, for the sellers that have one.
  *
- * The country code in front of the name, because the name alone is not one
- * state: Limburg is a province of the Netherlands and of Belgium, and
- * `state:"Limburg"` would have narrowed to both. Undefined where the directory
- * does not group a country's sellers by state — most countries — and so where
- * a seller has no state to be under.
+ * A province here is whatever the directory groups a country's sellers by —
+ * BrickLink's `groupState`, which is a state in the US, a Bundesland in
+ * Germany and a province in Canada. The country code goes in front of the
+ * name because the name alone is not one province: Limburg is Dutch and
+ * Belgian, and `province:"Limburg"` would have narrowed to both. Undefined
+ * where the directory does not group a country's sellers at all — most
+ * countries — and so where a seller has no province to be under.
  */
-export function stateId(store: Pick<Store, 'countryID' | 'stateName'>): string | undefined {
+export function provinceId(store: Pick<Store, 'countryID' | 'stateName'>): string | undefined {
   return store.stateName ? `${store.countryID}-${store.stateName}` : undefined
 }
 

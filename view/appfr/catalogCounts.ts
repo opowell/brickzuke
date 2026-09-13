@@ -20,7 +20,7 @@ import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { readImages, readStoreInventories } from './itemPageFetch'
-import { statesOf, yearCount } from './catalogSource'
+import { provincesOf, yearCount } from './catalogSource'
 import { readStores } from './storesFetch'
 
 /** The populations, by the entity key each card is drawn under. */
@@ -68,9 +68,9 @@ async function read(): Promise<void> {
       countries: await count(db, stores.STORE_COUNTRIES),
       stores: await count(db, stores.BRICK_LINK_STORES),
       // Derived from the sellers rather than counted from a store of their
-      // own, there being none — see `statesOf`. Read whole, which the sellers
+      // own, there being none — see `provincesOf`. Read whole, which the sellers
       // can be: they are bounded by how many there are in the world.
-      states: statesOf(await readStores()).size,
+      provinces: provincesOf(await readStores()).size,
       // Two sources, because the lots table is filled from two pages. An
       // item's lots are held in the item page store rather than in IndexedDB,
       // going stale in a way a catalogue entry does not — see itemPageFetch —

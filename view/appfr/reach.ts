@@ -95,9 +95,9 @@ const THROUGH: Record<string, Through> = {
     field: 'country',
     of: (lot) => lot.fields.country
   },
-  states: {
-    field: 'state',
-    of: (lot) => lot.fields.state
+  provinces: {
+    field: 'province',
+    of: (lot) => lot.fields.province
   },
   stores: {
     field: 'store',

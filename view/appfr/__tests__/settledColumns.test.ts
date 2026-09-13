@@ -112,21 +112,21 @@ describe('the store directory', () => {
   it('drops the country column from one country\'s sellers', async () => {
     const columns = await columnsOf('stores', 'country:"DE"')
     expect(columns).not.toContain('country')
-    expect(columns).toContain('stateName')
+    expect(columns).toContain('provinceName')
     expect(columns).toContain('items')
   })
 
-  it('drops the state column from one state\'s sellers, and keeps its name', async () => {
-    // The seller's row carries the key under `state` and the name under
-    // `stateName`; it is the key the term pins, and the name's column that
+  it('drops the province column from one province\'s sellers, and keeps its name', async () => {
+    // The seller's row carries the key under `province` and the name under
+    // `provinceName`; it is the key the term pins, and the name's column that
     // has nothing left to say.
-    const columns = await columnsOf('stores', 'country:"DE" state:"DE-Bayern"')
-    expect(columns).not.toContain('stateName')
+    const columns = await columnsOf('stores', 'country:"DE" province:"DE-Bayern"')
+    expect(columns).not.toContain('provinceName')
     expect(columns).toContain('name')
   })
 
-  it('drops the country column from one country\'s states', async () => {
-    const columns = await columnsOf('states', 'country:"US"')
+  it('drops the country column from one country\'s provinces', async () => {
+    const columns = await columnsOf('provinces', 'country:"US"')
     expect(columns).not.toContain('countryName')
     expect(columns).toContain('stores')
   })
