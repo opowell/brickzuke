@@ -22,6 +22,7 @@ import { narrowBy, narrowTo } from './catalogSchema'
 import { userPopulation } from './userCounts'
 import { shopPartsOfInventory } from './userWrites'
 import CellPrice from './CellPrice.vue'
+import CellPostage from './CellPostage.vue'
 import CellUserNumber from './CellUserNumber.vue'
 import CellUserPick from './CellUserPick.vue'
 import CellUserText from './CellUserText.vue'
@@ -499,6 +500,21 @@ export const shopStoreColumns: ColumnDef[] = [
     width: '110px',
     sort: 'cost'
   },
+  /*
+   * Beside the total rather than added into it: the figure is the lightest
+   * band of what the seller wrote, in the seller's own currency, and the
+   * total is converted — see [shopPostage] for what it is and is not.
+   */
+  {
+    key: 'postage',
+    label: 'Postage',
+    hint:
+      'What the seller says they charge to post to the “Ship to” country, from their lightest band, in their own currency — read off their terms, so blank until their shipping has been looked at',
+    kind: 'component',
+    component: CellPostage,
+    width: '120px',
+    sort: 'postage'
+  },
   {
     key: 'short',
     label: 'Short',
@@ -811,6 +827,10 @@ export const shopStoresEntity: EntitySchema = {
     {
       key: 'cost',
       label: 'Cost'
+    },
+    {
+      key: 'postage',
+      label: 'Postage'
     },
     {
       key: 'quantity',

@@ -47,7 +47,7 @@ import { readAllStoreLots, readStoreLots, storeLotsFill, storeLotsFor } from './
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePolicyFetch'
 import type { StoredShippingMethod, StoredStorePolicy } from '../stores/bricklink/store-policy-page'
-import { parseShippingCosts } from '../stores/bricklink/shipping-terms'
+import { ratesApplying, termsOf, withPostage } from './shopPostage'
 import type { ItemImage } from './itemPageFetch'
 import {shopListItemRows,
   shopPlanRows,
@@ -1120,19 +1120,23 @@ function toShippingMethodRow(
  *
  * Read at the table rather than stored: the terms are prose, the reading of
  * them is a heuristic — see [shipping-terms] — and a better reading should
- * reach every seller already fetched without anything being cleared.
+ * reach every seller already fetched without anything being cleared. The
+ * rates for the country the "Ship to" setting names are marked as such —
+ * see [shipping-match] — which is the other half of the guess laid out for
+ * checking.
  */
 function toShippingCostRows(policy: StoredStorePolicy, directory: LotDirectory): ShellRow[] {
   const seller = policyFields(policy, directory)
-  return parseShippingCosts(policy.shippingTerms, {
-    currencies: policy.currencies
-  }).map((rate, index) => ({
+  const rates = termsOf(policy).rates
+  const applying = ratesApplying(policy, rates, directory)
+  return rates.map((rate, index) => ({
     id: `${policy.store}:${index}`,
     entityKey: 'shippingCosts',
     entityLabel: 'Shipping costs',
     fields: {
       id: `${policy.store}:${index}`,
       ...seller,
+      applies: applying.has(rate) ? 'Yes' : undefined,
       destination: rate.destination,
       label: rate.label,
       minWeight: rate.minWeight,
@@ -1424,7 +1428,10 @@ const fetched: Record<string, Fetched> = {
   },
   shopStores: {
     addresses: ['shoplist'],
-    rows: (request) => shopStoreRows(openedUserId(request, 'shoplist'))
+    // With what each would charge to post the order to the ship-to country,
+    // off whatever terms are stored — see [shopPostage].
+    rows: async (request) =>
+      withPostage(await shopStoreRows(openedUserId(request, 'shoplist')), await lotDirectory())
   }
 }
 

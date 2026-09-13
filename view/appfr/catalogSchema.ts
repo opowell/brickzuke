@@ -1616,6 +1616,13 @@ export const shippingCostColumns: ColumnDef[] = [
     sort: 'destination'
   },
   {
+    key: 'applies',
+    label: 'To you',
+    hint: 'Whether this is one of the rates for the “Ship to” country — the closest heading the seller wrote to it, as read by brickzuke',
+    width: '80px',
+    sort: 'applies'
+  },
+  {
     key: 'label',
     label: 'Method',
     hint: 'What the seller called the rate, where they named it',
@@ -2509,6 +2516,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'destination',
           label: 'Destination'
+        },
+        {
+          key: 'applies',
+          label: 'To you'
         },
         {
           key: 'label',

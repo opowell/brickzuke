@@ -10,10 +10,10 @@
  * request to BrickLink that should never have been made.
  */
 import 'fake-indexeddb/auto'
-import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest'
 import { computed, effectScope, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { useResults } from 'header-content-layout'
+import { PARAM_ENTITY, PARAM_EXPR, useResults } from 'header-content-layout'
 import type { ShellQuery } from 'header-content-layout'
 
 vi.mock('../../../model', async () => {
@@ -54,6 +54,13 @@ const {
 const {
   put, putAll
 } = await import('../../../idb/db')
+const {
+  addShopListItem, createShopList
+} = await import('../../../idb/shopList')
+const {
+  shipTo
+} = await import('../settings')
+const router = (await import('@/router')).default
 const STORES = (await import('../../../idb/stores')).default
 
 const entity = (key: string) => catalogSchema.value.entities.find((e) => e.key === key)!
@@ -684,6 +691,138 @@ describe('shipping', () => {
       expr: 'country:"US"'
     })
     expect(costs).toEqual([])
+  })
+})
+
+/**
+ * The postage to the country the "Ship to" setting names, read off those
+ * terms: which rates are the ones for there, and what the cheapest of them
+ * puts beside a seller's total.
+ *
+ * Brickmeister throughout, whose lot of Brick 2 x 4 is one read off the item's
+ * page above and whose own lots nobody here has opened — opening them starts
+ * the scrape of their terms, and a scrape with no extension to answer it is
+ * in flight for twenty seconds.
+ */
+describe('postage', () => {
+  let listId: number
+
+  beforeAll(async () => {
+    const db = await getDbConnection()
+    // The same terms as above, with a rate that is free over a value and one
+    // for everywhere else.
+    await put(db, STORES.STORE_POLICIES, {
+      store: 'brickmeister',
+      shipsTo: ['DE', 'AT', 'NL'],
+      methods: [],
+      currencies: ['EUR'],
+      shippingTerms:
+        'Deutschland\nDHL Paket: 6,90€ bis 30kg\nVersandkostenfrei ab 500 Euro\nEU countries\n10.90 EUR up to 750g\n19.90 EUR up to 4000g\nWeltweit\n29.90 EUR up to 1000g',
+      vat: true,
+      fetched: 1
+    })
+    const list = await createShopList(db, {
+      name: 'A brick'
+    })
+    listId = list.id
+    await addShopListItem(db, listId, {
+      record: 'P-3001',
+      name: 'Brick 2 x 4',
+      colorId: '5',
+      condition: 'N',
+      minQuantity: 10
+    })
+    db.close()
+  })
+
+  afterAll(() => {
+    shipTo.value = ''
+  })
+
+  /** The shop sellers table exists only while a list is open, as a press opens it. */
+  async function shopSellers() {
+    await router.replace({
+      path: '/',
+      query: {
+        [PARAM_ENTITY]: 'shopStores',
+        [PARAM_EXPR]: `shoplist:"${listId}"`
+      }
+    })
+    await nextTick()
+    const rows = await rowsOf({
+      entity: 'shopStores',
+      expr: `shoplist:"${listId}"`
+    })
+    return rows.find((row) => row.fields.store === 'brickmeister')!
+  }
+
+  it('marks the rates for the ship-to country, under the closest heading the seller wrote', async () => {
+    shipTo.value = 'NL'
+    const toHolland = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'store:"brickmeister"'
+    })
+    expect(toHolland.map((row) => [row.fields.destination, row.fields.applies])).toEqual([
+      ['Deutschland', undefined],
+      ['Deutschland', undefined],
+      ['EU countries', 'Yes'],
+      ['EU countries', 'Yes'],
+      ['Weltweit', undefined]
+    ])
+    shipTo.value = 'DE'
+    const home = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'store:"brickmeister"'
+    })
+    expect(home.filter((row) => row.fields.applies).map((row) => row.fields.destination)).toEqual([
+      'Deutschland',
+      'Deutschland'
+    ])
+  })
+
+  it('marks nothing while the setting is blank, or where the seller does not post there', async () => {
+    shipTo.value = ''
+    const unset = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'store:"brickmeister"'
+    })
+    expect(unset.filter((row) => row.fields.applies)).toEqual([])
+    // A worldwide rate, but a list of countries that leaves the States out.
+    shipTo.value = 'US'
+    const refused = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'store:"brickmeister"'
+    })
+    expect(refused.filter((row) => row.fields.applies)).toEqual([])
+  })
+
+  it('puts the cheapest rate to there beside the seller\'s total, in the seller\'s currency', async () => {
+    shipTo.value = 'NL'
+    const seller = await shopSellers()
+    expect(seller.fields.cost).toBe(12)
+    expect(seller.fields.postage).toBe(10.9)
+    expect(seller.fields.postageCurrency).toBe('EUR')
+    // Under its heading, for the hover: what the figure was read off.
+    expect(seller.fields.postageSource).toBe('EU countries — 10.90 EUR up to 750g')
+    expect(seller.fields.postageNote).toBeUndefined()
+  })
+
+  it('leaves out a free-over-a-value rate the order does not reach', async () => {
+    shipTo.value = 'DE'
+    const seller = await shopSellers()
+    // Ten bricks come to twelve, and free postage starts at five hundred.
+    expect(seller.fields.postage).toBe(6.9)
+  })
+
+  it('says so where the seller does not post there, and nothing while the setting is blank', async () => {
+    shipTo.value = 'US'
+    const refused = await shopSellers()
+    expect(refused.fields.postage).toBeUndefined()
+    expect(refused.fields.postageNote).toBe('Not to there')
+    shipTo.value = ''
+    const unset = await shopSellers()
+    expect(unset.fields.postage).toBeUndefined()
+    expect(unset.fields.postageNote).toBeUndefined()
   })
 })
 

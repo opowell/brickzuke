@@ -155,14 +155,15 @@ const GRAMS: Record<string, number> = {
 }
 
 /**
- * A regular expression matching any of the words, whole.
+ * A regular expression matching any of the words, whole. Case-insensitive
+ * unless the flags say otherwise — `US` is a place only as capitals.
  *
  * Not `\b`, which in JavaScript knows only ASCII letters — `\büber\b` never
  * matches, there being no boundary it can see beside a `ü` — but the same
  * idea spelt in Unicode: nothing letter-like on either side.
  */
-function words(list: string[]): RegExp {
-  return new RegExp(String.raw`(?<![\p{L}\d])(?:${list.join('|')})(?![\p{L}\d])`, 'giu')
+export function words(list: string[], flags = 'giu'): RegExp {
+  return new RegExp(String.raw`(?<![\p{L}\d])(?:${list.join('|')})(?![\p{L}\d])`, flags)
 }
 
 /** The words that turn a number into a floor rather than a ceiling. */
@@ -218,7 +219,7 @@ const NOT_POSTAGE = words([
  */
 const PLACES = words(
   [
-    'world', 'worldwide', 'international', 'internationaal', 'rest of', 'overseas', 'abroad', 'ausland',
+    'world', 'worldwide', 'weltweit', 'international', 'internationaal', 'rest of', 'overseas', 'abroad', 'ausland',
     'europe', 'europa', 'european', 'europäische', 'europese', 'domestic', 'inland', 'inländisch', 'binnenland',
     'national', 'usa', 'u\\.s\\.a?\\.?', 'united states', 'canada', 'kanada', 'united kingdom', 'great britain',
     'australia', 'australien', 'new zealand', 'asia', 'asien', 'africa', 'afrika', 'america', 'amerika',
@@ -277,8 +278,15 @@ function toGrams(text: string, unit: string): number {
   return Math.round(toNumber(text) * GRAMS[unit.toLowerCase()])
 }
 
-/** The ISO code a sign stands for, read by the seller's own currencies where it is only a dollar. */
-function currencyOf(sign: string, context: TermsContext): string {
+/**
+ * The ISO code a sign stands for, read by the seller's own currencies where it
+ * is only a dollar.
+ *
+ * Also what the sign in front of a converted price means — `US $` off
+ * `US $0.13` is USD — which is how a rate's currency and an order's are told
+ * to be the same one.
+ */
+export function currencyOf(sign: string, context: TermsContext = {}): string {
   const bare = sign.replace(/\s/g, '').toUpperCase()
   if (bare === '€' || bare.startsWith('EURO')) {
     return 'EUR'
