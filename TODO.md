@@ -1,4 +1,3 @@
 - add "price modifier" fields, store as modifier profiles.
 - shipping costs
-  - new setting: "ship to" country.
 - appfr: allow input result page number.
