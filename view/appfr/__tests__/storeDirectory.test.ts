@@ -121,6 +121,14 @@ beforeAll(async () => {
       stateName: 'Ohio',
       items: 40_000,
       instantCheckout: false
+    },
+    {
+      id: 'buckeyebricks',
+      name: 'Buckeye Bricks',
+      countryID: 'US',
+      stateName: 'Ohio',
+      items: 2_500,
+      instantCheckout: true
     }
   ])
   db.close()
@@ -199,6 +207,53 @@ describe('regions', () => {
   })
 })
 
+/**
+ * The grouping between a country and its sellers, derived from the sellers:
+ * BrickLink lists no states of its own, so a state is here exactly when a
+ * seller under it is.
+ */
+describe('states', () => {
+  it('folds the sellers of one state into one row, and counts them', async () => {
+    const rows = await rowsOf({
+      entity: 'states'
+    })
+    const ohio = rows.find((row) => row.fields.name === 'Ohio')!
+    expect(ohio.fields.stores).toBe(2)
+    // Every piece for sale in the state, off the directory's per-seller figure.
+    expect(ohio.fields.items).toBe(42_500)
+    expect(ohio.fields.country).toBe('US')
+    expect(ohio.fields.countryName).toBe('United States')
+    expect(ohio.fields.region).toBe('North America')
+  })
+
+  it('keys a state by its country as well as its name', async () => {
+    // A name alone is not one state — Limburg is Dutch and Belgian — so the
+    // key a seller carries, and a term narrows by, has the country in front.
+    const rows = await rowsOf({
+      entity: 'states'
+    })
+    expect(rows.map((row) => row.id).sort()).toEqual(['DE-Bayern', 'US-Ohio'])
+  })
+
+  it('leaves out the sellers of a country the directory does not group', async () => {
+    // Brickmeister carries no state, and a state with no name is not a state.
+    const rows = await rowsOf({
+      entity: 'states',
+      expr: 'country:"DE"'
+    })
+    expect(rows.map((row) => row.id)).toEqual(['DE-Bayern'])
+  })
+
+  it('narrows the sellers by the same key', async () => {
+    const rows = await rowsOf({
+      entity: 'stores',
+      expr: 'country:"US" state:"US-Ohio"'
+    })
+    expect(rows.map((row) => row.fields.id).sort()).toEqual(['bricksusa', 'buckeyebricks'])
+    expect(rows[0]!.fields.stateName).toBe('Ohio')
+  })
+})
+
 describe('stores', () => {
   it('reads one country through the index rather than filtering all of them', async () => {
     // The same answer either way, which is why this asserts the read as well:
@@ -260,7 +315,7 @@ describe('stores', () => {
     const rows = await rowsOf({
       entity: 'stores'
     })
-    expect(rows.length).toBe(3)
+    expect(rows.length).toBe(4)
   })
 })
 
@@ -575,6 +630,7 @@ describe('conditions', () => {
 describe.each([
   ['countries', 'country', 'DE', 'Germany'],
   ['regions', 'region', 'Europe', 'Europe'],
+  ['states', 'state', 'US-Ohio', 'Ohio'],
   ['stores', 'store', 'brickmeister', 'Brickmeister'],
   ['conditions', 'condition', 'N', 'New']
 ])('a %s term', (key, field, id, name) => {

@@ -77,7 +77,7 @@ interface ItemFacts {
 /**
  * Every type a lot can speak for, and how.
  *
- * The first six are on the lot itself. The last three are on the item behind
+ * The first seven are on the lot itself. The last three are on the item behind
  * it: a lot names its record — `P-3001` — and the catalogue says what year that
  * came out, what category it is in and which item it is one record of.
  *
@@ -94,6 +94,10 @@ const THROUGH: Record<string, Through> = {
   countries: {
     field: 'country',
     of: (lot) => lot.fields.country
+  },
+  states: {
+    field: 'state',
+    of: (lot) => lot.fields.state
   },
   stores: {
     field: 'store',

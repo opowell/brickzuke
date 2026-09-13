@@ -36,6 +36,7 @@ import {countriesFor,
   readRegions,
   readStores,
   regionsFor,
+  stateId,
   storesFor} from './storesFetch'
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
 import {imagesFor,
@@ -451,7 +452,8 @@ function itemNameFor(record: string): string | undefined {
 }
 
 /** One lot a seller has on offer, as a row. */
-function toStoreInventoryRow(lot: StoreInventory, regions: Map<string, string>): ShellRow {
+function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): ShellRow {
+  const seller = directory.sellers.get(lot.strSellerUsername)
   // The one place the viewer's currency is written down — see [priceCurrency].
   notePriceCurrency(lot.price)
   return {
@@ -484,8 +486,11 @@ function toStoreInventoryRow(lot: StoreInventory, regions: Map<string, string>):
       country: lot.sellerCountryCode,
       countryName: lot.sellerCountryName,
       // The part of the world that country is in, which a lot never states
-      // and the directory does — see [countryRegions].
-      region: regions.get(lot.sellerCountryCode ?? ''),
+      // and the directory does — see [lotDirectory].
+      region: directory.countries.get(lot.sellerCountryCode ?? '')?.regionId,
+      // Nor the state, which is on the seller's directory record where that
+      // seller has been fetched, and nowhere at all where they have not.
+      state: seller ? stateId(seller) : undefined,
       store: lot.strSellerUsername,
       storeName: lot.sellerStoreName,
       // BrickLink's own code, `N` or `U`, which is what the conditions table
@@ -579,6 +584,7 @@ function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
         // As on the item's own lots: the region is the directory's, not the
         // lot's, and here the country record it comes off is already in hand.
         region: country?.regionId,
+        state: seller ? stateId(seller) : undefined,
         store: lot.store,
         // The trading name where the directory has it, and the username where
         // it does not: a blank cell in the column that says whose lot this is
@@ -617,12 +623,11 @@ async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
  */
 export async function eachLot(visit: (lot: ShellRow) => void): Promise<number> {
   let seen = 0
-  const regions = await countryRegions()
+  const directory = await lotDirectory()
   for (const lot of readStoreInventories()) {
-    visit(toStoreInventoryRow(lot, regions))
+    visit(toStoreInventoryRow(lot, directory))
     seen++
   }
-  const directory = await lotDirectory()
   const db = await getDbConnection()
   try {
     let cursor = await openCursor(db, dbStores.STORE_LOTS)
@@ -754,7 +759,10 @@ function toStoreRow(store: Store, regions: Map<string, string>): ShellRow {
       // language fails quietly. Carried here so the term narrows sellers the
       // same way it narrows the countries they are in.
       region: regions.get(store.countryID),
-      province: store.stateName,
+      // The key the states table is scoped by, and the name that key stands
+      // for: `state:"US-Ohio"` narrows the sellers, and the column reads Ohio.
+      state: stateId(store),
+      stateName: store.stateName,
       items: store.items,
       // A flag rather than a number, and drawn as the word or nothing: the
       // original prints the raw boolean, which puts `false` in every other row.
@@ -859,8 +867,8 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
     return await asStoreLotRows(lots)
   }
   const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
-  const regions = await countryRegions()
-  const rows = lots.map((lot) => toStoreInventoryRow(lot, regions))
+  const directory = await lotDirectory()
+  const rows = lots.map((lot) => toStoreInventoryRow(lot, directory))
   if (record) {
     return rows
   }
@@ -936,8 +944,9 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
  *
  * The directory is the only place that says so: a region lists its countries,
  * a country carries its region, and everything below a country — a seller, a
- * lot — states the country alone. So a `region:` term reaches those two tables
- * through this, and reaches them at all.
+ * lot — states the country alone. So a `region:` term reaches the sellers
+ * through this, and reaches them at all; the lots read the same thing off
+ * [lotDirectory], which they need for the seller record as well.
  *
  * Held for the session once there is something to hold. A directory that has
  * not been fetched is an empty map and is not kept, an empty answer here being
@@ -980,6 +989,71 @@ async function storeRows(request: QueryRequest, fetching = true): Promise<ShellR
   const stores = fetching ? await storesFor(country) : await readStores(country)
   const regions = await countryRegions()
   return stores.map((store) => toStoreRow(store, regions))
+}
+
+/** What the sellers of one state add up to, before it is a row. */
+interface StateTally {
+  country: string
+  name: string
+  stores: number
+  items: number
+}
+
+/**
+ * The states a country's sellers are grouped under, as the sellers state them.
+ *
+ * Derived rather than stored, like the years: BrickLink has no page that lists
+ * the states of the world, only a country's sellers grouped under theirs — so
+ * a state exists here exactly when a seller in it does, and this is one fold
+ * over the sellers rather than a store of its own that could disagree with
+ * them. Where a country's directory page does not group at all — most of
+ * them — its sellers carry no state, and they fold into nothing.
+ *
+ * Addressed by country for the reason the sellers are: naming one is what
+ * fetches its page, and un-narrowed this is whatever the fill has gathered.
+ */
+export function statesOf(stores: readonly Store[]): Map<string, StateTally> {
+  const states = new Map<string, StateTally>()
+  for (const store of stores) {
+    const id = stateId(store)
+    if (!id) {
+      continue
+    }
+    const tally = states.get(id) ?? {
+      country: store.countryID,
+      name: store.stateName ?? '',
+      stores: 0,
+      items: 0
+    }
+    tally.stores++
+    tally.items += Number.isFinite(store.items) ? Number(store.items) : 0
+    states.set(id, tally)
+  }
+  return states
+}
+
+async function stateRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const country = termValue(request, 'country')
+  const stores = fetching ? await storesFor(country) : await readStores(country)
+  const countries = new Map((await readCountries()).map((one) => [one.countryCode, one]))
+  return [...statesOf(stores)].map(([id, state]) => ({
+    id,
+    entityKey: 'states',
+    entityLabel: 'States',
+    fields: {
+      id,
+      // The key a seller and a lot both carry, and this type's scope.
+      state: id,
+      name: state.name,
+      country: state.country,
+      countryName: countries.get(state.country)?.countryName,
+      region: countries.get(state.country)?.regionId,
+      stores: state.stores,
+      // Every piece for sale in the state, summed over its sellers from the
+      // directory's own per-seller figure — see the stores table's `items`.
+      items: state.items
+    }
+  }))
 }
 
 /**
@@ -1188,6 +1262,10 @@ const fetched: Record<string, Fetched> = {
   stores: {
     addresses: ['country'],
     rows: storeRows
+  },
+  states: {
+    addresses: ['country'],
+    rows: stateRows
   },
   years: {
     addresses: [],

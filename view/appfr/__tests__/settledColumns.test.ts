@@ -112,8 +112,23 @@ describe('the store directory', () => {
   it('drops the country column from one country\'s sellers', async () => {
     const columns = await columnsOf('stores', 'country:"DE"')
     expect(columns).not.toContain('country')
-    expect(columns).toContain('province')
+    expect(columns).toContain('stateName')
     expect(columns).toContain('items')
+  })
+
+  it('drops the state column from one state\'s sellers, and keeps its name', async () => {
+    // The seller's row carries the key under `state` and the name under
+    // `stateName`; it is the key the term pins, and the name's column that
+    // has nothing left to say.
+    const columns = await columnsOf('stores', 'country:"DE" state:"DE-Bayern"')
+    expect(columns).not.toContain('stateName')
+    expect(columns).toContain('name')
+  })
+
+  it('drops the country column from one country\'s states', async () => {
+    const columns = await columnsOf('states', 'country:"US"')
+    expect(columns).not.toContain('countryName')
+    expect(columns).toContain('stores')
   })
 
   it('drops the region column from one region\'s countries', async () => {

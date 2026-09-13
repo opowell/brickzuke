@@ -979,7 +979,7 @@ const SETTLED_BY: Record<string, string[]> = {
   feedback: ['store'],
   conditionName: ['condition'],
   country: ['country'],
-  province: ['province'],
+  stateName: ['state'],
   region: ['region']
 }
 
@@ -1368,8 +1368,81 @@ export const countryColumns: ColumnDef[] = [
 ]
 
 /**
+ * The states a country's sellers are grouped under — the directory's own
+ * grouping, for the countries it groups at all.
+ *
+ * Between a country and its sellers, and derived from the sellers rather than
+ * fetched: BrickLink lists no states of its own, so `stores` here is a count
+ * over the sellers stored rather than a number off a page — see `statesOf` —
+ * and a state nobody has fetched the country of is not here yet.
+ */
+export const stateColumns: ColumnDef[] = [
+  {
+    key: 'ordinal',
+    kind: 'ordinal',
+    label: '#',
+    width: '48px'
+  },
+  {
+    key: 'name',
+    role: 'identity',
+    label: 'Name',
+    width: '200px',
+    sort: 'name',
+    // The country as well as the state, so the sellers table opens on the
+    // country that fetches them and the header names both.
+    click: (row) => openWith('stores', stateTerms(row))
+  },
+  {
+    key: 'countryName',
+    role: 'reference',
+    label: 'Country',
+    width: '140px',
+    sort: 'countryName',
+    // Narrows the states on screen to that country, as the sellers table does
+    // with the same field — a state row carries `country` itself.
+    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+  },
+  {
+    key: 'stores',
+    label: 'Stores',
+    hint: 'How many of the sellers fetched so far are in this state',
+    width: '110px',
+    sort: 'stores',
+    format: counted,
+    click: (row) => openWith('stores', stateTerms(row))
+  },
+  {
+    key: 'items',
+    label: 'Items',
+    hint: 'Every piece those sellers have for sale, counted one by one and added up',
+    width: '100px',
+    sort: 'items',
+    format: counted,
+    click: (row) => openWith('stores', stateTerms(row))
+  },
+  {
+    key: 'region',
+    role: 'reference',
+    label: 'Region',
+    hint: 'The part of the world BrickLink groups the country under',
+    width: '140px',
+    sort: 'region',
+    click: (row) => narrowTo('regions', 'region', String(row.fields.region ?? ''))
+  }
+]
+
+/**
+ * The expression that opens one state's sellers: the country, which is what
+ * fetches the page, and the state, which narrows it.
+ */
+function stateTerms(row: ShellRow): string {
+  return `country:"${String(row.fields.country ?? '')}" state:"${String(row.fields.state ?? '')}"`
+}
+
+/**
  * The sellers themselves, as the original's `stores` columns state them:
- * country, province, the name with its id after it, the lot count and whether
+ * country, state, the name with its id after it, the lot count and whether
  * the seller takes instant checkout.
  */
 export const storeColumns: ColumnDef[] = [
@@ -1392,11 +1465,15 @@ export const storeColumns: ColumnDef[] = [
     click: (row) => narrowBy('country', String(row.fields.country ?? ''))
   },
   {
-    key: 'province',
-    label: 'Province',
+    key: 'stateName',
+    role: 'reference',
+    label: 'State',
+    hint: 'The state the directory groups the seller under — blank where it does not group the country at all',
     width: '125px',
-    sort: 'province',
-    click: (row) => narrowBy('province', String(row.fields.province ?? ''))
+    sort: 'stateName',
+    // The key rather than the name: a name alone is not one state — see
+    // `stateId` — and the key is what the states table is scoped by.
+    click: (row) => narrowBy('state', String(row.fields.state ?? ''))
   },
   {
     key: 'name',
@@ -2130,6 +2207,40 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       ]
     },
     {
+      // The key a seller carries its state under — the country code and the
+      // name together, since a name alone is not one state.
+      key: 'states',
+      label: 'States',
+      scope: 'state',
+      count: browsed('states'),
+      facets: [],
+      tabs: [],
+      samples: [],
+      columns: informative(stateColumns, openExpr.value),
+      sorts: [
+        {
+          key: 'name',
+          label: 'Name'
+        },
+        {
+          key: 'countryName',
+          label: 'Country'
+        },
+        {
+          key: 'stores',
+          label: 'Stores'
+        },
+        {
+          key: 'items',
+          label: 'Items'
+        },
+        {
+          key: 'region',
+          label: 'Region'
+        }
+      ]
+    },
+    {
       // The seller's username, which is what a lot carries and what pressing a
       // store on the lots table writes.
       key: 'stores',
@@ -2146,8 +2257,8 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
           label: 'Country'
         },
         {
-          key: 'province',
-          label: 'Province'
+          key: 'stateName',
+          label: 'State'
         },
         {
           key: 'name',

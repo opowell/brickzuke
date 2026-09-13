@@ -31,6 +31,19 @@ const MISSING_EXTENSION =
   'No answer from the BrickZuke extension. It fetches BrickLink pages on the ' +
   "app's behalf — check it is installed and that you are signed in to BrickLink."
 
+/**
+ * The key a seller's state goes under, for the sellers that have one.
+ *
+ * The country code in front of the name, because the name alone is not one
+ * state: Limburg is a province of the Netherlands and of Belgium, and
+ * `state:"Limburg"` would have narrowed to both. Undefined where the directory
+ * does not group a country's sellers by state — most countries — and so where
+ * a seller has no state to be under.
+ */
+export function stateId(store: Pick<Store, 'countryID' | 'stateName'>): string | undefined {
+  return store.stateName ? `${store.countryID}-${store.stateName}` : undefined
+}
+
 export async function readRegions(): Promise<Region[]> {
   const db = await getDbConnection()
   try {

@@ -31,6 +31,11 @@
  * pass over two hundred thousand items. Same three states, the middle one
  * being the years the pass has turned up so far.
  *
+ * The states are the sellers' own grouping and arrive with them, so their card
+ * runs on the sellers' fill. What it projects is what the years project — the
+ * states turned up so far, a floor rather than a total — because the directory
+ * counts a country's sellers and says nothing about how they are grouped.
+ *
  * Two of the browse-filled types are deliberately not filled. An item's
  * pictures and a seller's lots are fetched per item and per seller — there is
  * no directory of either, and asking for every one of them is a request per
@@ -39,8 +44,8 @@
  * can ask cheaply.
  */
 import { ref } from 'vue'
-import type { Country } from '../stores/bricklink/stores-page'
-import { countriesFor, readStores, storesFor } from './storesFetch'
+import type { Country, Store } from '../stores/bricklink/stores-page'
+import { countriesFor, readStores, stateId, storesFor } from './storesFetch'
 import { yearCount } from './catalogSource'
 import { browsedCounts, refreshCounts } from './catalogCounts'
 
@@ -54,7 +59,7 @@ import { browsedCounts, refreshCounts } from './catalogCounts'
 export const LOADING = '…'
 
 /** The types this fills, by the key their cards are drawn under. */
-export const FILLED = ['regions', 'countries', 'stores', 'years'] as const
+export const FILLED = ['regions', 'countries', 'states', 'stores', 'years'] as const
 
 /** A type being filled: its projection, where there is enough to project one. */
 export interface Fill {
@@ -224,15 +229,17 @@ function landed(): void {
 async function fillDirectory(mine: number): Promise<void> {
   mark('regions')
   mark('countries')
+  mark('states')
   mark('stores')
   let countries: Country[]
   try {
     countries = await countriesFor()
   } catch {
-    // Nobody answered. The three cards go back to stating what is stored,
+    // Nobody answered. The four cards go back to stating what is stored,
     // which is what they said before any of this and is still true.
     settle('regions')
     settle('countries')
+    settle('states')
     settle('stores')
     return
   }
@@ -256,7 +263,19 @@ async function fillStores(mine: number, countries: Country[]): Promise<void> {
   const fetched = new Set(stored.map((store) => store.countryID))
   fetchedCountries.value = fetched
   let sellers = stored.length
+  const states = new Set<string>()
+  const noteStates = (arrived: Store[]) => {
+    for (const store of arrived) {
+      const state = stateId(store)
+      if (state) {
+        states.add(state)
+      }
+    }
+    note('states', states.size)
+    project('states', states.size)
+  }
   note('stores', sellers)
+  noteStates(stored)
   project('stores', sellers + awaitedStores(countries.map(asCode)))
   landed()
 
@@ -284,8 +303,9 @@ async function fillStores(mine: number, countries: Country[]): Promise<void> {
       continue
     }
     attempted.add(country.countryCode)
+    let arrived: Store[]
     try {
-      sellers += (await storesFor(country.countryCode)).length
+      arrived = await storesFor(country.countryCode)
     } catch {
       missed++
       if (++failures >= GIVE_UP) {
@@ -297,9 +317,11 @@ async function fillStores(mine: number, countries: Country[]): Promise<void> {
       continue
     }
     failures = 0
+    sellers += arrived.length
     fetched.add(country.countryCode)
     fetchedCountries.value = new Set(fetched)
     note('stores', sellers)
+    noteStates(arrived)
     project('stores', sellers + awaitedStores(countries.map(asCode)))
     landed()
     await new Promise((resolve) => setTimeout(resolve, BETWEEN_MS))
@@ -308,6 +330,7 @@ async function fillStores(mine: number, countries: Country[]): Promise<void> {
   // short by however many sellers were in it, and short is exactly what the
   // `~` is for.
   if (mine === current && !missed) {
+    settle('states')
     settle('stores')
     landed()
   }

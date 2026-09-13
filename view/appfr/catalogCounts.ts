@@ -2,7 +2,7 @@
  * How many records each of the browse-filled types holds.
  *
  * The five bulk-download tables are counted by `setCounts` in model.ts and read
- * off `selectedCounts`. The nine below are not in any bulk download — a store
+ * off `selectedCounts`. The ten below are not in any bulk download — a store
  * directory scraped when someone opens it, a set's parts written when someone
  * opens the set — so nothing was counting them, and every one of their home
  * screen cards read as a bare label.
@@ -20,7 +20,8 @@ import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { readImages, readStoreInventories } from './itemPageFetch'
-import { yearCount } from './catalogSource'
+import { statesOf, yearCount } from './catalogSource'
+import { readStores } from './storesFetch'
 
 /** The populations, by the entity key each card is drawn under. */
 export const browsedCounts = ref<Record<string, number | undefined>>({})
@@ -66,6 +67,10 @@ async function read(): Promise<void> {
       regions: await count(db, stores.STORE_REGIONS),
       countries: await count(db, stores.STORE_COUNTRIES),
       stores: await count(db, stores.BRICK_LINK_STORES),
+      // Derived from the sellers rather than counted from a store of their
+      // own, there being none — see `statesOf`. Read whole, which the sellers
+      // can be: they are bounded by how many there are in the world.
+      states: statesOf(await readStores()).size,
       // Two sources, because the lots table is filled from two pages. An
       // item's lots are held in the item page store rather than in IndexedDB,
       // going stale in a way a catalogue entry does not — see itemPageFetch —
