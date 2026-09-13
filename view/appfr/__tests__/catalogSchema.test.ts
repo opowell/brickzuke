@@ -336,7 +336,7 @@ describe('what a header says on hover', () => {
  * The home screen is a summary of the catalogue, so a table brickzuke has and
  * this schema does not name is a line missing from that summary.
  *
- * brickzuke keeps two models. `model.ts` counts five types, which is what the
+ * brickzuke keeps two models. `model.ts` counts four types, which is what the
  * bulk downloads fill and what this schema was first built from;
  * `view/stores/models.ts` lists nine more — the stores scraped off BrickLink,
  * the countries and regions they sit in, what a seller has for sale, and the
@@ -350,7 +350,6 @@ describe('the catalogue this summarises', () => {
       'colors',
       'itemTypes',
       'items',
-      'partAndColorCodes',
       'itemInventories',
       'itemVariants',
       'inventories',
@@ -384,18 +383,16 @@ describe('the catalogue this summarises', () => {
 /**
  * A type on the home screen with nothing behind it is a card that leads to an
  * empty table, which is what all nine of the tables below were until they were
- * wired up.
- *
- * `partAndColorCodes` is the one exception and stays one: brickzuke counts the
- * codes and stores them, but the original draws no table for them either, so
- * there are no columns to move.
+ * wired up — and what the part and colour codes were until their card came
+ * off: brickzuke downloads and stores the codes, but nothing reads them, so
+ * they are not a type here until something does.
  */
 describe('every type on the home screen', () => {
-  it('has columns behind it, bar the one the original never drew', () => {
+  it('has columns behind it', () => {
     const bare = catalogSchema.value.entities
       .filter((entity) => !(entity.columns ?? []).length)
       .map((entity) => entity.key)
-    expect(bare).toEqual(['partAndColorCodes'])
+    expect(bare).toEqual([])
   })
 
   it('offers a sort for every table it draws', () => {

@@ -1,5 +1,4 @@
 - add "price modifier" fields, store as modifier profiles.
-- what is "part and color codes" entity? it has no results.
 - shipping costs
   - new setting: "ship to" country.
 - "first xxx of xxx lots" - use number formatting, only show on hover of page info (1 / 302). Use approximation notation (~) for total pages while still loading.

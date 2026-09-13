@@ -24,7 +24,6 @@ export async function setCounts() {
   processingCounts.value = true
   const db = await getDbConnection()
   itemTypes.value[2].count = await count(db, stores.ITEM_TYPES)
-  itemTypes.value[4].count = await count(db, stores.PART_AND_COLOR_CODES)
   db.close()
   processingCounts.value = false
   getItemsCount()
@@ -688,11 +687,6 @@ export const itemTypes = ref<SelectOption[]>([
       },
     ],
   },
-  {
-    id: 'partAndColorCodes',
-    label: 'Part and color codes',
-    count: 0
-  }
 ])
 export const counts = ref<Map<string, CountsState>>(new Map())
 

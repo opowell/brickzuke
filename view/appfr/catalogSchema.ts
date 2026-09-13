@@ -1506,9 +1506,9 @@ function abbreviate(value: number): string {
 }
 
 /**
- * The two counts `setCounts` writes straight onto the table it belongs to,
- * rather than into the per-query `counts` map: neither item types nor part and
- * colour codes narrows with the query.
+ * The one count `setCounts` writes straight onto the table it belongs to,
+ * rather than into the per-query `counts` map: item types do not narrow with
+ * the query.
  */
 function tableCount(id: string): number | undefined {
   return itemTypes.value.find((table) => table.id === id)?.count
@@ -1518,7 +1518,7 @@ function tableCount(id: string): number | undefined {
  * A population of one of the browse-filled types, as [catalogCounts] counts
  * them.
  *
- * Stated on the same terms `population` states the bulk five — abbreviated,
+ * Stated on the same terms `population` states the bulk four — abbreviated,
  * and absent rather than zero — but not gated on `processingCounts`, that being
  * the bulk downloads' own counting run and nothing to do with these.
  *
@@ -1551,7 +1551,7 @@ function browsed(key: string): string {
  *
  * The shell takes its home-screen cards and its entity chips straight from
  * this list, and item records are not a population anyone browses — a sixth
- * card reading "Item records" beside the five brickzuke counts would be a card
+ * card reading "Item records" beside the four brickzuke counts would be a card
  * for nothing. So the type exists exactly while the URL is on it, which is the
  * same thing as saying it is a detail rather than a table.
  */
@@ -1872,27 +1872,19 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         }
       ]
     },
-    {
-      key: 'partAndColorCodes',
-      label: 'Part and color codes',
-      count: population(tableCount('partAndColorCodes')),
-      facets: [],
-      tabs: [],
-      samples: []
-    },
     /**
      * The rest of what brickzuke has tables for: the parts a set is made of
      * and the lots a seller has for sale, BrickLink's stores and where in the
      * world they are, and the cross-sections the original slices all of it by.
      *
      * These are `view/stores/models.ts`'s. That is the older of brickzuke's
-     * two models and it lists nine tables beside the five `model.ts` counts —
+     * two models and it lists nine tables beside the four `model.ts` counts —
      * a schema built from the second file alone drops the stores, the
      * countries and the inventories, and states the catalogue as the bulk
      * downloads rather than as the catalogue.
      *
      * In that file's order, and counted by [catalogCounts] rather than by
-     * `setCounts` — the latter counts the five stores the bulk downloads fill,
+     * `setCounts` — the latter counts the four stores the bulk downloads fill,
      * and every one of these is filled by browsing instead: a set opened, a
      * country asked about. So the number on the card is how much of each has
      * been fetched so far, which is exactly what its table shows.
@@ -1900,7 +1892,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
      * Until something has been fetched that number is zero, and zero is drawn
      * as no count at all: a card reading `0` for a type nobody has asked about
      * states a number brickzuke never gave. That is the same rule `population`
-     * follows for the bulk five while their counts are still running.
+     * follows for the bulk four while their counts are still running.
      */
     {
       key: 'itemInventories',
