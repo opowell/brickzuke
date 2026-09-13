@@ -26,6 +26,7 @@ import { useStoresPageStore } from '@/stores/bricklink/stores-page'
 import {handleStoreFrontResponse,
   handleStoreItemsResponse,
   type StoreItemsResponse} from '@/stores/bricklink/store-front-page'
+import { handleStorePolicyResponse, type StorePolicyResponse } from '@/stores/bricklink/store-policy-page'
 import { handleResponse as handleColorGuidePageResponse } from '../../../sources/bricklink/color-guide'
 import catalogTreePage from '@/stores/bricklink/catalog-tree-page'
 import catalogPage from './../../../sources/bricklink/catalog-page'
@@ -50,6 +51,7 @@ export enum Call {
   GET_SEARCH_ADVANCED_PAGE = 'https://www.bricklink.com/searchAdvanced.asp',
   GET_STORE_FRONT_PAGE = 'https://store.bricklink.com',
   GET_STORE_ITEMS = 'https://www.bricklink.com/ajax/clone/store/searchitems.ajax',
+  GET_STORE_POLICY = 'https://store.bricklink.com/ajax/clone/store/policy.ajax',
 }
 export enum CallType {
   JSON = 'json',
@@ -135,6 +137,10 @@ export function handleEvent(detail: EventDetail) {
       }
       case Call.GET_STORE_ITEMS: {
         void handleStoreItemsResponse(detail as StoreItemsResponse)
+        return
+      }
+      case Call.GET_STORE_POLICY: {
+        void handleStorePolicyResponse(detail as StorePolicyResponse)
         return
       }
       case Call.GET_COLOR_GUIDE_PAGE: {

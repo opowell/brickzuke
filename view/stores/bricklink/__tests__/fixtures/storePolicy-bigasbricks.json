@@ -1,0 +1,80 @@
+{
+ "sellerTerms": "",
+ "sellerTermsShipping": "<p> </p>\n  <hr />\n <p>Shipping charges for orders in the <font color=\"#0000FF\">\n  <strong>U.S.</strong></font> are listed below:<br /> <br /> 0-6 Ounces\n  will be a flat fee of $7.00 to cover shipping and packaging\n  materials<br /> <br /> 7-12 Ounces will be a flat fee of $8.00 to\n  cover shipping and packaging materials<br /> <br /> 13-15.99 Ounces\n  will be $9.0+ to cover shipping and packing materials</p>\n  <p>16+ Ounces will be shipped via USPS or UPS within a dollar of  USPS\n  retail pricing </p>\n  <p>Shipping charges for all<strong> <font color=\"#0000FF\">\n      International Orders </font></strong>are listed below:</p>\n  <p>\n  <strong>International Shipping:</strong></p>\n  <p>\n  <strong>ALL INTERNATIONAL ORDERS REQUIRE INSURANCE NO EXCEPTIONS!!!!</strong></p>\n  <p>\n  <font color=\"#FF0000\">Canada</font></p>\n  <p>0-8 oz $13</p>\n  <p>8-16 oz $15</p>\n  <p>16-32 oz $20</p>\n  <p>32-48 oz $24</p>\n  <p>48-64 oz $28</p>\n  <p>\n  <font color=\"#FF0000\">Rest of World</font></p>\n  <p>0-8 oz $16</p>\n  <p>8-16 oz $22</p>\n  <p>16-32 oz $26</p>\n  <p>32-48 oz $34</p>\n  <p>48-64 oz $42</p>\n  <p>International orders MAX weight is 64oz</p>\n  <p>I bag each lot individually so orders with high lot counts or bulky\n  items can increase final weight significantly. This may bump your\n  shipping rate up to the next tier. </p>\n  <p>All orders not submitted through the quote request will be charged\n  USPS rates based on country destination. Please note some shipping\n  rates can be very high, I highly recommend you request a shipping\n  quote. You may also check<font\n  color=\"#0000FF\"> https://postcalc.usps.com/</font> for a rough\n  estimate of the shipping charges to your country. All import\n  fees, duties, taxes, and customs clearance fees are the sole\n  responsibility of the buyer. We put the exact value of the order on\n  the shipping label and include a packing sheet with the exact value\n  clearly stated. </p>\n  <p>You may also submit a quote request which I highly recommend to\n  avoid confusion. Thank you!!</p>\n  <p>Shipping charges, insurance, and any extra services requested are\n  non-refundable.<br />  </p>\n  <p> </p>\n  <hr />\n <p>\n  <br /> I am human and do make mistakes from time to time so if there\n  is something wrong with your order please let me know and I will do my\n  best to make it right.</p>\n  <p> </p>\n  <hr />\n <p>After you receive your invoice please submit payment via PayPal\n  within 3 days. All orders that are not paid in 7 days will have an NPB\n  (Non-Paying Buyer) case opened up to ensure seller protections. </p>\n  <p> </p>\n",
+ "hasVAT": false,
+ "acceptedCurrencies": [
+  {
+   "id": 1,
+   "code": "USD",
+   "name": "US Dollar",
+   "note": null
+  }
+ ],
+ "pmtMethods": [
+  {
+   "countryID": "I",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": null,
+     "onSite": true
+    }
+   ]
+  },
+  {
+   "countryID": "US",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": null,
+     "onSite": true
+    }
+   ]
+  }
+ ],
+ "shipCountries": [
+  {
+   "id": "AU",
+   "name": "Australia"
+  },
+  {
+   "id": "AT",
+   "name": "Austria"
+  },
+  {
+   "id": "BY",
+   "name": "Belarus"
+  },
+  {
+   "id": "BE",
+   "name": "Belgium"
+  },
+  {
+   "id": "BG",
+   "name": "Bulgaria"
+  }
+ ],
+ "shipMethods": [
+  {
+   "id": 88826,
+   "name": "Request for invoice",
+   "note": "",
+   "shipsTo": "B"
+  }
+ ],
+ "storeTermChanges": [],
+ "storeTermShippingChanges": [
+  {
+   "id": 1225163,
+   "logDate": "26 Apr 2026 12:42",
+   "tsDate": 1777221767233
+  }
+ ],
+ "returnCode": 0,
+ "returnMessage": "OK",
+ "errorTicket": 0,
+ "procssingTime": 2,
+ "strRefNo": "20260913-7a3ec366bbc7"
+}

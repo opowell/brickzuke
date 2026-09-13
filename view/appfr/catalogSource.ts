@@ -45,6 +45,9 @@ import {imagesFor,
   storeInventoriesFor} from './itemPageFetch'
 import { readAllStoreLots, readStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
+import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePolicyFetch'
+import type { StoredShippingMethod, StoredStorePolicy } from '../stores/bricklink/store-policy-page'
+import { parseShippingCosts } from '../stores/bricklink/shipping-terms'
 import type { ItemImage } from './itemPageFetch'
 import {shopListItemRows,
   shopPlanRows,
@@ -865,6 +868,14 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
   const store = termValue(request, 'store')
   if (!record && store) {
     const lots = fetching ? await storeLotsFor(store) : await readStoreLots(store)
+    if (fetching) {
+      // And the seller's terms, behind the lots rather than before them: a
+      // seller whose lots somebody is pricing is a seller whose postage they
+      // are about to ask after, and it is one request, held for a week. Not
+      // awaited — the table is drawn from the lots — and not allowed to fail
+      // it either.
+      void storePolicyFor(store).catch(() => undefined)
+    }
     return await asStoreLotRows(lots)
   }
   const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
@@ -1056,6 +1067,107 @@ async function provinceRows(request: QueryRequest, fetching = true): Promise<She
       items: province.items
     }
   }))
+}
+
+/** BrickLink's reach as the word the table shows. */
+const REACH_LABEL: Record<StoredShippingMethod['reach'], string> = {
+  domestic: 'Domestic',
+  international: 'International',
+  both: 'Both'
+}
+
+/** What every row of a seller's terms says about the seller, before it says its own thing. */
+function policyFields(policy: StoredStorePolicy, directory: LotDirectory): Record<string, unknown> {
+  const seller = directory.sellers.get(policy.store)
+  const country = seller ? directory.countries.get(seller.countryID) : undefined
+  return {
+    store: policy.store,
+    // The trading name where the directory has it, and the username where it
+    // does not — as on the lots.
+    storeName: seller?.name ?? policy.store,
+    country: seller?.countryID,
+    countryName: country?.countryName,
+    region: country?.regionId,
+    province: seller ? provinceId(seller) : undefined,
+    // How many countries the seller ships to, or blank where they declared
+    // none — which BrickLink draws as a store that ships everywhere.
+    shipsTo: policy.shipsTo.length || undefined
+  }
+}
+
+/** One way a seller sends an order, as a row. */
+function toShippingMethodRow(
+  policy: StoredStorePolicy,
+  method: StoredShippingMethod,
+  directory: LotDirectory
+): ShellRow {
+  return {
+    id: String(method.id),
+    entityKey: 'shippingMethods',
+    entityLabel: 'Shipping methods',
+    fields: {
+      id: method.id,
+      ...policyFields(policy, directory),
+      name: method.name,
+      note: method.note,
+      reach: REACH_LABEL[method.reach]
+    }
+  }
+}
+
+/**
+ * One rate read off a seller's shipping terms, as a row.
+ *
+ * Read at the table rather than stored: the terms are prose, the reading of
+ * them is a heuristic — see [shipping-terms] — and a better reading should
+ * reach every seller already fetched without anything being cleared.
+ */
+function toShippingCostRows(policy: StoredStorePolicy, directory: LotDirectory): ShellRow[] {
+  const seller = policyFields(policy, directory)
+  return parseShippingCosts(policy.shippingTerms, {
+    currencies: policy.currencies
+  }).map((rate, index) => ({
+    id: `${policy.store}:${index}`,
+    entityKey: 'shippingCosts',
+    entityLabel: 'Shipping costs',
+    fields: {
+      id: `${policy.store}:${index}`,
+      ...seller,
+      destination: rate.destination,
+      label: rate.label,
+      minWeight: rate.minWeight,
+      maxWeight: rate.maxWeight,
+      cost: rate.cost,
+      currency: rate.currency,
+      minValue: rate.minValue,
+      maxValue: rate.maxValue,
+      source: rate.source
+    }
+  }))
+}
+
+/** The sellers' terms a query is about: one seller's, or every one stored. */
+async function policiesFor(request: QueryRequest, fetching: boolean): Promise<StoredStorePolicy[]> {
+  const store = termValue(request, 'store')
+  return fetching ? await storePoliciesFor(store) : await readStorePolicies().then((all) =>
+    store ? all.filter((policy) => policy.store === store) : all
+  )
+}
+
+/** The ways the sellers a query names will send an order. */
+async function shippingMethodRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const policies = await policiesFor(request, fetching)
+  const directory = await lotDirectory()
+  return policies.flatMap((policy) =>
+    policy.methods.map((method) => toShippingMethodRow(policy, method, directory))
+  )
+}
+
+/** What those sellers say they charge, as far as it can be read. */
+async function shippingCostRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const policies = await policiesFor(request, fetching)
+  const directory = await lotDirectory()
+  return policies.flatMap((policy) => toShippingCostRows(policy, directory))
 }
 
 /**
@@ -1268,6 +1380,19 @@ const fetched: Record<string, Fetched> = {
   provinces: {
     addresses: ['country'],
     rows: provinceRows
+  },
+  /*
+   * A seller's terms, two ways. Both are addressed by the seller — a `store:`
+   * term is what fetches them — and un-narrowed both show whatever sellers
+   * have been looked at, as the lots do.
+   */
+  shippingMethods: {
+    addresses: ['store'],
+    rows: shippingMethodRows
+  },
+  shippingCosts: {
+    addresses: ['store'],
+    rows: shippingCostRows
   },
   years: {
     addresses: [],

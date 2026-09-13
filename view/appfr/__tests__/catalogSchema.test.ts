@@ -18,6 +18,8 @@ import {catalogSchema,
   itemTypeColumns,
   itemVariantColumns,
   regionColumns,
+  shippingCostColumns,
+  shippingMethodColumns,
   storeColumns,
   storeInventoryColumns,
   yearColumns} from '../catalogSchema'
@@ -255,6 +257,8 @@ const everyTable = [
   regionColumns,
   countryColumns,
   storeColumns,
+  shippingMethodColumns,
+  shippingCostColumns,
   imageColumns,
 ]
 
@@ -362,6 +366,11 @@ describe('the catalogue this summarises', () => {
       // table of its own.
       'provinces',
       'stores',
+      // Nor these two: a seller's terms, which the original never read at
+      // all. The methods are BrickLink's own data; the costs are read out of
+      // the seller's prose — see [shipping-terms].
+      'shippingMethods',
+      'shippingCosts',
       'images',
       // Not a table of the catalogue but a table all the same: the knobs, drawn
       // as records so the shell can sort and filter them like anything else.

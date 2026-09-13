@@ -114,13 +114,14 @@ async function awaitStoreId(username: string): Promise<number> {
 }
 
 /**
- * The seller's numeric id, which every page of lots is addressed by.
+ * The seller's numeric id, which every page of lots is addressed by — and
+ * the policy too, which is why [storePolicyFetch] asks here for it.
  *
  * Learned once a session and then remembered, so a fill resuming a store
  * somebody fetched last week pays for the front page and nothing more — the
  * lots are read back by username, and by then nothing in memory knows the id.
  */
-async function storeIdFor(username: string): Promise<number> {
+export async function storeIdFor(username: string): Promise<number> {
   const known = storeIds.get(username)
   if (known !== undefined) {
     return known

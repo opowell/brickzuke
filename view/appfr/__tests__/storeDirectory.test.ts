@@ -573,6 +573,120 @@ describe('a seller\'s own lots', () => {
   })
 })
 
+/**
+ * A seller's terms, stored as BrickLink states them and drawn as two tables:
+ * the methods, which are data, and the costs, which are read out of prose.
+ */
+describe('shipping', () => {
+  beforeAll(async () => {
+    const db = await getDbConnection()
+    await putAll(db, STORES.STORE_POLICIES, [
+      {
+        store: 'brickmeister',
+        shipsTo: ['DE', 'AT', 'NL'],
+        methods: [
+          {
+            id: 11,
+            name: 'DHL Paket',
+            note: '',
+            reach: 'domestic'
+          },
+          {
+            id: 12,
+            name: 'DHL Express EU',
+            note: 'Tracked and insured',
+            reach: 'international'
+          }
+        ],
+        currencies: ['EUR'],
+        shippingTerms: 'Deutschland\nDHL Paket: 6,90€ bis 30kg\nEU countries\n10.90 EUR up to 750g\n19.90 EUR up to 4000g',
+        vat: true,
+        fetched: 1
+      },
+      {
+        store: 'bricksusa',
+        shipsTo: [],
+        methods: [
+          {
+            id: 13,
+            name: 'Request for invoice',
+            note: '',
+            reach: 'both'
+          }
+        ],
+        currencies: ['USD'],
+        shippingTerms: 'Please ask for a quote.',
+        vat: false,
+        fetched: 1
+      }
+    ])
+    db.close()
+  })
+
+  it('draws one row per method, with the seller and the reach spelt out', async () => {
+    const rows = await rowsOf({
+      entity: 'shippingMethods'
+    })
+    expect(rows.map((row) => row.fields.name)).toEqual(['DHL Express EU', 'DHL Paket', 'Request for invoice'])
+    const paket = rows.find((row) => row.fields.name === 'DHL Paket')!
+    // Off the directory, as the lots: the policy states the username and
+    // nothing about the seller.
+    expect(paket.fields.storeName).toBe('Brickmeister')
+    expect(paket.fields.country).toBe('DE')
+    expect(paket.fields.countryName).toBe('Germany')
+    expect(paket.fields.region).toBe('Europe')
+    expect(paket.fields.reach).toBe('Domestic')
+    expect(paket.fields.shipsTo).toBe(3)
+  })
+
+  it('leaves the ships-to count blank where the seller declared no countries', async () => {
+    const rows = await rowsOf({
+      entity: 'shippingMethods',
+      expr: 'store:"bricksusa"'
+    })
+    // Blank rather than nought: BrickLink shows a seller with no list as
+    // shipping everywhere, and `0` would say the opposite.
+    expect(rows.map((row) => row.fields.shipsTo)).toEqual([undefined])
+    expect(rows[0].fields.storeName).toBe('Bricks USA')
+  })
+
+  it('reads the rates out of the terms at the table, under their headings', async () => {
+    const rows = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'store:"brickmeister"'
+    })
+    expect(rows.map((row) => [row.fields.destination, row.fields.maxWeight, row.fields.cost, row.fields.currency])).toEqual([
+      ['Deutschland', 30000, 6.9, 'EUR'],
+      ['EU countries', 750, 10.9, 'EUR'],
+      ['EU countries', 4000, 19.9, 'EUR']
+    ])
+    expect(rows[0].fields.label).toBe('DHL Paket')
+    expect(rows[0].fields.source).toBe('DHL Paket: 6,90€ bis 30kg')
+    expect(rows[0].fields.storeName).toBe('Brickmeister')
+  })
+
+  it('has nothing to say for a seller who only asks to be asked', async () => {
+    const rows = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'store:"bricksusa"'
+    })
+    expect(rows).toEqual([])
+  })
+
+  it('narrows both tables by the seller\'s country, which the policy never states', async () => {
+    const methods = await rowsOf({
+      entity: 'shippingMethods',
+      expr: 'country:"DE"'
+    })
+    expect(methods.map((row) => row.fields.id)).toEqual([12, 11])
+    const costs = await rowsOf({
+      entity: 'shippingCosts',
+      expr: 'country:"US"'
+    })
+    expect(costs).toEqual([])
+  })
+})
+
 describe('conditions', () => {
   it('names both, and counts the lots of each', async () => {
     const rows = await rowsOf({

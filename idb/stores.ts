@@ -24,6 +24,7 @@ const stores: {
   BRICK_LINK_STORES: StoreDefinition
   STORE_LOTS: StoreDefinition
   STORE_LOT_SCOPES: StoreDefinition
+  STORE_POLICIES: StoreDefinition
   USER_CATEGORIES: StoreDefinition
   USER_ITEMS: StoreDefinition
   USER_INVENTORIES: StoreDefinition
@@ -169,6 +170,20 @@ const stores: {
    */
   STORE_LOT_SCOPES: {
     name: 'storeLotScopes',
+    keyPath: 'store'
+  },
+  /**
+   * A seller's terms: where they ship, the methods they offer and what they
+   * wrote about the charges. One record per seller.
+   *
+   * Kept for the same reason the lots are — it is read whenever a seller is
+   * looked at, and the request behind it is the front page and one more —
+   * and unlike the lots it is small. The charges stay as the prose BrickLink
+   * holds them in; the rates read out of it are read at the table, so a
+   * better reading needs no clearing here.
+   */
+  STORE_POLICIES: {
+    name: 'storePolicies',
     keyPath: 'store'
   },
   /*

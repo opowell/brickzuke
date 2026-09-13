@@ -1,0 +1,165 @@
+{
+ "sellerTerms": "",
+ "sellerTermsShipping": "<p>Versandkosten für <strong>ÖSTERREICH</strong>: Versand als Paket mit\n  der Österr. Post. Ab einem Einkauf von 70 Euro ist der Versand kostenlos.</p>\n  <table border=\"1\">  <tbody>   <tr>    <th>Gewicht</th>\n      <th>Versandkosten</th>   </tr>   <tr>    <td> </td>    <td> </td>\n    </tr>   <tr>    <td>0-30kg                </td>    <td>EUR 5.99</td>\n    </tr>  </tbody> </table>\n  <p> </p>\n  <p>Shipping within <strong>EUROPE</strong>: as &quot;letter&quot;;\n  Airmail shipping</p>\n  <table border=\"1\">  <tbody>   <tr>    <th>Weight</th>    <th>Shipping\n      Costs</th>   </tr>   <tr>    <td>up to 100g</td>    <td>EUR\n      6.90</td>   </tr>   <tr>    <td>up to 350g</td>    <td>EUR\n      8.90</td>   </tr>   <tr>    <td>up to 500g</td>    <td>EUR\n      10.90</td>   </tr>   <tr>    <td>up to 750g</td>    <td>EUR\n      11.90</td>   </tr>   <tr>    <td>up to 1000g</td>    <td>EUR\n      13.90</td>   </tr>   <tr>    <td>over 1000g</td>    <td>usually a\n        parcel is the best way</td>   </tr>  </tbody> </table>\n  <p> </p>\n  <p>\n  <strong>USA: </strong></p>\n  <p>The minimum order value is currently 200 Euro. Shipping is only\n  possible as Express parcel<br /> and starts at 50.00 Euro.</p>\n  <hr />\n <p>\n  <strong>Canada</strong>:</p>\n  <p>The minimum order value is currently 100 Euro. Shipping is only\n  possible as parcel<br /> and starts at 23.50 Euro (for up to 1kg).</p>\n  <hr />\n <p>\n  <strong>United Kingdom:</strong></p>\n  <p>The minimum order value is currently 160 Euro. Shipping is only\n  possible as parcel<br /> and starts at 21.50 Euro (for up to 2kg).</p>\n  <hr />\n <p>\n  <strong>Japan / South Korea / HK / Singapore / Taiwan:</strong></p>\n  <p>The minimum order value is currently 100 Euro. Shipping is only\n  possible as parcel<br /> and starts at 28.50 Euro (for up to 1kg).</p>\n  <hr />\n <p>\n  <strong>Australia and New Zealand:</strong></p>\n  <p>The minimum order value is currently 100 Euro. Shipping is only\n  possible as parcel<br /> and starts at 33.50 Euro (for up to 1kg).</p>\n  <hr />\n <p> </p>\n",
+ "hasVAT": true,
+ "sellerVatID": "ATU66437117",
+ "acceptedCurrencies": [
+  {
+   "id": 2,
+   "code": "EUR",
+   "name": "Euro",
+   "note": null
+  }
+ ],
+ "pmtMethods": [
+  {
+   "countryID": "AT",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": null,
+     "onSite": true
+    },
+    {
+     "id": 16,
+     "name": "Bank Transfer",
+     "note": null,
+     "onSite": false
+    },
+    {
+     "id": 5,
+     "name": "Cash (no COD)",
+     "note": null,
+     "onSite": false
+    },
+    {
+     "id": 18,
+     "name": "IBAN",
+     "note": null,
+     "onSite": false
+    }
+   ]
+  },
+  {
+   "countryID": "I",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": null,
+     "onSite": true
+    },
+    {
+     "id": 16,
+     "name": "Bank Transfer",
+     "note": null,
+     "onSite": false
+    },
+    {
+     "id": 18,
+     "name": "IBAN",
+     "note": null,
+     "onSite": false
+    }
+   ]
+  }
+ ],
+ "shipCountries": [
+  {
+   "id": "AU",
+   "name": "Australia"
+  },
+  {
+   "id": "AT",
+   "name": "Austria"
+  },
+  {
+   "id": "BE",
+   "name": "Belgium"
+  },
+  {
+   "id": "BA",
+   "name": "Bosnia and Herzegovina"
+  },
+  {
+   "id": "BG",
+   "name": "Bulgaria"
+  }
+ ],
+ "shipMethods": [
+  {
+   "id": 56063,
+   "name": "Abholung",
+   "note": "Gerne können Sie Ihre Bestellung in Bruck/Mur abholen",
+   "shipsTo": "D"
+  },
+  {
+   "id": 56061,
+   "name": "Bestellung offen lassen",
+   "note": "Bitte um eine kurze Nachricht, wenn Sie mit Ihrer Bestellung fertig sind",
+   "shipsTo": "D"
+  },
+  {
+   "id": 52084,
+   "name": "Paket Österreich (5.99 Euro)",
+   "note": "Ab einem Einkauf von 70 Euro ist der Versand kostenlos",
+   "shipsTo": "D"
+  },
+  {
+   "id": 213481,
+   "name": "Australia / New Zealand",
+   "note": "The minimum order value is 100 Euro. Shipping is only possible as parcel\nand starts at 33.50 Euro (for up to 1kg).",
+   "shipsTo": "I"
+  },
+  {
+   "id": 182486,
+   "name": "Canada",
+   "note": "The minimum order value is 100 Euro. Shipping is only possible as parcel\nand starts at 23.50 Euro (for up to 1kg).",
+   "shipsTo": "I"
+  },
+  {
+   "id": 207795,
+   "name": "Japan / Korea / HK / Singapore / Taiwan",
+   "note": "The minimum order value is 100 Euro. Shipping is only possible as parcel\nand starts at 28.50 Euro (for up to 1kg).",
+   "shipsTo": "I"
+  },
+  {
+   "id": 205471,
+   "name": "United Kingdom",
+   "note": "The minimum order value is 160 Euro. Shipping is only possible as parcel\nand starts at 21.50 Euro (for up to 2kg).",
+   "shipsTo": "I"
+  },
+  {
+   "id": 348102,
+   "name": "USA",
+   "note": "The minimum order value is 200 Euro. Shipping is only possible as\nExpress parcel and starts at 50.00 Euro.  The correct customs\ndeclaration and a commercial invoice will be added to the package. You\nare responsible for import taxes and customs fees.",
+   "shipsTo": "I"
+  },
+  {
+   "id": 56064,
+   "name": "Airmail letter or parcel",
+   "note": "We always choose the cheapest method for you",
+   "shipsTo": "I"
+  },
+  {
+   "id": 56065,
+   "name": "Hold order open",
+   "note": "If you want to add more items later please choose this option",
+   "shipsTo": "I"
+  }
+ ],
+ "storeTermChanges": [],
+ "storeTermShippingChanges": [
+  {
+   "id": 1244143,
+   "logDate": "8 Jul 2026 06:14",
+   "tsDate": 1783505646320
+  }
+ ],
+ "returnCode": 0,
+ "returnMessage": "OK",
+ "errorTicket": 0,
+ "procssingTime": 2,
+ "strRefNo": "20260913-d4f28acbc579"
+}

@@ -24,7 +24,9 @@ const DB_NAME = 'brickzuke'
 // never be cleared by it — every clearing above is safe because the rows are a
 // copy of BrickLink's and can be fetched again, and none of these is a copy of
 // anything. A shape that turns out to be wrong is migrated in place.
-const DB_VERSION = 24
+// 25 adds STORE_POLICIES — a seller's shipping terms — made by the loop below
+// like any other and, being a copy of BrickLink's, safe to clear.
+const DB_VERSION = 25
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

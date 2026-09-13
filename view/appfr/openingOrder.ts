@@ -65,6 +65,16 @@ const orders: Record<string, OpeningOrder> = {
     sort: 'sets',
     dir: 'desc'
   },
+  // By seller, both of them: a table of terms is read a seller at a time,
+  // and the rows of one seller belong together whatever they cost.
+  shippingMethods: {
+    sort: 'storeName',
+    dir: 'asc'
+  },
+  shippingCosts: {
+    sort: 'storeName',
+    dir: 'asc'
+  },
   // Newest first, which is the one order a list of years is ever read in.
   years: {
     sort: 'year',

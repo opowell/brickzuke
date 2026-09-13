@@ -1,0 +1,104 @@
+{
+ "sellerTerms": "",
+ "sellerTermsShipping": "<p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>Shipping:<br /> all fully insured and with tracking</b>\n        <br /> <br /> <b>Zone 0: Österreich (Austria)</b>\n        <br /> <b>bis 1 kg: €6,61</b>\n        <br /> <b>bis 2 kg: € 7,61<br /> von 2-4 kg: € 11,80</b></span></span></span></p>\n  <p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>Zone 1: European Union<br /> up to 2 kg: € 19,94<br /> from\n          2-4 kg: € 22,95</b>\n        <br /> <b>Small Orders which only need very flat packaging: 13,50</b></span></span></span></p>\n  <p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>Zone 2: Rest of Europe <br /> up to 2 kg:  € 23,95</b></span></span></span>\n  <br /> <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>up to 4 kg: € 29,95</b></span></span></span></p>\n  <p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>Zone 3: USA (suspended!) , Canada<br /> up to 1 kg (35oz): € 23,95</b>\n        <br /> <b>up to 2 kg (70oz): € 29,95<br /> from 2-4 kg (141 oz):\n          on inquiery</b></span></span></span></p>\n  <p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>Zone 4: Asia, South America, Middle America, Africa<br /> up\n          to 1 kg: € 23,95<br /> from 1 to 2 kg (value up to 50 EUR): €\n          29.50<br /> from 1 to 2 kg (value up to 501 EUR): €\n          39.95<br /> from 2 to 4 kg: € 70</b></span></span></span></p>\n  <p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>Zone 5: Australia, New Zealand, Oceania</b>\n        <br /> <b>up to 1 kg (value up to 50 EUR): € 23.95</b></span></span></span></p>\n  <p style=\"margin-bottom: 11.0px;\">\n  <span style=\"font-size: 11.0pt;\">\n    <span style=\"line-height: 106.0%;\">\n      <span style=\"font-family: Calibri , sans-serif;\">\n        <b>up to 1 kg (value over 50 to 501 Euro): 29,95<br /> from 1 to\n          2 kg (value up to 501 EUR): € 39.95<br /> from 2 to 4 kg: € 70</b></span></span></span></p>\n",
+ "hasVAT": false,
+ "acceptedCurrencies": [
+  {
+   "id": 2,
+   "code": "EUR",
+   "name": "Euro",
+   "note": null
+  }
+ ],
+ "pmtMethods": [
+  {
+   "countryID": "AT",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": "+4% Gebühren",
+     "onSite": true
+    },
+    {
+     "id": 18,
+     "name": "IBAN",
+     "note": "verfügbar",
+     "onSite": false
+    }
+   ]
+  },
+  {
+   "countryID": "I",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": "+4% Fees",
+     "onSite": true
+    },
+    {
+     "id": 18,
+     "name": "IBAN",
+     "note": "EU Standard Transfer",
+     "onSite": false
+    }
+   ]
+  }
+ ],
+ "shipCountries": [
+  {
+   "id": "AL",
+   "name": "Albania"
+  },
+  {
+   "id": "AD",
+   "name": "Andorra"
+  },
+  {
+   "id": "AR",
+   "name": "Argentina"
+  },
+  {
+   "id": "AU",
+   "name": "Australia"
+  },
+  {
+   "id": "AT",
+   "name": "Austria"
+  }
+ ],
+ "shipMethods": [
+  {
+   "id": 319678,
+   "name": "Post.at",
+   "note": null,
+   "shipsTo": "B"
+  },
+  {
+   "id": 321606,
+   "name": "Int",
+   "note": "Please confirm shipping cost in the shipping policy list or ask for a\nfixed quote!",
+   "shipsTo": "I"
+  },
+  {
+   "id": 321607,
+   "name": "South Am",
+   "note": "Please confirm shipping cost in the shipping policy list or ask for a\nfixed quote!",
+   "shipsTo": "I"
+  }
+ ],
+ "storeTermChanges": [],
+ "storeTermShippingChanges": [
+  {
+   "id": 1245034,
+   "logDate": "11 Jul 2026 03:23",
+   "tsDate": 1783754617010
+  }
+ ],
+ "returnCode": 0,
+ "returnMessage": "OK",
+ "errorTicket": 0,
+ "procssingTime": 11,
+ "strRefNo": "20260913-15d230c12b07"
+}

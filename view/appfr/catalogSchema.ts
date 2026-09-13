@@ -1511,6 +1511,178 @@ export const storeColumns: ColumnDef[] = [
 ]
 
 /**
+ * The ways a seller will send an order, off the policy their store front
+ * draws its Terms tab from.
+ *
+ * What BrickLink states as data about shipping, which is the method and who
+ * it is offered to — `Domestic` for buyers in the seller's own country,
+ * `International` for everyone else — and never the charge. The charge is
+ * the next table's, read out of the prose.
+ */
+export const shippingMethodColumns: ColumnDef[] = [
+  {
+    key: 'ordinal',
+    kind: 'ordinal',
+    label: '#',
+    width: '48px'
+  },
+  {
+    key: 'storeName',
+    role: 'reference',
+    label: 'Seller',
+    width: '200px',
+    sort: 'storeName',
+    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+  },
+  {
+    key: 'countryName',
+    role: 'reference',
+    label: 'Country',
+    hint: 'Where the seller is, which is what “Domestic” means for them',
+    width: '130px',
+    sort: 'countryName',
+    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+  },
+  {
+    key: 'name',
+    role: 'identity',
+    label: 'Method',
+    width: '240px',
+    sort: 'name'
+  },
+  {
+    key: 'reach',
+    label: 'Offered to',
+    hint: 'Buyers in the seller’s own country, buyers everywhere else, or both',
+    width: '135px',
+    sort: 'reach'
+  },
+  {
+    key: 'note',
+    label: 'Note',
+    hint: 'What the seller wrote beside the method, which is theirs to write and often empty',
+    width: '320px',
+    sort: 'note'
+  },
+  {
+    key: 'shipsTo',
+    label: 'Ships to',
+    hint: 'How many countries the seller ships to — blank where they declared none, which BrickLink shows as everywhere',
+    width: '100px',
+    sort: 'shipsTo',
+    format: counted,
+    muted: true
+  }
+]
+
+/**
+ * What a seller says shipping costs, as far as it can be read.
+ *
+ * BrickLink holds a seller's charges as prose and nowhere as data, so every
+ * row here is a reading of a sentence — see [shipping-terms] — and the
+ * sentence is the last column, for checking the reading against. A rate is
+ * where to, how heavy an order it covers, what it costs and in what.
+ */
+export const shippingCostColumns: ColumnDef[] = [
+  {
+    key: 'ordinal',
+    kind: 'ordinal',
+    label: '#',
+    width: '48px'
+  },
+  {
+    key: 'storeName',
+    role: 'reference',
+    label: 'Seller',
+    width: '200px',
+    sort: 'storeName',
+    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+  },
+  {
+    key: 'countryName',
+    role: 'reference',
+    label: 'Country',
+    hint: 'Where the seller is',
+    width: '130px',
+    sort: 'countryName',
+    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+  },
+  {
+    key: 'destination',
+    role: 'identity',
+    label: 'Destination',
+    hint: 'Where the rate applies, in the seller’s own words — the heading the line sat under',
+    width: '220px',
+    sort: 'destination'
+  },
+  {
+    key: 'label',
+    label: 'Method',
+    hint: 'What the seller called the rate, where they named it',
+    width: '160px',
+    sort: 'label'
+  },
+  // The cost before the bounds on it: what a rate is read for, and the number
+  // a card's tile shows, the tile taking the first figure after the name.
+  {
+    key: 'cost',
+    role: 'metric',
+    label: 'Cost',
+    hint: 'What the seller wrote, in the seller’s currency — not converted',
+    kind: 'component',
+    component: CellPrice,
+    width: '90px',
+    sort: 'cost'
+  },
+  {
+    key: 'currency',
+    label: 'Currency',
+    width: '100px',
+    sort: 'currency',
+    muted: true
+  },
+  {
+    key: 'minWeight',
+    label: 'From (g)',
+    hint: 'The lightest order the rate starts at, in grams',
+    width: '90px',
+    sort: 'minWeight',
+    muted: true
+  },
+  {
+    key: 'maxWeight',
+    label: 'Up to (g)',
+    hint: 'The heaviest order the rate covers, in grams — the grams themselves, a band being read against a scale',
+    width: '90px',
+    sort: 'maxWeight'
+  },
+  {
+    key: 'minValue',
+    label: 'Order from',
+    hint: 'The order value the rate starts at, where the seller bounded it — free postage over a value is a nought from there',
+    width: '115px',
+    sort: 'minValue',
+    muted: true
+  },
+  {
+    key: 'maxValue',
+    label: 'Order up to',
+    hint: 'The dearest order the rate applies to, where the seller bounded it',
+    width: '115px',
+    sort: 'maxValue',
+    muted: true
+  },
+  {
+    key: 'source',
+    label: 'As written',
+    hint: 'The line the rate was read off, as the seller wrote it — the reading is a guess and this is what to check it against',
+    width: '400px',
+    sort: 'source',
+    muted: true
+  }
+]
+
+/**
  * The pictures of an item, which is the one table here that is only pictures.
  *
  * The original draws the image and nothing else. The record is here as well
@@ -2274,6 +2446,101 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'instantCheckout',
           label: 'Instant Checkout'
+        }
+      ]
+    },
+    /*
+     * A seller's terms, after the seller. Neither declares a scope: a method
+     * and a rate are things a seller has, not things anything else carries
+     * the id of, and both are reached by narrowing to the seller.
+     */
+    {
+      key: 'shippingMethods',
+      label: 'Shipping methods',
+      count: browsed('shippingMethods'),
+      facets: [],
+      tabs: [],
+      samples: [],
+      columns: informative(shippingMethodColumns, openExpr.value),
+      sorts: [
+        {
+          key: 'storeName',
+          label: 'Seller'
+        },
+        {
+          key: 'countryName',
+          label: 'Country'
+        },
+        {
+          key: 'name',
+          label: 'Method'
+        },
+        {
+          key: 'reach',
+          label: 'Offered to'
+        },
+        {
+          key: 'note',
+          label: 'Note'
+        },
+        {
+          key: 'shipsTo',
+          label: 'Ships to'
+        }
+      ]
+    },
+    {
+      key: 'shippingCosts',
+      label: 'Shipping costs',
+      count: browsed('shippingCosts'),
+      facets: [],
+      tabs: [],
+      samples: [],
+      columns: informative(shippingCostColumns, openExpr.value),
+      sorts: [
+        {
+          key: 'storeName',
+          label: 'Seller'
+        },
+        {
+          key: 'countryName',
+          label: 'Country'
+        },
+        {
+          key: 'destination',
+          label: 'Destination'
+        },
+        {
+          key: 'label',
+          label: 'Method'
+        },
+        {
+          key: 'minWeight',
+          label: 'From (g)'
+        },
+        {
+          key: 'maxWeight',
+          label: 'Up to (g)'
+        },
+        {
+          key: 'cost',
+          label: 'Cost'
+        },
+        {
+          key: 'currency',
+          label: 'Currency'
+        },
+        {
+          key: 'minValue',
+          label: 'Order from'
+        },
+        {
+          key: 'maxValue',
+          label: 'Order up to'
+        },
+        {
+          key: 'source',
+          label: 'As written'
         }
       ]
     },

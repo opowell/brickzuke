@@ -1,0 +1,92 @@
+{
+ "sellerTerms": "",
+ "sellerTermsShipping": "<p>\n  <b>Shipping/Handling (UNITED STATES): </b> Packages less than 13 oz.\n  will be shipped via USPS First Class. Packages over 13 oz. will be\n  shipped Priority Mail depending on weight.  <strong>(Please see chart\n    below) </strong>All orders will be charged actual postage plus $1.50\n  to cover packaging/shipping materials (bubble mailers, boxes, tape,\n  bubble wrap, labels...) If you have a preference for a\n  shipping/packaging type, please state it in your order. Please do not\n  send a separate e-mail as it might get overlooked.</p>\n  <p style=\"text-align: center;\">\n  <font style=\"font-size: 18.0px;\">\n    <strong>BRICKTROPOLIS U.S. SHIPPING RATES</strong></font></p>\n  <table align=\"center\" border=\"1\" cellpadding=\"0\" cellspacing=\"0\"\n  style=\"width: 500.0px;\">  <tbody>   <tr>    <td><font style=\"font-size: 14.0px;\">\n          <strong>LOCATION</strong></font></td>    <td><font style=\"font-size: 14.0px;\">\n          <strong>SHIPPING TYPE</strong></font></td>    <td><font style=\"font-size: 14.0px;\">\n          <strong>WEIGHT</strong></font></td>    <td><font style=\"font-size: 14.0px;\">\n          <strong>COST</strong></font></td>    <td><font style=\"font-size: 14.0px;\">\n          <strong>HANDLING</strong></font></td>    <td><font style=\"font-size: 14.0px;\">\n          <strong>TOTAL</strong></font></td>   </tr>   <tr>    <td><em>\n          <strong>United States     </strong></em></td>    <td><em>\n          <strong>First Class                 </strong></em></td>\n        <td>1-4 ounces </td>    <td>$5.85 </td>    <td>$1.50</td>\n        <td>$7.35   </td>   </tr>   <tr>    <td> </td>    <td> </td>\n        <td>5 ounces</td>    <td>$6.10</td>    <td>$1.50</td>\n      <td>$7.60 </td>   </tr>   <tr>    <td> </td>    <td> </td>\n        <td>6 ounces</td>    <td>$6.10</td>    <td>$1.50</td>\n      <td>$7.60</td>   </tr>   <tr>    <td> </td>    <td> </td>    <td>7\n      ounces</td>    <td>$6.10</td>    <td>$1.50</td>    <td>$7.60</td>\n    </tr>   <tr>    <td> </td>    <td> </td>    <td>8 ounces</td>\n      <td>$6.10</td>    <td>$1.50</td>    <td>$7.60</td>   </tr>   <tr>\n      <td> </td>    <td> </td>    <td>9 ounces</td>    <td>$6.85</td>\n      <td>$1.50</td>    <td> </td>   </tr>   <tr>    <td> </td>\n      <td> </td>    <td>10 ounces</td>    <td>$6.85</td>\n      <td>$1.50</td>    <td>$8.35</td>   </tr>   <tr>    <td> </td>\n      <td> </td>    <td>11 ounces</td>    <td>$6.85</td>\n      <td>$1.50</td>    <td>$8.35</td>   </tr>   <tr>    <td> </td>\n      <td> </td>    <td>12 ounces</td>    <td>$6.85</td>\n      <td>$1.50</td>    <td>$8.35</td>   </tr>   <tr>    <td> </td>\n      <td> </td>    <td> </td>    <td> </td>    <td> </td>    <td> </td>\n    </tr>   <tr>    <td> </td>    <td> </td>    <td> </td>    <td> </td>\n      <td> </td>    <td> </td>   </tr>   <tr>    <td> </td>    <td><em>\n          <strong>Priority Mail</strong></em></td>    <td>Padded</td>\n      <td>$11.25</td>    <td>$1.00</td>    <td>$12.25</td>   </tr>\n      <tr>    <td> </td>    <td> </td>    <td>Medium Box  </td>\n      <td>$20.00</td>    <td>$1.00</td>    <td>$21.00</td>   </tr>\n      <tr>    <td> </td>    <td> </td>    <td>Large Box</td>\n      <td>$28.00</td>    <td>$1.00</td>    <td>$29.00</td>   </tr>\n  </tbody> </table>\n  <p>\n  <strong>SHIPPING AND HANDLING (INTERNATIONAL): </strong></p>\n  <p>If needed, please ask for a shipping quote first before ordering.\n  International orders will be shipped via International First Class up\n  to 32 ounces. International Priority Mail must be used for orders over\n  32 ounces. For International buyer's, please be aware of your\n  country's custom fees, duties or taxes as you will be responsible for\n  them. We will not falsify custom forms for any reason so please do not\n  ask. We reserve the right to cancel your order should you ask us to falsify forms.  </p>\n  <p>\n  <b>SALES TAX: </b>We are required by law to charge 10.5% sales tax on\n  all orders shipping in Louisiana.</p>\n  <p>\n  <b>PLEASE NOTE: </b> Orders are shipped every morning on\n  Monday-Friday. Any orders paid after 6 am CST on Fridays will be\n  shipped the following business day (Monday).<br /> <br />\n    <b>Insurance: </b> Insurance is available at your request and\n  expense. Please indicate in your order if you like insurance so that\n  we can include it with your invoice. We are <b> NOT </b> responsible\n  for lost or damaged packages that were not insured.<br /> <br />\n    <b>Shipping Address: </b> Please make sure your address on\n  Brinklink's Order Detail screen is <b> CORRECT and COMPLETE </b> as we\n  will be using this address for shipping. If you have special\n  instructions, please send a note on your order. Again, separate\n  e-mails might be overlooked. If an incorrect address has been provided\n  and the package is returned, you will be responsible for additional\n  charges to have the package reshipped.</p>\n",
+ "hasVAT": false,
+ "acceptedCurrencies": [
+  {
+   "id": 1,
+   "code": "USD",
+   "name": "US Dollar",
+   "note": null
+  }
+ ],
+ "pmtMethods": [
+  {
+   "countryID": "I",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": null,
+     "onSite": true
+    },
+    {
+     "id": 11,
+     "name": "PayPal",
+     "note": null,
+     "onSite": false
+    }
+   ]
+  },
+  {
+   "countryID": "US",
+   "methods": [
+    {
+     "id": 27,
+     "name": "PayPal (Onsite)",
+     "note": null,
+     "onSite": true
+    },
+    {
+     "id": 11,
+     "name": "PayPal",
+     "note": null,
+     "onSite": false
+    }
+   ]
+  }
+ ],
+ "shipCountries": [
+  {
+   "id": "AF",
+   "name": "Afghanistan"
+  },
+  {
+   "id": "AL",
+   "name": "Albania"
+  },
+  {
+   "id": "DZ",
+   "name": "Algeria"
+  },
+  {
+   "id": "AD",
+   "name": "Andorra"
+  },
+  {
+   "id": "AO",
+   "name": "Angola"
+  }
+ ],
+ "shipMethods": [
+  {
+   "id": 73716,
+   "name": "Request for invoice",
+   "note": null,
+   "shipsTo": "B"
+  }
+ ],
+ "storeTermChanges": [],
+ "storeTermShippingChanges": [
+  {
+   "id": 1229191,
+   "logDate": "10 May 2026 20:18",
+   "tsDate": 1778458689910
+  }
+ ],
+ "returnCode": 0,
+ "returnMessage": "OK",
+ "errorTicket": 0,
+ "procssingTime": 2,
+ "strRefNo": "20260913-3831a3ec2bf4"
+}

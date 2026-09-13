@@ -22,6 +22,8 @@ import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-p
 import { readImages, readStoreInventories } from './itemPageFetch'
 import { provincesOf, yearCount } from './catalogSource'
 import { readStores } from './storesFetch'
+import { readStorePolicies } from './storePolicyFetch'
+import { parseShippingCosts } from '../stores/bricklink/shipping-terms'
 
 /** The populations, by the entity key each card is drawn under. */
 export const browsedCounts = ref<Record<string, number | undefined>>({})
@@ -55,6 +57,31 @@ async function inventoryCounts(db: IDBPDatabase): Promise<{
   }
 }
 
+/**
+ * The two types read out of the sellers' terms.
+ *
+ * Read whole, which the policies can be — one small record per seller
+ * somebody has opened — and the rates counted by reading them, the same
+ * reading the table makes: the terms are prose and the rates are not stored.
+ */
+async function policyCounts(): Promise<{
+  shippingMethods: number
+  shippingCosts: number
+}> {
+  let shippingMethods = 0
+  let shippingCosts = 0
+  for (const policy of await readStorePolicies()) {
+    shippingMethods += policy.methods.length
+    shippingCosts += parseShippingCosts(policy.shippingTerms, {
+      currencies: policy.currencies
+    }).length
+  }
+  return {
+    shippingMethods,
+    shippingCosts
+  }
+}
+
 /** One refresh at a time: the home screen draws more often than this changes. */
 let running: Promise<void> | undefined
 
@@ -78,6 +105,7 @@ async function read(): Promise<void> {
       // a request per hundred and so are kept, and they count from where they
       // are kept. Together that is what the table shows.
       inventories: readStoreInventories().length + (await count(db, stores.STORE_LOTS)),
+      ...(await policyCounts()),
       images: readImages().length
     }
   } finally {
