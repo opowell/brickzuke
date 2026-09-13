@@ -1265,7 +1265,7 @@ export const settingsColumns: ColumnDef[] = [
     role: 'identity',
     label: 'Setting',
     // Wide enough for the longest name here to stand whole. A setting cut short
-    // is a setting nobody can look up, and there are two of them — the room
+    // is a setting nobody can look up, and there are three of them — the room
     // costs nothing that a fourteen-column catalogue table would miss.
     width: '330px',
     sort: 'name'
@@ -1275,7 +1275,9 @@ export const settingsColumns: ColumnDef[] = [
     label: 'Value',
     kind: 'component',
     component: CellSetting,
-    width: '120px'
+    // Room for a country's name in the picker, not only five figures in the
+    // number field — `United Kingdom` is the widest value a setting takes.
+    width: '200px'
   },
   {
     key: 'detail',

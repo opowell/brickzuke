@@ -242,12 +242,15 @@ describe('knowing when to stop', () => {
       setSetting
     } = await import('../settings')
     const declared = SETTINGS.find((setting) => setting.key === 'reachPatience')
-    expect(declared).toBeDefined()
+    expect(declared?.kind).toBe('number')
+    if (declared?.kind !== 'number') {
+      return
+    }
     // Clamped rather than refused: the control is a number field, so anything
     // can be typed into it, and the nearest legal value beats a silent nought.
     setSetting('reachPatience', 0)
-    expect(reachPatience.value).toBe(declared!.min)
+    expect(reachPatience.value).toBe(declared.min)
     setSetting('reachPatience', 10_000)
-    expect(reachPatience.value).toBe(declared!.max)
+    expect(reachPatience.value).toBe(declared.max)
   })
 })

@@ -8,8 +8,10 @@
  * and published as records so the shell can draw them as a table like any
  * other type.
  *
- * Numbers only, so far. A setting that is a number has one obvious control and
- * one obvious validation, and the two here are both counts of patience.
+ * Two kinds: numbers, which have one obvious control and one obvious
+ * validation, and a country, which is one of the directory's own and so is
+ * picked rather than typed. Which kind a setting is decides which control the
+ * value cell draws — see [CellSetting].
  */
 import { useStorage } from '@vueuse/core'
 import type { Ref } from 'vue'
@@ -43,19 +45,49 @@ export const reachPatience = useStorage('brickzuke-reach-patience', 15)
  */
 export const reachGapMs = useStorage('brickzuke-reach-gap-ms', 1_500)
 
-/** One knob, as the table draws it. */
-export interface Setting {
+/**
+ * The country an order would be posted to, as the code a seller and a lot both
+ * carry — `DE` — or blank while nobody has said.
+ *
+ * What a seller charges to ship depends on where to, so a shipping cost is
+ * not a number brickzuke can state until it knows this. Held as the code
+ * rather than the name because the code is what the directory keys a country
+ * by and what `country:"DE"` already reads as.
+ */
+export const shipTo = useStorage('brickzuke-ship-to', '')
+
+/** What every knob states: its row's id, its name, and what turning it does. */
+interface SettingBase {
   /** The row's id, and what a `setting:` term names it by. */
   key: string
   name: string
   /** What turning it does, in the words the table shows. */
   detail: string
+}
+
+/** A knob that is a number in a stated range. */
+export interface NumberSetting extends SettingBase {
+  kind: 'number'
   value: Ref<number>
   min: number
   max: number
   /** What the value is counted in, for the cell to say after the number. */
   unit?: string
 }
+
+/**
+ * A knob that is one of the directory's countries, by code, or blank.
+ *
+ * The choices are not declared here: they are whatever countries the directory
+ * has stored, which the cell reads for itself — see [CellSetting].
+ */
+export interface CountrySetting extends SettingBase {
+  kind: 'country'
+  value: Ref<string>
+}
+
+/** One knob, as the table draws it. */
+export type Setting = NumberSetting | CountrySetting
 
 /**
  * Every setting, in the order the table lists them.
@@ -65,6 +97,7 @@ export interface Setting {
  */
 export const SETTINGS: Setting[] = [
   {
+    kind: 'number',
     key: 'reachPatience',
     name: 'Barren sellers before stopping',
     detail:
@@ -74,6 +107,7 @@ export const SETTINGS: Setting[] = [
     max: 1_000
   },
   {
+    kind: 'number',
     key: 'reachGapMs',
     name: 'Pause between sellers',
     detail:
@@ -82,6 +116,14 @@ export const SETTINGS: Setting[] = [
     min: 0,
     max: 60_000,
     unit: 'ms'
+  },
+  {
+    kind: 'country',
+    key: 'shipTo',
+    name: 'Ship to',
+    detail:
+      'The country an order would be posted to, which is what a seller’s shipping charge depends on.',
+    value: shipTo
   }
 ]
 
@@ -91,15 +133,26 @@ export function settingFor(key: string): Setting | undefined {
 }
 
 /**
- * Writes one, held to the range it declares.
+ * Writes one, held to what it declares.
  *
- * Clamped rather than refused: the control is a number field, so a reader can
- * type anything into it, and the nearest legal value is a better answer than
- * either a silent nought or a dialog.
+ * A number is clamped rather than refused: the control is a number field, so a
+ * reader can type anything into it, and the nearest legal value is a better
+ * answer than either a silent nought or a dialog. A country is taken as the
+ * code it is — the control is a picker, so what arrives is one of the choices
+ * or blank — and a value of the wrong kind changes nothing.
  */
-export function setSetting(key: string, value: number): void {
+export function setSetting(key: string, value: number | string): void {
   const setting = settingFor(key)
-  if (!setting || !Number.isFinite(value)) {
+  if (!setting) {
+    return
+  }
+  if (setting.kind === 'country') {
+    if (typeof value === 'string') {
+      setting.value.value = value.trim()
+    }
+    return
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
     return
   }
   setting.value.value = Math.min(setting.max, Math.max(setting.min, Math.round(value)))
