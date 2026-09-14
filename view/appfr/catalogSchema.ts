@@ -1509,11 +1509,12 @@ export const countryColumns: ColumnDef[] = [
     label: '#',
     width: '48px'
   },
-  // The flag and the name as one cell — see [CellFlag]. No `click`: the press
-  // on a country is the row's, which narrows whatever is on screen to it and
-  // lands on the home screen under that term, `region:"Europe"` and all. It
-  // used to open the sellers and drop the rest of the query on the way, which
-  // is the press the count beside it still makes.
+  // The flag and the name as one cell — see [CellFlag]. `narrowingTo` rather
+  // than a row press: rows stopped taking presses of their own once brickzuke
+  // moved the hand back onto the cells that lead somewhere, and this is the one
+  // cell whose whole job is leading to the record itself — `region:"Europe"`
+  // and all, on top of whatever the screen already asked. The count beside it
+  // narrows to the sellers instead.
   {
     key: 'name',
     role: 'identity',
@@ -1521,7 +1522,8 @@ export const countryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellFlag,
     width: '220px',
-    sort: 'name'
+    sort: 'name',
+    click: (row, options) => narrowingTo(row)?.(options)
   },
   {
     key: 'stores',

@@ -1,27 +1,28 @@
 /**
- * What pressing a row means, now that the shell applies it.
+ * What pressing a row means, now that brickzuke turns it off.
  *
  * appfr 0.21.0 moved narrowing off the `→` beside a name and onto the row
- * itself, and 0.22.0 made it take the cards view with it. brickzuke takes both
- * defaults, which puts two presses on top of each other: the row's, and the
- * ones its own cells make. These pin the settlement — a cell that leads
- * somewhere is not also the row's way in, and a row of a type nothing can name
- * is still nobody's way in.
+ * itself, and 0.22.0 made it take the cards view with it. brickzuke took both
+ * defaults for a while, which put two presses on top of each other: the row's,
+ * and the ones its own cells make — a row of a type nothing can name being
+ * nobody's way in. `ItemsShell` now sets `row-press="open"`, so a row never
+ * narrows on its own; these pin what is left — a cell that leads somewhere
+ * still does, on its own press, and the one record-scoped narrow no cell
+ * covered (a bare press on a country) moved onto the cell naming the record.
  */
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import {DataShell,
-  ENTITY_ALL,
   PARAM_ENTITY,
   PARAM_EXPR,
   PARAM_VIEW,
   createMemoryAdapter,
-  isTypeCardsQuery,
-  parseQuery} from 'header-content-layout'
-import type { DataSource, MemoryAdapter, ShellRow } from 'header-content-layout'
+  formatExpression,
+  parseExpression} from 'header-content-layout'
+import type { DataSource, ShellRow } from 'header-content-layout'
 import router from '@/router'
 
 vi.mock('../../../model', async () => {
@@ -156,6 +157,8 @@ async function mountTable(entity: string, row: ShellRow, expr = '') {
         entity,
         view: 'table'
       },
+      // What `ItemsShell` itself passes — see the comment on its `DataShell`.
+      rowPress: 'open',
     },
   })
   for (let i = 0; i < 10; i++) {
@@ -167,42 +170,31 @@ async function mountTable(entity: string, row: ShellRow, expr = '') {
   }
 }
 
-/** What the shell has written to its own address, as the query it parses to. */
-function asked(route: MemoryAdapter) {
-  const params = new URLSearchParams(route.search.value)
-  return {
-    entity: params.get(PARAM_ENTITY) ?? '',
-    expr: params.get(PARAM_EXPR) ?? '',
-    view: params.get(PARAM_VIEW) ?? ''
-  }
+/**
+ * The expression the real app router has landed on, read back through the
+ * parser rather than compared as text — see `homePress.test.ts`'s `landed`.
+ *
+ * `narrowingTo`/`narrowBy` write through catalogSchema's own `router` import,
+ * which is this same singleton — not the `MemoryAdapter` `mountTable` hands
+ * the mounted `DataShell`, that being how a row's own press writes instead.
+ */
+function askedOfRouter() {
+  const expr = router.currentRoute.value.query[PARAM_EXPR]
+  return typeof expr === 'string' ? formatExpression(parseExpression(expr)) : ''
 }
 
 describe('pressing a row', () => {
-  it('narrows to the record, and takes the cards view with it', async () => {
+  it('does nothing, for a type a cell can narrow to', async () => {
     const {
       shell, route
     } = await mountTable('colors', color)
+    const before = route.search.value
     await shell.get('.dc-table__row').trigger('click')
     await nextTick()
-    const query = asked(route)
-    // `colorid` is what the colour type declares as its scope, and `5` is the
-    // row's id — BrickLink's colour number, not brickzuke's own key.
-    expect(query.expr).toContain('colorid:"5"')
-    // No type, and cards: a record is not a one-row list of itself, it is what
-    // every other type holds of it. `Everything` is what the shell writes, and
-    // it parses back to the empty entity ItemsShell's `openedQuery` reads.
-    expect(query.entity).toBe(ENTITY_ALL)
-    expect(query.view).toBe('cards')
-    // And that is the home screen: read back through the defaults the type was
-    // under, `Everything` parses to no entity at all, which is the query
-    // ItemsShell hands to HomeCards rather than to the shell's results area.
-    const parsed = parseQuery(route.search.value, catalogSchema.value, {
-      landing: 'entity',
-      entity: 'colors',
-      view: 'table'
-    })
-    expect(parsed.entity).toBeNull()
-    expect(isTypeCardsQuery(parsed)).toBe(true)
+    // `row-press="open"` reports the press rather than applying it, and
+    // ItemsShell wires no `@activate` to do anything with the report — the
+    // row is exactly as inert as a lot's, below.
+    expect(route.search.value).toBe(before)
   })
 
   it('leaves the query alone for a type nothing carries the id of', async () => {
@@ -212,30 +204,39 @@ describe('pressing a row', () => {
     const before = route.search.value
     await shell.get('.dc-table__row').trigger('click')
     await nextTick()
-    // A lot is a leaf: no type declares a field naming one, so the press is
-    // reported and brickzuke handles no `activate`. An unresolvable field is
-    // true in this language, so a term written anyway would match everything.
     expect(route.search.value).toBe(before)
   })
 
   it('narrows a country on top of what is asked, pressed by its name', async () => {
     const {
-      shell, route
+      shell
     } = await mountTable('countries', country, 'region:"Europe"')
-    // The name is plain text with the flag in front of it — see CellFlag — so
-    // a press on it is the row's press. It used to be a button of its own that
-    // opened the sellers on `country:"DE"` alone, dropping the region on the
-    // way; a reader who came in through Europe stays in Europe.
+    // The name is a button of its own now — see CellFlag and `countryColumns`
+    // — narrowing to the record rather than the row: `narrowingTo` writes the
+    // same `country:"DE"` term a row press used to, merged with whatever else
+    // was already asked, so a reader who came in through Europe stays there.
     const name = shell.findAll('.flagged__name').find((one) => one.text() === 'Germany')
     expect(name).toBeDefined()
     expect(shell.get('.dc-table__row').find('img[src*="flags"]').exists()).toBe(true)
     await name!.trigger('click')
-    await nextTick()
-    const query = asked(route)
-    expect(query.expr).toContain('region:"Europe"')
-    expect(query.expr).toContain('country:"DE"')
-    expect(query.entity).toBe(ENTITY_ALL)
-    expect(query.view).toBe('cards')
+    await flushPromises()
+    const expr = askedOfRouter()
+    expect(expr).toContain('region:Europe')
+    expect(expr).toContain('country:DE')
+  })
+
+  it('does not also narrow the row the name button sits on', async () => {
+    const {
+      shell
+    } = await mountTable('countries', country, 'region:"Europe"')
+    const name = shell.findAll('.flagged__name').find((one) => one.text() === 'Germany')
+    await name!.trigger('click')
+    await flushPromises()
+    // One press, one navigation — the button's own `stopPropagation`, same as
+    // every other cell that leads somewhere. Without it, this write happened
+    // twice, and `country:"DE"` would appear in the expression twice over.
+    const expr = askedOfRouter()
+    expect((expr.match(/country:/g) ?? []).length).toBe(1)
   })
 
   it('drops no arrow on the rows it narrows, the row being it', async () => {
@@ -280,14 +281,12 @@ describe('pressing a cell that leads somewhere', () => {
   })
 })
 
-describe('the rows that offer themselves as pressable', () => {
-  /** ItemsShell over a type, and the mark it puts on itself for the stylesheet. */
-  async function marked(entity: string): Promise<string | undefined> {
+describe('what ItemsShell hands the shell', () => {
+  /** ItemsShell over a type, or over none of them — the home screen's URL. */
+  async function mounted(entity: string | null) {
     await router.replace({
       path: '/',
-      query: {
-        [PARAM_ENTITY]: entity
-      }
+      query: entity ? { [PARAM_ENTITY]: entity } : {}
     })
     const shell = mount(ItemsShell, {
       global: {
@@ -297,37 +296,16 @@ describe('the rows that offer themselves as pressable', () => {
     for (let i = 0; i < 10; i++) {
       await nextTick()
     }
-    return shell.get('.items-shell').attributes('data-narrows-rows')
+    return shell
   }
 
-  it('is the tables whose type declares a scope', async () => {
-    // The shell gives every row the hand and the hover, not knowing which of
-    // them its host has somewhere to send. These are the ones it does.
-    for (const entity of ['colors', 'countries', 'categories', 'stores', 'years']) {
-      expect(await marked(entity)).toBe('true')
+  it('turns row press off for every type, scoped or not, and for none at all', async () => {
+    // Once this varied by type — a mark the stylesheet read, on for the types
+    // a press could narrow. There is no longer a press for it to read: every
+    // cell that leads somewhere says so on its own, or it is not asked at all.
+    for (const entity of ['colors', 'countries', 'categories', 'stores', 'years', 'items', 'inventories', 'images', null]) {
+      const shell = await mounted(entity)
+      expect(shell.findComponent(DataShell).props('rowPress')).toBe('open')
     }
-  })
-
-  it('is not the tables of a type nothing carries the id of', async () => {
-    // brickzuke's leaves: a press on one is reported and dropped, so the row
-    // must not look like a control. The stylesheet reads this mark.
-    for (const entity of ['items', 'inventories', 'images']) {
-      expect(await marked(entity)).toBe('false')
-    }
-  })
-
-  it('is not the home screen, which draws no table at all', async () => {
-    await router.replace({
-      path: '/'
-    })
-    const shell = mount(ItemsShell, {
-      global: {
-        plugins: [router]
-      },
-    })
-    for (let i = 0; i < 10; i++) {
-      await nextTick()
-    }
-    expect(shell.get('.items-shell').attributes('data-narrows-rows')).toBe('false')
   })
 })

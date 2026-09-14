@@ -80,26 +80,6 @@ const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
 const pagesNote = computed(() => colorItemsNotice.value || storeLotsNotice.value)
 
 /**
- * Whether a press on a row means anything on the table that is up.
- *
- * appfr 0.21.0 made a row press narrow the whole result set to that record,
- * which is the move the `→` beside the name used to make on its own — the
- * smaller of the two controls doing the more useful thing. brickzuke takes the
- * default: the gesture is one it already shipped, and it now has the row to hit
- * rather than an arrow.
- *
- * But only a type declaring a `scope` carries a field the other records name it
- * by, and a press on one that does not is reported and dropped, brickzuke
- * handling no `activate`. So the shell's own hover and hand are let through for
- * the types that can be narrowed to, and held back for the rest: a row that
- * does nothing must not offer itself as a row that does.
- */
-const narrowsRows = computed(() => {
-  const key = urlEntity.value
-  return Boolean(key && catalogSchema.value.entities.find((entity) => entity.key === key)?.scope)
-})
-
-/**
  * The home screen's counts, taken every time it is reached — and, on the way
  * out, which type was opened.
  *
@@ -261,21 +241,20 @@ const plainTokens = {
 
 <template>
   <!-- The shell fills the box it is given, so give it a height. -->
-  <div
-    class="items-shell"
-    :data-narrows-rows="String(narrowsRows)"
-  >
+  <div class="items-shell">
     <!--
-      No `@activate`: under `rowPress: 'narrow'` — the default since appfr
-      0.21.0 — the shell applies the press itself wherever it can, and reports
-      one only for the types it cannot narrow to. Those are brickzuke's leaves,
-      and there is nothing to route to: every cell that leads somewhere says so
-      itself.
+      `rowPress="open"`: appfr 0.21.0 made a row press narrow the whole result
+      set to that record, which put two controls over one row — its own press,
+      and the ones its cells already made. brickzuke turns that off everywhere,
+      the row going back to being nothing but the cells laid out along it: a
+      cell that leads somewhere says so itself, a button among plain text, and
+      nothing else in the row answers the pointer.
 
-      What the press lands on is the home screen under that record's term, the
-      shell writing the cards view along with the expression (0.22.0) and
-      `openedQuery` agreeing with it — which is the screen brickzuke already
-      draws for a narrowed query.
+      The one record-scoped narrow a row press used to make that no cell
+      already covered — a bare press on a country, say — moved onto the cell
+      that names the record: see `narrowingTo` and `countryColumns`. No
+      `@activate`, `rowPress="open"` reporting one only where nothing else
+      offers a way in, and there being nowhere left brickzuke needs to route it.
     -->
     <DataShell
       :schema="catalogSchema"
@@ -286,6 +265,7 @@ const plainTokens = {
       :defaults="shellDefaults"
       :pages-note="pagesNote"
       :selectable="cartTicks"
+      row-press="open"
       v-model:selected="cartSelection"
       @query-change="onQueryChange"
       @create="onCreate"
@@ -502,15 +482,15 @@ const plainTokens = {
 }
 
 /*
- * A row of a type that cannot be narrowed to is not pressable, so it must not
- * offer itself as one — the shell gives every row the hand and the hover, not
- * knowing which of them its host has somewhere to send.
+ * No row is pressable now — `row-press="open"` on the shell above says so —
+ * so none may offer itself as one: the shell gives every row the hand and the
+ * hover regardless, not knowing brickzuke has turned the press itself off.
  *
- * The other tables keep both, and they are the whole of what says a row can be
- * pressed at all: the arrow that used to say it is gone with the job it was for.
+ * The cells that lead somewhere keep both, being buttons of their own rather
+ * than this rule's `.dc-table__row`.
  */
-.items-shell[data-narrows-rows='false'] :deep(.dc-table__row),
-.items-shell[data-narrows-rows='false'] :deep(.dc-table__row:hover) {
+.items-shell :deep(.dc-table__row),
+.items-shell :deep(.dc-table__row:hover) {
   background: none;
   cursor: default;
 }
