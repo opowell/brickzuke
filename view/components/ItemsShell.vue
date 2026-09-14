@@ -199,7 +199,8 @@ const openSet = computed(() => {
     return ''
   }
   const expr = String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
-  return /record:"?([A-Za-z0-9-]+)"?/.exec(expr)?.[1] ?? ''
+  // Not `-record:`, which is a set the parts are *not* from.
+  return /(?:^|\s)record:"?([A-Za-z0-9-]+)"?/.exec(expr)?.[1] ?? ''
 })
 
 /** Whether the list is being made, so the press cannot be made twice. */

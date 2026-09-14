@@ -115,6 +115,32 @@ describe('pressing a record on the home screen', () => {
     expect(landed().entity).toBeUndefined()
   })
 
+  /*
+   * The same press with ⌘ held, which the shell reads as `exclude` and
+   * brickzuke's own tiles answer the same way its rows do: the wall stays,
+   * and the term written says which record it is *not* about.
+   */
+  it('leaves the record out instead when the press says so', async () => {
+    await onHome()
+    const preview = await previewFor('categories')
+    preview.tiles[0].press?.({
+      exclude: true
+    })
+    await flushPromises()
+    expect(landed().expr).toBe('-category:5')
+    expect(landed().entity).toBeUndefined()
+  })
+
+  it('turns the term round rather than saying both', async () => {
+    await onHome('category:"5"')
+    const preview = await previewFor('categories')
+    preview.tiles[0].press?.({
+      exclude: true
+    })
+    await flushPromises()
+    expect(landed().expr).toBe('-category:5')
+  })
+
   it('keeps a record term on the way into a type', async () => {
     await onHome('category:"5"')
     openType('items')
@@ -123,6 +149,14 @@ describe('pressing a record on the home screen', () => {
     // Dropping the term here is the card saying 4,000 and opening 199,000.
     expect(landed().entity).toBe('items')
     expect(landed().expr).toBe('category:5')
+  })
+
+  it('keeps a record left out on the way into a type, as it keeps one named', async () => {
+    await onHome('-category:"5"')
+    openType('items')
+    await flushPromises()
+    expect(landed().entity).toBe('items')
+    expect(landed().expr).toBe('-category:5')
   })
 
   it('drops a question that was asked of another type', async () => {

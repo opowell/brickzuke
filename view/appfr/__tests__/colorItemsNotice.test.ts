@@ -57,6 +57,14 @@ describe('the partial-colour caveat', () => {
     expect(colorItemsNotice.value).toBe('first 20 of 287 pages')
   })
 
+  it('does not read a colour left out as the colour on screen', async () => {
+    await open({
+      [PARAM_ENTITY]: 'colorItems',
+      [PARAM_EXPR]: '-colorid:"2" type:"P"'
+    })
+    expect(colorItemsNotice.value).toBe('')
+  })
+
   it('says nothing about a colour fetched whole', async () => {
     await open({
       [PARAM_ENTITY]: 'colorItems',

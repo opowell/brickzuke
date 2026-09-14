@@ -24,6 +24,7 @@
  * A row that is not made of anything — a part, an instruction sheet — draws no
  * cell at all, rather than a button leading to an empty table.
  */
+import { pressOptions } from 'header-content-layout'
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, onMounted } from 'vue'
@@ -116,7 +117,7 @@ function press(event: MouseEvent) {
     return
   }
   event.stopPropagation()
-  props.column.click(props.row)
+  props.column.click(props.row, pressOptions(event))
 }
 </script>
 

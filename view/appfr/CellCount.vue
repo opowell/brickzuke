@@ -14,7 +14,7 @@
  * shell puts on the cells it draws itself: `1.3k` is worth pressing precisely
  * when you can see it is 1300.
  */
-import { cellFull, type ColumnDef, type ShellRow } from 'header-content-layout'
+import { cellFull, pressOptions, type ColumnDef, type ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 
@@ -59,7 +59,7 @@ function press(event: MouseEvent) {
     return
   }
   event.stopPropagation()
-  props.column.click(props.row)
+  props.column.click(props.row, pressOptions(event))
 }
 </script>
 

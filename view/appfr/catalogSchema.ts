@@ -13,11 +13,12 @@ import {PARAM_ENTITY,
   PARAM_PAGE,
   PARAM_SORT,
   addTerm,
+  excludingTerm,
   formatExpression,
   parseExpression,
   scopeTermFor,
   scopedEntity} from 'header-content-layout'
-import type { ColumnDef, DomainSchema, EntitySchema, ShellRow } from 'header-content-layout'
+import type { ColumnDef, DomainSchema, EntitySchema, PressOptions, ShellRow } from 'header-content-layout'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
 import { itemTypes, processingCounts, selectedCounts } from '../../model'
@@ -80,12 +81,17 @@ const weightBreakpoints = [
  * goes into `q` alongside whatever is already there, and the page resets
  * because a different result set makes a position in the old one meaningless.
  * `addTerm` handles the quoting and refuses to add a term twice.
+ *
+ * With ⌘ held — `exclude`, as the shell reads it off the press — the same
+ * value is what the screen is narrowed *away from*: `-category:"5"`, every row
+ * but that category's. The shell's own rows answer the key this way, and a
+ * cell brickzuke draws itself should not answer it differently.
  */
-export function narrowBy(field: string, value: string) {
+export function narrowBy(field: string, value: string, options: PressOptions = {}) {
   if (!value) {
     return
   }
-  narrowByTerm(`${field}:"${value}"`)
+  narrowByTerm(`${field}:"${value}"`, options)
 }
 
 /**
@@ -96,9 +102,13 @@ export function narrowBy(field: string, value: string) {
  * more constraint over it. That is what makes it usable from the home screen,
  * where the type is nothing and the view is the cards.
  */
-function narrowByTerm(term: string) {
+function narrowByTerm(term: string, options: PressOptions = {}) {
+  const written = options.exclude ? excludingTerm(term) : term
+  if (!written) {
+    return
+  }
   const params = new URLSearchParams(window.location.search)
-  params.set(PARAM_EXPR, addTerm(params.get(PARAM_EXPR) ?? '', term))
+  params.set(PARAM_EXPR, addTerm(params.get(PARAM_EXPR) ?? '', written))
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
 }
@@ -117,9 +127,9 @@ function narrowByTerm(term: string) {
  * shell would have written: the same field, the same quoting, and so the same
  * term `addTerm` recognises when it is already in the query.
  */
-export function narrowingTo(row: ShellRow): (() => void) | undefined {
+export function narrowingTo(row: ShellRow): ((options?: PressOptions) => void) | undefined {
   const term = scopeTermFor(catalogSchema.value, row)
-  return term ? () => narrowByTerm(term) : undefined
+  return term ? (options) => narrowByTerm(term, options) : undefined
 }
 
 /**
@@ -316,7 +326,7 @@ export const itemColumns: ColumnDef[] = [
     hint: 'Which of BrickLink’s kinds of thing this is — a set, a part, a minifigure, a gear',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowBy('type', String(row.fields.typeId ?? ''))
+    click: (row, options) => narrowBy('type', String(row.fields.typeId ?? ''), options)
   },
   // Pressing a name narrows to that one item, which is what the `item` filter
   // did — and not `activate`, because activating is what a row press reports
@@ -337,7 +347,7 @@ export const itemColumns: ColumnDef[] = [
     value: (row) => (row.fields.own === true ? row.fields.ownName : row.fields.name),
     width: '300px',
     sort: 'name',
-    click: (row) => narrowBy('id', String(row.fields.id ?? ''))
+    click: (row, options) => narrowBy('id', String(row.fields.id ?? ''), options)
   },
   {
     key: 'category',
@@ -350,14 +360,14 @@ export const itemColumns: ColumnDef[] = [
     // categories and theirs together. See [CellUserPick].
     kind: 'component',
     component: CellUserPick,
-    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
+    click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'year',
     label: 'Year',
     width: '95px',
     sort: 'year',
-    click: (row) => narrowBy('year', String(row.fields.year ?? ''))
+    click: (row, options) => narrowBy('year', String(row.fields.year ?? ''), options)
   },
   /**
    * What the set is made of, and the way into the list of it.
@@ -405,7 +415,7 @@ export const itemColumns: ColumnDef[] = [
     sort: 'dimensions',
     // Every other part the same shape — pressing `2 x 4` is the one question a
     // dimension answers.
-    click: (row) => narrowBy('dimensions', String(row.fields.dimensions ?? ''))
+    click: (row, options) => narrowBy('dimensions', String(row.fields.dimensions ?? ''), options)
   },
   /*
    * What somebody wrote about an item of their own, and blank on every row
@@ -475,7 +485,7 @@ export const itemRecordColumns: ColumnDef[] = [
     width: '150px',
     mono: true,
     sort: 'record',
-    click: (row) => narrowBy('type', String(row.fields.typeId ?? ''))
+    click: (row, options) => narrowBy('type', String(row.fields.typeId ?? ''), options)
   },
   // Pressing a record's name opens what it is made of.
   {
@@ -494,14 +504,14 @@ export const itemRecordColumns: ColumnDef[] = [
     // By the name the cell shows, not by the id behind it.
     sort: 'categoryName',
     value: (row) => row.fields.categoryName,
-    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
+    click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'year',
     label: 'Year',
     width: '95px',
     sort: 'year',
-    click: (row) => narrowBy('year', String(row.fields.year ?? ''))
+    click: (row, options) => narrowBy('year', String(row.fields.year ?? ''), options)
   },
   // As on the items table, so opening an item changes what is listed and
   // nothing about how it looks.
@@ -533,7 +543,7 @@ export const itemRecordColumns: ColumnDef[] = [
     hint: 'The footprint BrickLink records for the part, in studs',
     width: '150px',
     sort: 'dimensions',
-    click: (row) => narrowBy('dimensions', String(row.fields.dimensions ?? ''))
+    click: (row, options) => narrowBy('dimensions', String(row.fields.dimensions ?? ''), options)
   }
 ]
 
@@ -576,7 +586,7 @@ export const inventoryColumns: ColumnDef[] = [
     hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowBy('type', String(row.fields.type ?? ''))
+    click: (row, options) => narrowBy('type', String(row.fields.type ?? ''), options)
   },
   {
     key: 'name',
@@ -622,7 +632,7 @@ export const inventoryColumns: ColumnDef[] = [
     label: 'Category',
     width: '160px',
     sort: 'categoryName',
-    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
+    click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'color',
@@ -633,7 +643,7 @@ export const inventoryColumns: ColumnDef[] = [
     // the one place a colour narrows: pressing it leaves the parts of this set
     // in that colour. `record:` stays, being the address of the table rather
     // than a filter over it.
-    click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
+    click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
   // The colour's id beside its name, because the id is what a part of theirs
   // is written in — the name is looked up from it — and what a lot carries.
@@ -835,7 +845,7 @@ export const colorColumns: ColumnDef[] = [
     label: 'Name',
     width: '200px',
     sort: 'name',
-    click: (row) => narrowBy('id', String(row.fields.id ?? ''))
+    click: (row, options) => narrowBy('id', String(row.fields.id ?? ''), options)
   },
   {
     // `Parts` rather than `Items`, because that is the number: the colour
@@ -973,7 +983,7 @@ export const itemInventoryColumns: ColumnDef[] = [
     hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowBy('type', String(row.fields.type ?? ''))
+    click: (row, options) => narrowBy('type', String(row.fields.type ?? ''), options)
   },
   {
     key: 'name',
@@ -1000,14 +1010,14 @@ export const itemInventoryColumns: ColumnDef[] = [
     label: 'Category',
     width: '160px',
     sort: 'categoryName',
-    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
+    click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'color',
     label: 'Color',
     width: '100px',
     sort: 'color',
-    click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
+    click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
   {
     key: 'quantity',
@@ -1049,7 +1059,7 @@ export const itemVariantColumns: ColumnDef[] = [
     label: 'Type',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowBy('type', String(row.fields.type ?? ''))
+    click: (row, options) => narrowBy('type', String(row.fields.type ?? ''), options)
   },
   {
     key: 'name',
@@ -1065,14 +1075,14 @@ export const itemVariantColumns: ColumnDef[] = [
     label: 'Category',
     width: '160px',
     sort: 'categoryName',
-    click: (row) => narrowBy('category', String(row.fields.category ?? ''))
+    click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'color',
     label: 'Color',
     width: '100px',
     sort: 'color',
-    click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
+    click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
   {
     key: 'sets',
@@ -1277,7 +1287,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     width: '110px',
     sort: 'colorName',
     value: (row) => row.fields.colorName,
-    click: (row) => narrowBy('colorid', String(row.fields.colorid ?? ''))
+    click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
   {
     key: 'countryName',
@@ -1286,7 +1296,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     hint: 'Where the seller is, which is where the parcel comes from',
     width: '120px',
     sort: 'countryName',
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   {
     key: 'storeName',
@@ -1302,7 +1312,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     hint: 'New or Used, as the seller graded the lot',
     width: '130px',
     sort: 'conditionName',
-    click: (row) => narrowBy('condition', String(row.fields.condition ?? ''))
+    click: (row, options) => narrowBy('condition', String(row.fields.condition ?? ''), options)
   },
   {
     key: 'quantity',
@@ -1563,7 +1573,7 @@ export const provinceColumns: ColumnDef[] = [
     sort: 'countryName',
     // Narrows the provinces on screen to that country, as the sellers table does
     // with the same field — a province row carries `country` itself.
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   {
     key: 'stores',
@@ -1625,7 +1635,7 @@ export const storeColumns: ColumnDef[] = [
     // already does with the same field — a store row carries `country` itself,
     // so pressing it need not leave for the countries directory and lose the
     // rest of whatever this list was narrowed to.
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   {
     key: 'provinceName',
@@ -1636,7 +1646,7 @@ export const storeColumns: ColumnDef[] = [
     sort: 'provinceName',
     // The key rather than the name: a name alone is not one province — see
     // `provinceId` — and the key is what the provinces table is scoped by.
-    click: (row) => narrowBy('province', String(row.fields.province ?? ''))
+    click: (row, options) => narrowBy('province', String(row.fields.province ?? ''), options)
   },
   {
     key: 'name',
@@ -1647,7 +1657,7 @@ export const storeColumns: ColumnDef[] = [
     // This one seller, out of whatever is on screen. It narrows rather than
     // states the term, so the country already asked about survives the press;
     // the count beside it is the cell that leads out to the seller's lots.
-    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
   // What the seller has for sale, and the way through to it. `Items` and not
   // `Lots`: the directory prints a quantity — every brick counted one by one —
@@ -1693,7 +1703,7 @@ export const shippingMethodColumns: ColumnDef[] = [
     label: 'Seller',
     width: '200px',
     sort: 'storeName',
-    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
   {
     key: 'countryName',
@@ -1702,7 +1712,7 @@ export const shippingMethodColumns: ColumnDef[] = [
     hint: 'Where the seller is, which is what “Domestic” means for them',
     width: '130px',
     sort: 'countryName',
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   {
     key: 'name',
@@ -1757,7 +1767,7 @@ export const shippingCostColumns: ColumnDef[] = [
     label: 'Seller',
     width: '200px',
     sort: 'storeName',
-    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
   {
     key: 'countryName',
@@ -1766,7 +1776,7 @@ export const shippingCostColumns: ColumnDef[] = [
     hint: 'Where the seller is',
     width: '130px',
     sort: 'countryName',
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   {
     key: 'destination',

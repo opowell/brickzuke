@@ -19,11 +19,14 @@ import router from '@/router'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import { colorScopeVersion, readColorScope } from './colorItemsFetch'
 
-/** What a `field:"…"` term names, read straight off the expression. */
+/**
+ * What a `field:"…"` term names, read straight off the expression. Not what a
+ * `-field:"…"` names: that is the colour the table is *not* about.
+ */
 function termValue(expr: string, field: string): string | undefined {
   for (const group of parseExpression(expr)) {
     for (const term of group) {
-      if (term.kind === 'field' && term.field === field && term.comparator === ':') {
+      if (term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated) {
         return term.value
       }
     }

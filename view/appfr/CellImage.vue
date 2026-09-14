@@ -18,6 +18,7 @@
  * It stays generic by calling whatever `click` the column declares rather than
  * knowing what narrowing means.
  */
+import { pressOptions } from 'header-content-layout'
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 
@@ -60,7 +61,7 @@ function press(event: MouseEvent) {
     return
   }
   event.stopPropagation()
-  props.column.click(props.row)
+  props.column.click(props.row, pressOptions(event))
 }
 </script>
 

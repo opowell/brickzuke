@@ -25,7 +25,7 @@ import {addTerm,
   parseExpression,
   roleColumn,
   scopeTermFor} from 'header-content-layout'
-import type { ColumnDef, EntitySchema, ShellRow } from 'header-content-layout'
+import type { ColumnDef, EntitySchema, PressOptions, ShellRow } from 'header-content-layout'
 import { getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
@@ -49,8 +49,13 @@ export interface PreviewTile {
   detail: string
   /** The record's picture, where it has one. */
   image?: string
-  /** Where the record leads — the press its own row makes. */
-  press?: () => void
+  /**
+   * Where the record leads — the press its own row makes. With `exclude`, the
+   * press made with ⌘ held, it is the record left out instead, where the row
+   * can be: a tile that narrows to a record can narrow away from it, and one
+   * that opens a table opens it either way.
+   */
+  press?: (options?: PressOptions) => void
 }
 
 /**
@@ -499,13 +504,13 @@ function shownColumns(entity: EntitySchema | undefined): ColumnDef[] {
  * press on the identity column, and failing that the first press the row offers
  * at all.
  */
-function pressFor(columns: ColumnDef[], row: ShellRow): (() => void) | undefined {
+function pressFor(columns: ColumnDef[], row: ShellRow): PreviewTile['press'] {
   const narrow = narrowingTo(row)
   if (narrow) {
     return narrow
   }
   const click = roleColumn(columns, 'identity')?.click ?? columns.find((one) => one.click)?.click
-  return click ? () => click(row) : undefined
+  return click ? (options) => click(row, options) : undefined
 }
 
 /**

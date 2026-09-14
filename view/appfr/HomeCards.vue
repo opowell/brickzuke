@@ -15,6 +15,7 @@
  * The cards are drawn in the shell's own tokens, so a screen brickzuke now
  * owns still looks like the one it replaced.
  */
+import { pressOptions } from 'header-content-layout'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { formatInteger } from '@/assets/js/utils'
 import { catalogSchema, openType } from './catalogSchema'
@@ -247,7 +248,7 @@ watch(filled, () => {
             type="button"
             class="home__tile"
             :title="hover(tile)"
-            @click="tile.press?.()"
+            @click="tile.press?.(pressOptions($event))"
           >
             <img
               v-if="hasPicture(card.entity.key, tile)"
@@ -267,7 +268,7 @@ watch(filled, () => {
             type="button"
             class="home__pill"
             :title="hover(tile)"
-            @click="tile.press?.()"
+            @click="tile.press?.(pressOptions($event))"
           >
             <span class="home__label">
               <img

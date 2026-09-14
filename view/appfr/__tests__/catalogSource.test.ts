@@ -257,6 +257,21 @@ describe('catalog source, streaming', () => {
     scope.stop()
   }, 60_000)
 
+  it('leaves out what a turned term names, and keeps the rest', async () => {
+    const {
+      state, scope 
+    } = runStream({
+      expr: '-category:"37"' 
+    })
+    await settle(state)
+    expect(state.total.value).toBeGreaterThan(0)
+    expect(state.total.value).toBeLessThan(SEEDED)
+    for (const row of state.rows.value) {
+      expect(String(row.fields.category)).not.toBe('37')
+    }
+    scope.stop()
+  }, 60_000)
+
   /*
    * The home screen names no type, and brickzuke draws it with HomeCards — the
    * shell's results area is replaced there, so nothing reads the rows and the

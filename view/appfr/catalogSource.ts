@@ -11,10 +11,12 @@ import { matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
   EntitySchema,
   FacetValue,
+  FieldTerm,
   QueryRequest,
   QueryResult,
   QuerySink,
-  ShellRow} from 'header-content-layout'
+  ShellRow,
+  Term} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import type { Fill } from './pageFill'
 import { count, get, getAllFromIndex, openCursor } from '../../idb/db'
@@ -350,6 +352,18 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
 }
 
 /**
+ * Whether a term is an address: a plain `field:"…"`, naming one record.
+ *
+ * The same term with a `-` in front of it is the opposite of an address — it
+ * says which record the rows are *not* — so it is left to the matcher with
+ * every other filter, and a source that reads `record:` as where to look reads
+ * `-record:` as nowhere in particular.
+ */
+function addresses(term: Term, field: string): term is FieldTerm {
+  return term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated
+}
+
+/**
  * What a `field:"…"` term names, read straight off the parsed expression.
  *
  * Opening a record is one indexed lookup, not a scan — the index is keyed by
@@ -359,7 +373,7 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
 function termValue(request: QueryRequest, field: string): string | undefined {
   for (const group of parseExpression(request.query.expr)) {
     for (const term of group) {
-      if (term.kind === 'field' && term.field === field && term.comparator === ':') {
+      if (addresses(term, field)) {
         return term.value
       }
     }
@@ -381,10 +395,10 @@ function termValue(request: QueryRequest, field: string): string | undefined {
  */
 function matcherBesides(
   request: QueryRequest,
-  ...addresses: string[]
+  ...addressed: string[]
 ): (row: ShellRow) => boolean {
   const groups = parseExpression(request.query.expr).map((group) =>
-    group.filter((term) => !(term.kind === 'field' && addresses.includes(term.field)))
+    group.filter((term) => !addressed.some((field) => addresses(term, field)))
   )
   if (!groups.length || groups.some((group) => !group.length)) {
     return () => true
@@ -777,8 +791,7 @@ const LOT_FIELDS = {
 function lotsMatching(request: QueryRequest, lots: ShellRow[]): ShellRow[] {
   const groups = parseExpression(request.query.expr).map((group) =>
     group.filter(
-      (term) =>
-        !(term.kind === 'field' && ['record', 'store', 'condition'].includes(term.field))
+      (term) => !['record', 'store', 'condition'].some((field) => addresses(term, field))
     )
   )
   // A group left with no terms constrains nothing, so it matches every lot.

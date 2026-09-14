@@ -419,14 +419,14 @@ export const shopPlanColumns: ColumnDef[] = [
     hint: 'The cheapest seller who has enough of this one part',
     width: '200px',
     sort: 'storeName',
-    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
   {
     key: 'countryName',
     label: 'Country',
     width: '140px',
     sort: 'countryName',
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   /*
    * Both money columns are [CellPrice] rather than the shell's `number` kind,
@@ -490,7 +490,7 @@ export const shopStoreColumns: ColumnDef[] = [
     label: 'Seller',
     width: '240px',
     sort: 'storeName',
-    click: (row) => narrowBy('store', String(row.fields.store ?? ''))
+    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
   {
     key: 'countryName',
@@ -498,7 +498,7 @@ export const shopStoreColumns: ColumnDef[] = [
     label: 'Country',
     width: '150px',
     sort: 'countryName',
-    click: (row) => narrowBy('country', String(row.fields.country ?? ''))
+    click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
   {
     key: 'lines',
