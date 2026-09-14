@@ -1,18 +1,20 @@
 /**
- * Price modifiers, written and read — see [PriceModifier].
+ * Price modifiers, written and read — see [PriceModifier]. The profiles they
+ * are filed under are in [priceModifierProfile].
  *
  * Not through [userRecord], whose helpers assume an auto-increment `id`: a
- * modifier is keyed by what it is on, so setting one is a `put` under that
- * key whether or not one was there, and taking it off is a delete of the
- * same. Two operations, and no create apart from set.
+ * modifier is keyed by the profile it is in and what it is on, so setting one
+ * is a `put` under that key whether or not one was there, and taking it off
+ * is a delete of the same. Two operations, and no create apart from set.
  */
 import type { IDBPDatabase } from 'idb'
+import indices from './indices'
 import stores from './stores'
 import type { PriceModifier } from './userTypes'
-import { dbDelete, getAll, put } from './db'
+import { dbDelete, getAll, getAllFromIndex, put } from './db'
 
 /**
- * Puts a factor on one thing, or takes it off.
+ * Puts a factor on one thing in one profile, or takes it off.
  *
  * Off, rather than a factor of one, when handed nothing: a modifier of one
  * is a row saying nothing, and a table of those would be the modifiers lost
@@ -23,18 +25,20 @@ import { dbDelete, getAll, put } from './db'
  */
 export async function setPriceModifier(
   db: IDBPDatabase,
+  profileId: number,
   entity: string,
   key: string,
   factor: number | undefined
 ): Promise<PriceModifier | undefined> {
   if (factor === undefined) {
-    await dbDelete(db, stores.PRICE_MODIFIERS, [entity, key])
+    await dbDelete(db, stores.PRICE_MODIFIERS, [profileId, entity, key])
     return undefined
   }
   if (!Number.isFinite(factor) || factor < 0) {
     return undefined
   }
   const modifier: PriceModifier = {
+    profileId,
     entity,
     key,
     factor
@@ -43,6 +47,12 @@ export async function setPriceModifier(
   return modifier
 }
 
-export async function loadPriceModifiers(db: IDBPDatabase): Promise<PriceModifier[]> {
+/** Every factor in one profile. */
+export async function loadPriceModifiers(db: IDBPDatabase, profileId: number): Promise<PriceModifier[]> {
+  return (await getAllFromIndex<PriceModifier>(db, indices.PRICE_MODIFIERS_BY_PROFILE, profileId)) ?? []
+}
+
+/** Every factor in every profile — for a table counting what each holds. */
+export async function loadAllPriceModifiers(db: IDBPDatabase): Promise<PriceModifier[]> {
   return (await getAll<PriceModifier>(db, stores.PRICE_MODIFIERS)) ?? []
 }

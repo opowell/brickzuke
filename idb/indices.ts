@@ -19,6 +19,7 @@ const indices: {
   USER_INVENTORY_LINES_BY_RECORD: IndexDefinition
   SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
   CART_LINES_BY_CART: IndexDefinition
+  PRICE_MODIFIERS_BY_PROFILE: IndexDefinition
 } = {
   QUEUED_CALLS_BY_DATE: {
     store: stores.QUEUED_CALLS,
@@ -106,11 +107,21 @@ const indices: {
     name: 'listId',
     keyPath: 'listId'
   },
-  /** Every lot in one cart. The seventh, and the last of them. */
+  /** Every lot in one cart. The seventh of them. */
   CART_LINES_BY_CART: {
     store: stores.CART_LINES,
     name: 'cartId',
     keyPath: 'cartId'
+  },
+  /**
+   * Every factor in one price modifier profile. The eighth, and the last of
+   * them — and the one whose store has no `id`: a factor is deleted by the
+   * compound key this index hands back the row for, see [deletePriceModifierProfile].
+   */
+  PRICE_MODIFIERS_BY_PROFILE: {
+    store: stores.PRICE_MODIFIERS,
+    name: 'profileId',
+    keyPath: 'profileId'
   }
 }
 

@@ -12,7 +12,8 @@ describe('the ship-to country', () => {
       'reachPatience',
       'reachGapMs',
       'shipTo',
-      'activeCart'
+      'activeCart',
+      'activeProfile'
     ])
   })
 
@@ -49,6 +50,22 @@ describe('the active cart', () => {
     setSetting('activeCart', '')
     expect(activeCart.value).toBe('')
     expect(activeCartId()).toBeUndefined()
+  })
+})
+
+describe('the active price modifier profile', () => {
+  it('is a knob of its own kind, holding a profile’s id or blank', async () => {
+    const {
+      activeProfile, activeProfileId
+    } = await import('../settings')
+    expect(settingFor('activeProfile')?.kind).toBe('profile')
+    setSetting('activeProfile', '2')
+    expect(activeProfile.value).toBe('2')
+    expect(activeProfileId()).toBe(2)
+    // Blank is a real choice — no factor applies — and reads as no id.
+    setSetting('activeProfile', '')
+    expect(activeProfile.value).toBe('')
+    expect(activeProfileId()).toBeUndefined()
   })
 })
 

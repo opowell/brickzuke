@@ -23,12 +23,13 @@ import { ref, watch } from 'vue'
 import { count, getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
-import type { Cart, UserCategory } from '../../idb/userTypes'
+import type { Cart, PriceModifierProfile, UserCategory } from '../../idb/userTypes'
 import type { BrickLinkCategory } from '../stores/bricklink/catalog-download-page'
 import { userCategoryRef } from '../../idb/userCategory'
 import { refreshActiveCartLines } from './activeCart'
 import { refreshPriceModifiers } from './priceModifiers'
-import { activeCart } from './settings'
+import { forgetCatalogRows } from './catalogRows'
+import { activeCart, activeProfile } from './settings'
 
 /** The populations, by the entity key each is drawn under. */
 export const userCounts = ref<Record<string, number | undefined>>({})
@@ -57,6 +58,9 @@ export const categoryChoices = ref<{ value: string; label: string }[]>([])
  */
 export const cartChoices = ref<{ value: string; label: string }[]>([])
 
+/** Every price modifier profile, as the active-profile setting's picker offers them — as the carts are. */
+export const profileChoices = ref<{ value: string; label: string }[]>([])
+
 /** The stores counted, under the entity key that draws each. */
 const COUNTED = {
   userCategories: stores.USER_CATEGORIES,
@@ -65,7 +69,18 @@ const COUNTED = {
   shopLists: stores.SHOP_LISTS,
   shopListItems: stores.SHOP_LIST_ITEMS,
   carts: stores.CARTS,
-  cartLines: stores.CART_LINES
+  cartLines: stores.CART_LINES,
+  priceModifierProfiles: stores.PRICE_MODIFIER_PROFILES
+}
+
+/** Newest first, named — the choices a picker offers for one of these stores. */
+function choicesOf(records: { id: number; name: string }[]): { value: string; label: string }[] {
+  return records
+    .sort((a, b) => b.id - a.id)
+    .map((record) => ({
+      value: String(record.id),
+      label: record.name
+    }))
 }
 
 /**
@@ -118,19 +133,22 @@ export async function refreshUserCounts(): Promise<void> {
       ...own,
       ...catalogue
     ]
-    cartChoices.value = ((await getAll<Cart>(db, stores.CARTS)) ?? [])
-      .sort((a, b) => b.id - a.id)
-      .map((cart) => ({
-        value: String(cart.id),
-        label: cart.name
-      }))
+    cartChoices.value = choicesOf((await getAll<Cart>(db, stores.CARTS)) ?? [])
+    profileChoices.value = choicesOf(
+      (await getAll<PriceModifierProfile>(db, stores.PRICE_MODIFIER_PROFILES)) ?? []
+    )
     // And what the active cart holds, which every lot's row reads — see
     // [activeCart]. In the same connection, and before the counts land, so the
     // query they re-run finds the lines already in hand.
     await refreshActiveCartLines(db)
-    // And the price modifiers, which every lot's row reads for the same
-    // reason — see [priceModifiers].
-    await refreshPriceModifiers(db)
+    // And the active profile's price modifiers, which every lot's row reads
+    // for the same reason — see [priceModifiers]. A factor is a field on the
+    // row it is on as well, and three of those tables are held — so where the
+    // factors changed, the held rows go, before the counts land and re-run
+    // the query that will build them again. See the note on the refresh.
+    if (await refreshPriceModifiers(db)) {
+      forgetCatalogRows()
+    }
     userCounts.value = counted
   } finally {
     db.close()
@@ -144,6 +162,12 @@ export async function refreshUserCounts(): Promise<void> {
  * re-runs the query over them.
  */
 watch(activeCart, () => {
+  void refreshUserCounts()
+})
+
+/* Likewise a different profile made active: the factors are re-read, and the
+   held rows that carry them are dropped where they changed. */
+watch(activeProfile, () => {
   void refreshUserCounts()
 })
 

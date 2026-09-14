@@ -42,7 +42,11 @@ import {createCart,
   loadCarts,
   setCartLine,
   updateCartLine} from '../cart'
-import { loadPriceModifiers, setPriceModifier } from '../priceModifier'
+import { loadAllPriceModifiers, loadPriceModifiers, setPriceModifier } from '../priceModifier'
+import {createPriceModifierProfile,
+  deletePriceModifierProfile,
+  loadPriceModifierProfiles,
+  updatePriceModifierProfile} from '../priceModifierProfile'
 
 let db: IDBPDatabase
 
@@ -57,6 +61,7 @@ beforeEach(async () => {
     STORES.SHOP_LIST_ITEMS,
     STORES.CARTS,
     STORES.CART_LINES,
+    STORES.PRICE_MODIFIER_PROFILES,
     STORES.PRICE_MODIFIERS,
     STORES.ITEM_INVENTORIES
   ]) {
@@ -338,6 +343,7 @@ describe('the stores nobody scraped', () => {
       'SHOP_LIST_ITEMS',
       'CARTS',
       'CART_LINES',
+      'PRICE_MODIFIER_PROFILES',
       'PRICE_MODIFIERS'
     ]) {
       expect(cleared).not.toContain(store)
@@ -420,30 +426,81 @@ describe('carts', () => {
 
 describe('price modifiers', () => {
   it('puts a factor on one thing, changes it in place, and takes it off', async () => {
-    await setPriceModifier(db, 'colors', '5', 1.2)
-    await setPriceModifier(db, 'stores', 'brickmeister', 0.9)
-    expect(await loadPriceModifiers(db)).toHaveLength(2)
+    const profile = await createPriceModifierProfile(db)
+    await setPriceModifier(db, profile.id, 'colors', '5', 1.2)
+    await setPriceModifier(db, profile.id, 'stores', 'brickmeister', 0.9)
+    expect(await loadPriceModifiers(db, profile.id)).toHaveLength(2)
 
     // Keyed by what it is on: a second factor on Red is the first one
     // changed, not a second row.
-    await setPriceModifier(db, 'colors', '5', 1.5)
-    const held = await loadPriceModifiers(db)
+    await setPriceModifier(db, profile.id, 'colors', '5', 1.5)
+    const held = await loadPriceModifiers(db, profile.id)
     expect(held).toHaveLength(2)
     expect(held.find((one) => one.entity === 'colors')).toMatchObject({
+      profileId: profile.id,
       key: '5',
       factor: 1.5
     })
 
-    await setPriceModifier(db, 'colors', '5', undefined)
-    expect((await loadPriceModifiers(db)).map((one) => one.entity)).toEqual(['stores'])
+    await setPriceModifier(db, profile.id, 'colors', '5', undefined)
+    expect((await loadPriceModifiers(db, profile.id)).map((one) => one.entity)).toEqual(['stores'])
   })
 
   it('takes nought, which prices every lot of the thing at nothing, and refuses less', async () => {
-    expect(await setPriceModifier(db, 'colors', '5', 0)).toMatchObject({
+    const profile = await createPriceModifierProfile(db)
+    expect(await setPriceModifier(db, profile.id, 'colors', '5', 0)).toMatchObject({
       factor: 0
     })
-    expect(await setPriceModifier(db, 'colors', '6', -1)).toBeUndefined()
-    expect(await setPriceModifier(db, 'colors', '6', Number.NaN)).toBeUndefined()
-    expect(await loadPriceModifiers(db)).toHaveLength(1)
+    expect(await setPriceModifier(db, profile.id, 'colors', '6', -1)).toBeUndefined()
+    expect(await setPriceModifier(db, profile.id, 'colors', '6', Number.NaN)).toBeUndefined()
+    expect(await loadPriceModifiers(db, profile.id)).toHaveLength(1)
+  })
+
+  it('keeps the same factor apart in two profiles', async () => {
+    // The whole point of a profile: Red at 1.2 for one purpose and 0.8 for
+    // another, each read alone.
+    const one = await createPriceModifierProfile(db, 'Bulk')
+    const other = await createPriceModifierProfile(db, 'Picky')
+    await setPriceModifier(db, one.id, 'colors', '5', 1.2)
+    await setPriceModifier(db, other.id, 'colors', '5', 0.8)
+    expect(await loadPriceModifiers(db, one.id)).toMatchObject([{
+      factor: 1.2
+    }])
+    expect(await loadPriceModifiers(db, other.id)).toMatchObject([{
+      factor: 0.8
+    }])
+    expect(await loadAllPriceModifiers(db)).toHaveLength(2)
+  })
+})
+
+describe('price modifier profiles', () => {
+  it('makes one blank, renames it, and lists newest first', async () => {
+    const first = await createPriceModifierProfile(db)
+    expect(first.name).toBe('New profile')
+    const second = await createPriceModifierProfile(db, 'Picky')
+    await updatePriceModifierProfile(db, first.id, {
+      name: 'Bulk'
+    })
+    expect((await loadPriceModifierProfiles(db)).map((profile) => profile.name)).toEqual([
+      'Picky',
+      'Bulk'
+    ])
+    expect(second.id).toBeGreaterThan(first.id)
+  })
+
+  it('takes its factors with it when deleted, and no other profile\'s', async () => {
+    const gone = await createPriceModifierProfile(db, 'Gone')
+    const kept = await createPriceModifierProfile(db, 'Kept')
+    await setPriceModifier(db, gone.id, 'colors', '5', 1.2)
+    await setPriceModifier(db, gone.id, 'stores', 'brickmeister', 0.9)
+    await setPriceModifier(db, kept.id, 'colors', '5', 0.8)
+
+    await deletePriceModifierProfile(db, gone.id)
+
+    expect((await loadPriceModifierProfiles(db)).map((profile) => profile.name)).toEqual(['Kept'])
+    expect(await loadPriceModifiers(db, gone.id)).toEqual([])
+    expect(await loadPriceModifiers(db, kept.id)).toMatchObject([{
+      factor: 0.8
+    }])
   })
 })

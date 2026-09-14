@@ -41,11 +41,14 @@ import {createCart,
   updateCartLine} from '../../idb/cart'
 import type { CartLot } from '../../idb/cart'
 import { setPriceModifier } from '../../idb/priceModifier'
+import {createPriceModifierProfile,
+  deletePriceModifierProfile,
+  updatePriceModifierProfile} from '../../idb/priceModifierProfile'
 import { MODIFIED } from './priceModifiers'
 import { forgetPlan } from './shopPlan'
 import { forgetCatalogRows } from './catalogRows'
 import { forgetPartCounts } from './partCounts'
-import { activeCart, activeCartId } from './settings'
+import { activeCart, activeCartId, activeProfile, activeProfileId } from './settings'
 
 /**
  * One connection per write, opened and closed — as every reader here does.
@@ -71,8 +74,9 @@ async function writing<T>(
     }
     // A factor is a field on the row it is on, and three of the tables it
     // can be on are held — so a modifier written drops them too, or the box
-    // would read the old factor the next time the table was opened.
-    if (touches === 'priceModifiers') {
+    // would read the old factor the next time the table was opened. As does
+    // a profile deleted, which may have been the one whose factors they show.
+    if (touches === 'priceModifiers' || touches === 'priceModifierProfiles') {
       forgetCatalogRows()
     }
     // A part added to a set of theirs is a number on that set's row of the
@@ -162,6 +166,8 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
         return void (await createShopList(db))
       case 'carts':
         return void (await createCart(db))
+      case 'priceModifierProfiles':
+        return void (await createPriceModifierProfile(db))
       // A part goes under the set whose parts are on screen, and only where
       // that set is theirs: nothing can be added to what BrickLink states.
       case 'inventory': {
@@ -249,6 +255,13 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
         case 'cartLines':
           await removeCartLine(db, id)
           break
+        case 'priceModifierProfiles':
+          await deletePriceModifierProfile(db, id)
+          // As with a cart: a setting naming a profile that has gone is cleared.
+          if (id === activeProfileId()) {
+            activeProfile.value = ''
+          }
+          break
       }
     }
   })
@@ -315,6 +328,8 @@ export async function writeField(
         return void (await updateCart(db, id, changes))
       case 'cartLines':
         return void (await updateCartLine(db, id, changes))
+      case 'priceModifierProfiles':
+        return void (await updatePriceModifierProfile(db, id, changes))
       default:
         return undefined
     }
@@ -367,13 +382,20 @@ function cartLotOf(lot: Record<string, unknown>): CartLot {
 }
 
 /**
- * The factor box on a row of one of the six modifiable tables: this factor on
- * every lot of it, or none.
+ * The factor box on a row of one of the modifiable tables: this factor on
+ * every lot of it, in the active profile, or none.
  *
  * The row is what the box has, so the modifier is keyed off it: the table it
  * is a row of, and the key that table's own scope field carries — see
  * [MODIFIED]. Nothing is written for a row of any other table, or a row that
  * carries no key; blank takes the factor off.
+ *
+ * Into the active profile — and where none is active, into one made here and
+ * made active, rather than nowhere. The cart's box is disabled with no cart
+ * chosen, because a lot put in a cart nobody named could be an order nobody
+ * meant; a factor typed with no profile is not ambiguous like that. The
+ * profile is only the shelf the factor sits on, and the shelf can be made.
+ * Blank with no profile writes nothing, there being nothing to take off.
  */
 export async function setPriceModifierFor(
   entityKey: string,
@@ -385,7 +407,21 @@ export async function setPriceModifierFor(
   if (key === undefined || key === null || key === '') {
     return
   }
-  await writing('priceModifiers', (db) => setPriceModifier(db, entityKey, String(key), factor))
+  const held = activeProfileId()
+  if (held === undefined && factor === undefined) {
+    return
+  }
+  await writing('priceModifiers', async (db) => {
+    const profileId = held ?? (await createPriceModifierProfile(db)).id
+    const written = await setPriceModifier(db, profileId, entityKey, String(key), factor)
+    // Made active only once the factor is in it, and only where it took: a
+    // refused factor with no profile leaves no profile behind. The setting is
+    // watched, and setting it re-runs the refresh this write ends in — twice
+    // over, once here and once for the write, which is cheap and harmless.
+    if (held === undefined && written) {
+      activeProfile.value = String(profileId)
+    }
+  })
 }
 
 /**

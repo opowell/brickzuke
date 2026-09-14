@@ -21,7 +21,10 @@ import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
 import { userCategoryRef } from '../../idb/userCategory'
 import type { UserCategory, UserItem } from '../../idb/userTypes'
-import { allUserInventoryLineRows, cartRows, shopListRows } from './userRows'
+import {allUserInventoryLineRows,
+  cartRows,
+  priceModifierProfileRows,
+  shopListRows} from './userRows'
 import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
 import indices from '../../idb/indices'
 import stores from '../../idb/stores'
@@ -359,8 +362,8 @@ const liveLoaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
   itemVariants: itemVariantRows,
   settings: settingRows,
   /*
-   * And the two types somebody writes themselves that are types of their own —
-   * live for the same reason the settings are, and more so: they change because
+   * And the three types somebody writes themselves that are types of their own
+   * — live for the same reason the settings are, and more so: they change because
    * somebody just typed into them, and a held answer would be the table before
    * the edit. See [userRows]. Their categories, items and sets are not more
    * of these: those are rows of the catalogue's own `categories`, `items` and
@@ -368,7 +371,8 @@ const liveLoaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {
    * written — see [userWrites].
    */
   shopLists: shopListRows,
-  carts: cartRows
+  carts: cartRows,
+  priceModifierProfiles: priceModifierProfileRows
 }
 
 /**

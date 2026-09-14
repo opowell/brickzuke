@@ -36,6 +36,7 @@ vi.mock('../../../model', async () => {
 const {
   cartLineRows,
   cartRows,
+  priceModifierProfileRows,
   shopListItemRows,
   shopListRows,
   userInventoryLineRows,
@@ -359,6 +360,47 @@ describe('carts', () => {
   })
 })
 
+describe('price modifier profiles', () => {
+  it('counts what each holds off the modifiers, and says which one is active', async () => {
+    const {
+      createPriceModifierProfile
+    } = await import('../../../idb/priceModifierProfile')
+    const {
+      setPriceModifier
+    } = await import('../../../idb/priceModifier')
+    const {
+      setSetting
+    } = await import('../settings')
+    const db = await connection()
+    const bulk = await createPriceModifierProfile(db, 'Bulk')
+    const picky = await createPriceModifierProfile(db, 'Picky')
+    await setPriceModifier(db, bulk.id, 'colors', '5', 1.2)
+    await setPriceModifier(db, bulk.id, 'stores', 'brickmeister', 0.9)
+    await setPriceModifier(db, picky.id, 'colors', '5', 0.8)
+    setSetting('activeProfile', String(bulk.id))
+
+    const rows = await priceModifierProfileRows(db)
+    // Newest first, as every table of theirs opens.
+    expect(rows.map((row) => row.fields.name)).toEqual(['Picky', 'Bulk'])
+    const [pickyRow, bulkRow] = rows
+    expect(bulkRow.fields).toMatchObject({
+      own: true,
+      profile: bulk.id,
+      active: true,
+      modifiers: 2
+    })
+    expect(pickyRow.fields).toMatchObject({
+      active: false,
+      modifiers: 1
+    })
+    // The profile's id is what `profile:` names it by, and the row's key is
+    // the number the writing cells write back through.
+    expect(bulkRow.id).toBe(String(bulk.id))
+    setSetting('activeProfile', '')
+    db.close()
+  })
+})
+
 describe('what the shell is told it may do', () => {
   it('offers making and unmaking on every standing type', () => {
     // These two are the whole of the UI for it: the shell draws `+ New…` and
@@ -410,7 +452,8 @@ describe('what the shell is told it may do', () => {
       (entity) =>
         !entity.key.startsWith('user') &&
         !entity.key.startsWith('shop') &&
-        !entity.key.startsWith('cart')
+        !entity.key.startsWith('cart') &&
+        entity.key !== 'priceModifierProfiles'
     )
     expect(
       scraped.filter((entity) => entity.create || entity.delete).map((e) => e.key)

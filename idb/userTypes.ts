@@ -153,23 +153,44 @@ export interface CartLine {
 }
 
 /**
- * A price modifier: a factor on the price of every lot of one thing.
+ * A price modifier profile: one named set of factors.
+ *
+ * Somebody who buys for two purposes prices lots two ways — postage weighed
+ * one way when an order is a handful of parts and another when it is a
+ * set's worth, used lots welcome for one build and not for another — and a
+ * single set of factors would have to be retyped between the two. So the
+ * factors are filed under a profile, several profiles can stand at once, and
+ * the one whose factors are applied to every lot is the `activeProfile`
+ * setting: the factor box on every table writes into that one and no other,
+ * and the modified price column reads that one and no other.
+ */
+export interface PriceModifierProfile {
+  id: number
+  name: string
+  createdAt: Date
+}
+
+/**
+ * A price modifier: a factor on the price of every lot of one thing, in one
+ * profile.
  *
  * The thing is a row of one of the catalogue's cross-sections over the lots —
  * a colour, a seller, a category, a condition, a country, an item type — named
  * by the table it is a row of and the key that table's own `scope` field
  * carries: `colors` and `5` for Red, `stores` and `brickmeister`. A lot's
- * modified price is its price times every factor that applies to it, so a
- * factor of 1.1 on Red and 0.9 on one seller prices that seller's red lots at
- * 0.99 of what they ask. Blank is no factor, and not a factor of nought:
- * nought is a factor, and prices every lot of the thing at nothing. Below
- * nought is refused, a negative price not being a price.
+ * modified price is its price times every factor in the active profile that
+ * applies to it, so a factor of 1.1 on Red and 0.9 on one seller prices that
+ * seller's red lots at 0.99 of what they ask. Blank is no factor, and not a
+ * factor of nought: nought is a factor, and prices every lot of the thing at
+ * nothing. Below nought is refused, a negative price not being a price.
  *
  * Why anybody wants one: prices across sellers are not the whole cost — this
  * seller's postage is dear, that colour is always a bargain second-hand — and
  * a factor is the plainest way to say so once and have every lot say it.
  */
 export interface PriceModifier {
+  /** The [PriceModifierProfile] this is one factor of. */
+  profileId: number
   /** The table the modified thing is a row of — `colors`, `stores`. */
   entity: string
   /** That row's key as its `scope` field carries it, as text — `5`, `brickmeister`. */

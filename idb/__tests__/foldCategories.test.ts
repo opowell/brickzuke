@@ -56,7 +56,7 @@ describe('folding an item two category fields into one', () => {
     await writeOldShape()
 
     const db = await getDbConnection()
-    expect(db.version).toBe(29)
+    expect(db.version).toBe(30)
     const items = await loadUserItems(db)
     db.close()
 

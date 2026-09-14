@@ -29,6 +29,8 @@ import { getAll } from '../../idb/db'
 import stores from '../../idb/stores'
 import type {Cart,
   CartLine,
+  PriceModifier,
+  PriceModifierProfile,
   ShopList,
   ShopListItem,
   UserCategory,
@@ -42,7 +44,7 @@ import { loadAllInventoryLines, loadInventoryLines } from '../../idb/userInvento
 import { loadShopListItems } from '../../idb/shopList'
 import { loadCartLines } from '../../idb/cart'
 import { planFor } from './shopPlan'
-import { activeCartId } from './settings'
+import { activeCartId, activeProfileId } from './settings'
 
 /** Newest first, as [listRecords] hands them over and for the same reason. */
 function newestFirst<T extends { id: number }>(records: T[]): T[] {
@@ -421,6 +423,35 @@ export async function cartLineRows(
       quantity: line.quantity,
       available: line.available,
       cost: lineCost(line)
+    }
+  }))
+}
+
+/**
+ * Somebody's price modifier profiles, each with how many factors it holds
+ * counted off the modifiers — and which one is in force, read off the setting
+ * the way a cart's `active` is.
+ *
+ * The factors themselves are not a table: each is a box on the row it is on,
+ * in the colours, sellers, categories and the rest — see [CellPriceModifier] —
+ * so the count is what a profile's row can say about them.
+ */
+export async function priceModifierProfileRows(db: IDBPDatabase): Promise<ShellRow[]> {
+  const profiles = await held<PriceModifierProfile>(db, stores.PRICE_MODIFIER_PROFILES)
+  const modifiers = (await getAll<PriceModifier>(db, stores.PRICE_MODIFIERS)) ?? []
+  const active = activeProfileId()
+  return profiles.map((profile) => ({
+    id: String(profile.id),
+    entityKey: 'priceModifierProfiles',
+    entityLabel: 'Price modifier profiles',
+    fields: {
+      id: profile.id,
+      own: true,
+      profile: profile.id,
+      name: profile.name,
+      active: profile.id === active,
+      modifiers: modifiers.filter((modifier) => modifier.profileId === profile.id).length,
+      created: made(profile.createdAt)
     }
   }))
 }

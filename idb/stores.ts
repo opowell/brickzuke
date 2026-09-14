@@ -32,6 +32,7 @@ const stores: {
   SHOP_LIST_ITEMS: StoreDefinition
   CARTS: StoreDefinition
   CART_LINES: StoreDefinition
+  PRICE_MODIFIER_PROFILES: StoreDefinition
   PRICE_MODIFIERS: StoreDefinition
 } = {
   CALLS: {
@@ -271,18 +272,34 @@ const stores: {
     autoIncrement: true
   },
   /**
-   * A price modifier: a factor somebody puts on every lot of one colour, one
-   * seller, one category — see [PriceModifier].
+   * A price modifier profile: one named set of factors — see
+   * [PriceModifierProfile].
    *
-   * Keyed by what it is on rather than by a number of its own, because that
-   * is the one thing a modifier cannot be changed to: a factor on Red is a
-   * factor on Red, and typing a second one over it is changing it, not making
-   * another. The only store here with a compound key, for that reason.
-   * Somebody's own, like the eight above, and never cleared.
+   * Several can stand at once, and the one whose factors are applied is the
+   * `activeProfile` setting. Keyed by a number of its own, as every other
+   * named record here is, because the name is the one thing somebody will
+   * want to change. Theirs, and never cleared.
+   */
+  PRICE_MODIFIER_PROFILES: {
+    name: 'priceModifierProfiles',
+    keyPath: 'id',
+    autoIncrement: true
+  },
+  /**
+   * A price modifier: a factor somebody puts on every lot of one colour, one
+   * seller, one category — see [PriceModifier] — in one profile.
+   *
+   * Keyed by the profile it is in and what it is on rather than by a number
+   * of its own, because those are the things a modifier cannot be changed to:
+   * a factor on Red in one profile is a factor on Red in that profile, and
+   * typing a second one over it is changing it, not making another. The only
+   * store here with a compound key, for that reason. Somebody's own, like the
+   * nine above, and never cleared — v30 re-keyed it and carried every row
+   * across, see idb.ts.
    */
   PRICE_MODIFIERS: {
     name: 'priceModifiers',
-    keyPath: ['entity', 'key']
+    keyPath: ['profileId', 'entity', 'key']
   }
 }
 

@@ -44,7 +44,13 @@ const DB_NAME = 'brickzuke'
 // 29 adds PRICE_MODIFIERS — a factor somebody puts on the prices of every lot
 // of one colour, seller, category, condition, country or item type. Made by
 // the loop below like any other; theirs, and never cleared.
-const DB_VERSION = 29
+// 30 adds PRICE_MODIFIER_PROFILES — named sets of factors, one of them active
+// — and files every modifier under one, which means a new key on
+// PRICE_MODIFIERS: `[profileId, entity, key]` where it was `[entity, key]`. A
+// key path cannot be changed on a store that exists, so the store is read out,
+// dropped, made again and written back under a profile made for the purpose —
+// every row carried, none cleared. See the last block of `upgrade`.
+const DB_VERSION = 30
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -242,6 +248,47 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           }
         } catch (e) {
           console.log('Error making sets into items', e)
+        }
+      }
+      /*
+       * v30. A modifier was keyed by what it is on; now it is keyed by the
+       * profile it is in as well, and IndexedDB has no way to re-key a store
+       * in place. So the rows are read out, the store is dropped and made
+       * again with the new key — with its index, which the loop above put on
+       * the old store — and every row goes back in under one profile, made
+       * here and called Default, so that what somebody typed is still there
+       * under a name they can find. Nothing is lost, it has been re-filed:
+       * which is the one deletion of a user store here besides v27's, and
+       * stated in words for the same reason.
+       *
+       * Only from 29: a database from before had no modifiers to carry, and
+       * the loop above made the store with the new key already.
+       */
+      if (oldVersion >= 29 && oldVersion < 30) {
+        try {
+          const held = (await transaction
+            .objectStore(STORES.PRICE_MODIFIERS.name)
+            .getAll()) as { entity: string; key: string; factor: number }[]
+          db.deleteObjectStore(STORES.PRICE_MODIFIERS.name)
+          createStore(db, STORES.PRICE_MODIFIERS)
+          createIndex(transaction, INDICES.PRICE_MODIFIERS_BY_PROFILE)
+          if (held.length) {
+            const profileId = Number(
+              await transaction.objectStore(STORES.PRICE_MODIFIER_PROFILES.name).add({
+                name: 'Default',
+                createdAt: new Date()
+              })
+            )
+            const modifiers = transaction.objectStore(STORES.PRICE_MODIFIERS.name)
+            for (const modifier of held) {
+              await modifiers.put({
+                ...modifier,
+                profileId
+              })
+            }
+          }
+        } catch (e) {
+          console.log('Error filing price modifiers under a profile', e)
         }
       }
     },

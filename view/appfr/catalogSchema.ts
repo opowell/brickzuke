@@ -719,13 +719,14 @@ export const colorItemColumns: ColumnDef[] = [
  * that sets it.
  *
  * One column on eight tables, and the same on each: what it scales is the lots
- * table's price, whichever table it stands on. See [CellPriceModifier], and
- * [priceModifiers] for what the factors do.
+ * table's price, whichever table it stands on. The factor shown and written
+ * is the active profile's — see [CellPriceModifier], and [priceModifiers] for
+ * what the factors do.
  */
 const priceModifierColumn: ColumnDef = {
   key: 'priceModifier',
   label: 'Price mod.',
-  hint: 'Multiplies the price of every lot of this — 1.1 marks them up a tenth, 0.9 down, 0 makes them free; blank leaves them alone',
+  hint: 'Multiplies the price of every lot of this, in the active price modifier profile — 1.1 marks them up a tenth, 0.9 down, 0 makes them free; blank leaves them alone',
   kind: 'component',
   component: CellPriceModifier,
   width: '110px',

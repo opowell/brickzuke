@@ -388,6 +388,8 @@ describe('the catalogue this summarises', () => {
       // And the other: the lots somebody means to order, filled from the
       // store inventories table one quantity box at a time.
       'carts',
+      // And the third: named sets of price modifiers, one of them in force.
+      'priceModifierProfiles',
     ])
   })
 

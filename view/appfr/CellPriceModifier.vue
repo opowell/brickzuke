@@ -13,6 +13,11 @@
  * factor of one would be a row saying nothing. Nought is a factor — every lot
  * of this priced at nothing — and less than nought is refused at the box and
  * again at the store, a negative price not being a price.
+ *
+ * The factor is the active profile's: the box shows that profile's and writes
+ * into it, and a different profile made active is a different figure in every
+ * box. With no profile active the box is blank and writing into it makes one
+ * — see [setPriceModifierFor].
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
@@ -84,7 +89,7 @@ function write() {
       min="0"
       step="0.01"
       placeholder="1"
-      title="What to multiply the price of every lot of this by — 0 makes them free, blank leaves them alone"
+      title="What to multiply the price of every lot of this by, in the active price modifier profile — 0 makes them free, blank leaves them alone"
       :aria-label="column?.label ?? 'Price modifier'"
       @change="write"
     />

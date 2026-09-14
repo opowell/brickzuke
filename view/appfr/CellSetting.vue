@@ -3,7 +3,8 @@
  * A setting's value, as the control that changes it.
  *
  * The one cell in the catalogue that writes rather than reads. A number field
- * for a number with a stated range, and a `<select>` for a country or a cart —
+ * for a number with a stated range, and a `<select>` for a country, a cart or
+ * a price modifier profile —
  * in each case the control the browser already has for exactly this, so it
  * arrives with its own steppers or its own list, its own keyboard handling and
  * its own validation, and brickzuke paints none of it.
@@ -19,16 +20,16 @@
  * stored code the directory has not fetched is kept as a choice of its own, so
  * the picker never shows a value other than the one that is set.
  *
- * The carts are somebody's own, read by [userCounts] after every write — so a
- * cart made a moment ago is already in the list when the picker next drops,
- * and one deleted is out of it.
+ * The carts and the profiles are somebody's own, read by [userCounts] after
+ * every write — so a cart made a moment ago is already in the list when the
+ * picker next drops, and one deleted is out of it.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, onMounted, ref } from 'vue'
-import { setSetting, settingFor } from './settings'
+import { pickedSetting, setSetting, settingFor } from './settings'
 import { readCountries } from './storesFetch'
-import { cartChoices } from './userCounts'
+import { cartChoices, profileChoices } from './userCounts'
 
 const props = defineProps({
   row: {
@@ -69,19 +70,21 @@ onMounted(async () => {
     .sort((a, b) => a.label.localeCompare(b.label))
 })
 
-/** Whether this setting is drawn as a picker — a country or a cart. */
-const picked = computed(() => setting.value?.kind === 'country' || setting.value?.kind === 'cart')
+/** Whether this setting is drawn as a picker — a country, a cart or a profile. */
+const picked = computed(() => pickedSetting(setting.value))
 
 /**
  * Blank first, then the choices — and the set value among them, whatever it is.
  *
- * A cart that has been deleted is the one case the set value is not among the
- * carts, and it is kept as a choice named by its id rather than dropped, for
- * the reason a country's code is: the picker shows what is set.
+ * A cart or a profile that has been deleted is the one case the set value is
+ * not among the choices, and it is kept as a choice named by its id rather
+ * than dropped, for the reason a country's code is: the picker shows what is
+ * set.
  */
 const choices = computed(() => {
   const kind = setting.value?.kind
-  const offered = kind === 'cart' ? cartChoices.value : countries.value
+  const offered =
+    kind === 'cart' ? cartChoices.value : kind === 'profile' ? profileChoices.value : countries.value
   const current = picked.value ? setting.value!.value.value : ''
   const known = offered.some((choice) => choice.value === String(current))
   return [
@@ -91,7 +94,7 @@ const choices = computed(() => {
     },
     ...(current && !known ? [{
       value: String(current),
-      label: kind === 'cart' ? `Cart ${current}` : String(current)
+      label: kind === 'cart' ? `Cart ${current}` : kind === 'profile' ? `Profile ${current}` : String(current)
     }] : []),
     ...offered
   ]
@@ -167,8 +170,8 @@ function write(event: Event) {
   color: inherit;
 }
 
-/* The column's width, less the shell's padding: a country's or a cart's name
-   wants the room. */
+/* The column's width, less the shell's padding: a country's, a cart's or a
+   profile's name wants the room. */
 .setting__pick {
   max-width: 100%;
   font: inherit;

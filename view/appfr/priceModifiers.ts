@@ -1,12 +1,19 @@
 /**
- * The price modifiers, kept where a lot's row can read them without asking.
+ * The active profile's price modifiers, kept where a lot's row can read them
+ * without asking.
  *
  * The sibling of [activeCart], and held for the same reason: the lots table is
  * built a row at a time off a cursor — see [eachLot] — and every row wants to
  * say what its price comes to once the factors on it are applied. So the
  * modifiers are read once, here, into a map by what each is on, and the row
  * builders look their lot up in it. Refreshed after every write, through
- * [refreshUserCounts], which is what re-runs the query anyway.
+ * [refreshUserCounts], which is what re-runs the query anyway — and when the
+ * setting names a different profile, which [userCounts] watches for the same
+ * reason it watches the cart.
+ *
+ * The active profile's and no other's: a factor in a profile that is not in
+ * force is a factor that does not apply, and with no profile in force nothing
+ * does — see [activeProfile].
  *
  * What a factor is on is a row of one of eight tables, and the lot it applies
  * to is one carrying that row's key — see [MODIFIED]. A lot's modified price
@@ -16,6 +23,7 @@ import { ref } from 'vue'
 import type { IDBPDatabase } from 'idb'
 import type { PriceModifier } from '../../idb/userTypes'
 import { loadPriceModifiers } from '../../idb/priceModifier'
+import { activeProfileId } from './settings'
 
 /**
  * The tables a factor can be put on a row of, and how a lot carries that
@@ -69,13 +77,27 @@ export const MODIFIED: Record<string, { on: string; lot: string }> = {
 /** Every factor, by the table it is on and then by the key it is on. */
 export const priceModifiers = ref<Map<string, Map<string, number>>>(new Map())
 
-/** Re-reads them all. */
-export async function refreshPriceModifiers(db: IDBPDatabase): Promise<void> {
-  holdPriceModifiers(await loadPriceModifiers(db))
+/**
+ * Re-reads the active profile's — none, where no profile is active — and says
+ * whether that changed anything.
+ *
+ * Whether it changed matters to the caller because a factor is also a field
+ * on the row it is on, and three of those tables are read once and held — see
+ * [catalogRows]. The first read of them can land before the first refresh
+ * here does, and a different profile made active is a different factor on
+ * every held row; either way the held rows are stale the moment this holds
+ * something else, and the caller is the one that can drop them.
+ */
+export async function refreshPriceModifiers(db: IDBPDatabase): Promise<boolean> {
+  const id = activeProfileId()
+  return holdPriceModifiers(id ? await loadPriceModifiers(db, id) : [])
 }
 
-/** Holds these and no others — what the refresh does with what it read. */
-export function holdPriceModifiers(modifiers: readonly PriceModifier[]): void {
+/**
+ * Holds these and no others — what the refresh does with what it read — and
+ * says whether they differ from what was held.
+ */
+export function holdPriceModifiers(modifiers: readonly PriceModifier[]): boolean {
   const held = new Map<string, Map<string, number>>()
   for (const modifier of modifiers) {
     let byKey = held.get(modifier.entity)
@@ -85,7 +107,31 @@ export function holdPriceModifiers(modifiers: readonly PriceModifier[]): void {
     }
     byKey.set(modifier.key, modifier.factor)
   }
+  const changed = !sameModifiers(priceModifiers.value, held)
   priceModifiers.value = held
+  return changed
+}
+
+/** Whether two holdings state the same factor on the same things, and nothing else. */
+function sameModifiers(
+  a: Map<string, Map<string, number>>,
+  b: Map<string, Map<string, number>>
+): boolean {
+  if (a.size !== b.size) {
+    return false
+  }
+  for (const [entity, byKey] of a) {
+    const other = b.get(entity)
+    if (!other || other.size !== byKey.size) {
+      return false
+    }
+    for (const [key, factor] of byKey) {
+      if (other.get(key) !== factor) {
+        return false
+      }
+    }
+  }
+  return true
 }
 
 /** The factor on one row of one table, or nothing where none is. */

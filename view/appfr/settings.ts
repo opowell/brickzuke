@@ -10,9 +10,9 @@
  *
  * Three kinds: numbers, which have one obvious control and one obvious
  * validation; a country, which is one of the directory's own and so is picked
- * rather than typed; and a cart, which is one of somebody's own and picked the
- * same way. Which kind a setting is decides which control the value cell draws
- * — see [CellSetting].
+ * rather than typed; and a record of somebody's own — a cart, a price modifier
+ * profile — picked the same way. Which kind a setting is decides which control
+ * the value cell draws — see [CellSetting].
  */
 import { useStorage } from '@vueuse/core'
 import type { Ref } from 'vue'
@@ -71,8 +71,30 @@ export const activeCart = useStorage('brickzuke-active-cart', '')
 
 /** The active cart's key, or nothing where none is chosen. */
 export function activeCartId(): number | undefined {
-  const id = Number(activeCart.value)
-  return activeCart.value !== '' && Number.isFinite(id) && id > 0 ? id : undefined
+  return idIn(activeCart)
+}
+
+/**
+ * The price modifier profile in force, as the id of a PRICE_MODIFIER_PROFILES
+ * row — `'2'` — or blank while none is.
+ *
+ * The factors applied to every lot's price are this profile's and no other's,
+ * and the factor box on every table writes into it — so with none chosen no
+ * factor applies, which is how to switch them all off without losing any.
+ * Held as a string for the reason the cart is; read as a number through
+ * [activeProfileId].
+ */
+export const activeProfile = useStorage('brickzuke-active-profile', '')
+
+/** The active profile's key, or nothing where none is chosen. */
+export function activeProfileId(): number | undefined {
+  return idIn(activeProfile)
+}
+
+/** The key a picker setting holds, or nothing where it is blank or nonsense. */
+function idIn(setting: Ref<string>): number | undefined {
+  const id = Number(setting.value)
+  return setting.value !== '' && Number.isFinite(id) && id > 0 ? id : undefined
 }
 
 /** What every knob states: its row's id, its name, and what turning it does. */
@@ -117,8 +139,19 @@ export interface CartSetting extends SettingBase {
   value: Ref<string>
 }
 
+/** A knob that is one of somebody's own price modifier profiles, by id, or blank — as a cart is. */
+export interface ProfileSetting extends SettingBase {
+  kind: 'profile'
+  value: Ref<string>
+}
+
 /** One knob, as the table draws it. */
-export type Setting = NumberSetting | CountrySetting | CartSetting
+export type Setting = NumberSetting | CountrySetting | CartSetting | ProfileSetting
+
+/** The kinds drawn as a picker rather than a number field. */
+export function pickedSetting(setting: Setting | undefined): setting is CountrySetting | CartSetting | ProfileSetting {
+  return setting?.kind === 'country' || setting?.kind === 'cart' || setting?.kind === 'profile'
+}
 
 /**
  * Every setting, in the order the table lists them.
@@ -164,6 +197,14 @@ export const SETTINGS: Setting[] = [
     detail:
       'The cart the quantity box on every lot puts that lot into. Make one on the Carts table first.',
     value: activeCart
+  },
+  {
+    kind: 'profile',
+    key: 'activeProfile',
+    name: 'Active price modifier profile',
+    detail:
+      'The set of price modifiers applied to every lot, and the one the factor boxes write into. Not set means no modifier applies.',
+    value: activeProfile
   }
 ]
 
@@ -178,16 +219,16 @@ export function settingFor(key: string): Setting | undefined {
  * A number is clamped rather than refused: the control is a number field, so a
  * reader can type anything into it, and the nearest legal value is a better
  * answer than either a silent nought or a dialog. A country is taken as the
- * code it is and a cart as the id it is — the control is a picker either way,
- * so what arrives is one of the choices or blank — and a value of the wrong
- * kind changes nothing.
+ * code it is and a cart or a profile as the id it is — the control is a
+ * picker either way, so what arrives is one of the choices or blank — and a
+ * value of the wrong kind changes nothing.
  */
 export function setSetting(key: string, value: number | string): void {
   const setting = settingFor(key)
   if (!setting) {
     return
   }
-  if (setting.kind === 'country' || setting.kind === 'cart') {
+  if (pickedSetting(setting)) {
     if (typeof value === 'string') {
       setting.value.value = value.trim()
     }

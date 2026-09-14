@@ -21,8 +21,9 @@
  * theirs are rows of the catalogue's own `categories`, `items` and `inventory`
  * — see [categoryRows], [userItemRows] and [userInventoryLineRows] — and
  * those three are the catalogue types that name `create` and `delete`, in
- * [catalogSchema]. What is left here are the two types that are theirs alone: a
- * shopping list, and a cart, which the catalogue has no counterpart to.
+ * [catalogSchema]. What is left here are the three types that are theirs alone:
+ * a shopping list, a cart, and a price modifier profile, which the catalogue
+ * has no counterpart to.
  */
 import type { ColumnDef, EntitySchema } from 'header-content-layout'
 import type { ShellRow } from 'header-content-layout'
@@ -244,6 +245,45 @@ export const cartColumns: ColumnDef[] = [
     component: CellPrice,
     width: '110px',
     sort: 'cost'
+  },
+  created
+]
+
+/**
+ * The price modifier profiles: what each is called, how many factors it
+ * holds, and which one is in force.
+ *
+ * `Use` is the cart table's `Use`, for the same fact about a different
+ * setting: a press makes that profile the active one, and every lot's
+ * modified price and every factor box follow it. Both read `active`, which
+ * [priceModifierProfileRows] writes off the setting.
+ */
+export const priceModifierProfileColumns: ColumnDef[] = [
+  ordinal,
+  {
+    key: 'name',
+    role: 'identity',
+    label: 'Name',
+    kind: 'component',
+    component: CellUserText,
+    width: '280px',
+    sort: 'name'
+  },
+  {
+    key: 'use',
+    label: 'Use',
+    hint: 'Which profile’s factors are applied to every lot, and which the factor boxes write into — press to make it this one',
+    width: '130px',
+    value: (row) => (row.fields.active ? 'Active' : 'Make active'),
+    click: (row) => setSetting('activeProfile', idOf(row))
+  },
+  {
+    key: 'modifiers',
+    role: 'metric',
+    label: 'Modifiers',
+    hint: 'How many factors are in it — each is set from the Price mod. box on the colour, seller, category or other row it is on',
+    width: '100px',
+    sort: 'modifiers'
   },
   created
 ]
@@ -584,6 +624,32 @@ export const userEntities: EntitySchema[] = [
       {
         key: 'cost',
         label: 'Cost'
+      },
+      {
+        key: 'created',
+        label: 'Made'
+      }
+    ]
+  },
+  {
+    key: 'priceModifierProfiles',
+    label: 'Price modifier profiles',
+    scope: 'profile',
+    count: '',
+    create: 'New profile',
+    delete: 'Delete',
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: priceModifierProfileColumns,
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'modifiers',
+        label: 'Modifiers'
       },
       {
         key: 'created',
