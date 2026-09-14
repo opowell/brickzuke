@@ -269,7 +269,17 @@ watch(filled, () => {
             :title="hover(tile)"
             @click="tile.press?.()"
           >
-            <span class="home__label">{{ tile.label }}</span>
+            <span class="home__label">
+              <img
+                v-if="hasPicture(card.entity.key, tile)"
+                class="home__pill-flag"
+                :src="tile.image"
+                alt=""
+                loading="lazy"
+                @error="missing[pictureKey(card.entity.key, tile)] = true"
+              />
+              <span class="home__label-text">{{ tile.label }}</span>
+            </span>
             <span v-if="tile.detail" class="home__detail">{{ tile.detail }}</span>
           </button>
         </div>
@@ -469,10 +479,24 @@ watch(filled, () => {
   background: var(--dc-bg-2);
 }
 
+/* The name, and a country's flag in front of it where the tile has one — the
+   pair CellFlag draws in the table itself, drawn the same way on its card. */
+.home__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: 1;
+  min-width: 0;
+}
+
+.home__pill-flag {
+  height: 1.1em;
+  flex: none;
+}
+
 /* Given the room, and made to give it back: a name too long for the pill is
    cut rather than pushing the number off the end of it. */
-.home__label {
-  flex: 1;
+.home__label-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

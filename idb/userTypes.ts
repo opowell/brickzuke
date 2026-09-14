@@ -161,9 +161,9 @@ export interface CartLine {
  * carries: `colors` and `5` for Red, `stores` and `brickmeister`. A lot's
  * modified price is its price times every factor that applies to it, so a
  * factor of 1.1 on Red and 0.9 on one seller prices that seller's red lots at
- * 0.99 of what they ask. Blank is no factor, and not a factor of nought; the
- * box refuses nought and anything below it, a price scaled to nothing being
- * nothing anybody meant.
+ * 0.99 of what they ask. Blank is no factor, and not a factor of nought:
+ * nought is a factor, and prices every lot of the thing at nothing. Below
+ * nought is refused, a negative price not being a price.
  *
  * Why anybody wants one: prices across sellers are not the whole cost — this
  * seller's postage is dear, that colour is always a bargain second-hand — and
@@ -174,6 +174,6 @@ export interface PriceModifier {
   entity: string
   /** That row's key as its `scope` field carries it, as text — `5`, `brickmeister`. */
   key: string
-  /** What the price is multiplied by. Positive. */
+  /** What the price is multiplied by. Nought or more. */
   factor: number
 }

@@ -438,10 +438,12 @@ describe('price modifiers', () => {
     expect((await loadPriceModifiers(db)).map((one) => one.entity)).toEqual(['stores'])
   })
 
-  it('refuses nought and less, a price scaled to nothing being nothing anybody meant', async () => {
-    expect(await setPriceModifier(db, 'colors', '5', 0)).toBeUndefined()
-    expect(await setPriceModifier(db, 'colors', '5', -1)).toBeUndefined()
-    expect(await setPriceModifier(db, 'colors', '5', Number.NaN)).toBeUndefined()
-    expect(await loadPriceModifiers(db)).toHaveLength(0)
+  it('takes nought, which prices every lot of the thing at nothing, and refuses less', async () => {
+    expect(await setPriceModifier(db, 'colors', '5', 0)).toMatchObject({
+      factor: 0
+    })
+    expect(await setPriceModifier(db, 'colors', '6', -1)).toBeUndefined()
+    expect(await setPriceModifier(db, 'colors', '6', Number.NaN)).toBeUndefined()
+    expect(await loadPriceModifiers(db)).toHaveLength(1)
   })
 })

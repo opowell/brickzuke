@@ -10,9 +10,9 @@
  * `own` guard, and the write goes to the modifiers and never to the row.
  *
  * Blank is no factor, and it is what the box goes back to when cleared; a
- * factor of one would be a row saying nothing. Nought and less are refused at
- * the box and again at the store, a price scaled to nothing being nothing
- * anybody meant.
+ * factor of one would be a row saying nothing. Nought is a factor — every lot
+ * of this priced at nothing — and less than nought is refused at the box and
+ * again at the store, a negative price not being a price.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
@@ -60,7 +60,7 @@ function write() {
     return
   }
   const number = Number(text)
-  if (!Number.isFinite(number) || number <= 0) {
+  if (!Number.isFinite(number) || number < 0) {
     // Put back what stands, rather than leaving a refused figure in the box
     // looking as though it took.
     typed.value = shown(props.value)
@@ -81,10 +81,10 @@ function write() {
       v-model="typed"
       class="price-modifier__value"
       type="number"
-      min="0.01"
+      min="0"
       step="0.01"
       placeholder="1"
-      title="What to multiply the price of every lot of this by — blank leaves it alone"
+      title="What to multiply the price of every lot of this by — 0 makes them free, blank leaves them alone"
       :aria-label="column?.label ?? 'Price modifier'"
       @change="write"
     />

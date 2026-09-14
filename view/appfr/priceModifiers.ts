@@ -8,7 +8,7 @@
  * builders look their lot up in it. Refreshed after every write, through
  * [refreshUserCounts], which is what re-runs the query anyway.
  *
- * What a factor is on is a row of one of six tables, and the lot it applies
+ * What a factor is on is a row of one of eight tables, and the lot it applies
  * to is one carrying that row's key — see [MODIFIED]. A lot's modified price
  * is its price times every factor whose key it carries: see [modifiedPrice].
  */
@@ -55,6 +55,14 @@ export const MODIFIED: Record<string, { on: string; lot: string }> = {
   itemTypes: {
     on: 'type',
     lot: 'type'
+  },
+  regions: {
+    on: 'region',
+    lot: 'region'
+  },
+  provinces: {
+    on: 'province',
+    lot: 'province'
   }
 }
 
@@ -104,7 +112,8 @@ export interface AppliedModifier {
  * The factors that apply to one lot, read off the fields its row carries.
  *
  * In the order [MODIFIED] lists the tables, so the working reads the same on
- * every lot: colour, seller, category, condition, country, type.
+ * every lot: colour, seller, category, condition, country, type, region,
+ * province.
  */
 export function modifiersApplying(fields: Record<string, unknown>): AppliedModifier[] {
   const applied: AppliedModifier[] = []

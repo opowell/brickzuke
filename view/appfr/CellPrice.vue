@@ -91,7 +91,9 @@ const ON: Record<string, string> = {
   categories: 'category',
   conditions: 'condition',
   countries: 'country',
-  itemTypes: 'type'
+  itemTypes: 'type',
+  regions: 'region',
+  provinces: 'province'
 }
 
 /**

@@ -61,7 +61,10 @@ async function read(listId: number): Promise<ShopPlan> {
         colorId: lot.fields.colorid === undefined ? undefined : String(lot.fields.colorid),
         condition: lot.fields.condition as string | undefined,
         quantity: Number(lot.fields.quantity ?? 0),
-        price: lot.fields.priceValue as number | undefined,
+        // The price with the modifiers on the lot applied — see
+        // [priceModifiers] — because a factor is somebody saying what a lot
+        // is worth to them, and the plan is worked out on their behalf.
+        price: lot.fields.modPrice as number | undefined,
         store: lot.fields.store as string | undefined,
         storeName: lot.fields.storeName as string | undefined,
         country: lot.fields.country as string | undefined,

@@ -1103,4 +1103,82 @@ describe('price modifiers', () => {
     expect(conditions.find((row) => row.fields.condition === 'U')!.fields.priceModifier).toBe(0.8)
     expect(conditions.find((row) => row.fields.condition === 'N')!.fields.priceModifier).toBeUndefined()
   })
+
+  it('plans on the modified price, the category factor reaching the lots off the cursor too', async () => {
+    const {
+      forgetPlan, planFor
+    } = await import('../shopPlan')
+    const db = await getDbConnection()
+    const list = await createShopList(db, {
+      name: 'Red bricks'
+    })
+    await addShopListItem(db, list.id, {
+      record: 'P-3001',
+      name: 'Brick 2 x 4',
+      colorId: '5',
+      minQuantity: 4
+    })
+    db.close()
+    // Four red 3001s on offer: Steinehaus's stored lot at 0.10, and off the
+    // item's page Brickmeister at 1.20, then two dearer. Unmodified, the
+    // stored lot wins outright.
+    holdPriceModifiers([])
+    forgetPlan()
+    expect((await planFor(list.id)).lines[0]).toMatchObject({
+      store: 'steinehaus',
+      price: 0.1
+    })
+    // Steinehaus ×20 puts its lot at 2.00, still under Brickmeister's 1.20
+    // ×2 for the category — unless the category factor reaches the stored
+    // lot as well, which makes it 4.00 and hands the line to Brickmeister.
+    holdPriceModifiers([
+      {
+        entity: 'stores',
+        key: 'steinehaus',
+        factor: 20
+      },
+      {
+        entity: 'categories',
+        key: '5',
+        factor: 2
+      }
+    ])
+    forgetPlan()
+    expect((await planFor(list.id)).lines[0]).toMatchObject({
+      store: 'brickmeister',
+      price: 2.4
+    })
+    forgetPlan()
+  })
+
+  it('reaches a lot through its region and province, which it knows only through its seller', async () => {
+    holdPriceModifiers([
+      {
+        entity: 'regions',
+        key: 'Europe',
+        factor: 2
+      },
+      {
+        entity: 'provinces',
+        key: 'DE-Bayern',
+        factor: 0
+      }
+    ])
+    const regions = await rowsOf({
+      entity: 'regions'
+    })
+    expect(regions.find((row) => row.fields.region === 'Europe')!.fields.priceModifier).toBe(2)
+    const provinces = await rowsOf({
+      entity: 'provinces',
+      expr: 'country:"DE"'
+    })
+    expect(provinces.find((row) => row.fields.province === 'DE-Bayern')!.fields.priceModifier).toBe(0)
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    // Steinehaus is in Bayern: nought times anything is a lot for nothing,
+    // which is a figure and not a blank.
+    expect(rows.find((row) => row.fields.id === '901')!.fields.modPrice).toBe(0)
+  })
 })

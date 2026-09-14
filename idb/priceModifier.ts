@@ -16,8 +16,10 @@ import { dbDelete, getAll, put } from './db'
  *
  * Off, rather than a factor of one, when handed nothing: a modifier of one
  * is a row saying nothing, and a table of those would be the modifiers lost
- * among them. A factor that is not a positive number is refused rather than
- * clamped — there is no nearest legal value to nought that means anything.
+ * among them. Nought is allowed — it prices every lot of the thing at
+ * nothing, which is how to say "count this as free" or to push a colour to
+ * the head of every plan. Less than nought is refused rather than clamped: a
+ * negative price is not a price.
  */
 export async function setPriceModifier(
   db: IDBPDatabase,
@@ -29,7 +31,7 @@ export async function setPriceModifier(
     await dbDelete(db, stores.PRICE_MODIFIERS, [entity, key])
     return undefined
   }
-  if (!Number.isFinite(factor) || factor <= 0) {
+  if (!Number.isFinite(factor) || factor < 0) {
     return undefined
   }
   const modifier: PriceModifier = {

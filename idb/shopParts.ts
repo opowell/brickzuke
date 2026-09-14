@@ -139,13 +139,15 @@ interface Best {
  * Colour and condition narrow only when the line states them: a list asking for
  * a brick in no particular colour takes it in any, which is also what an
  * inventory line copied from a set without a colour means. A lot with no price
- * is no offer at all — the one thing a comparison cannot do without.
+ * is no offer at all — the one thing a comparison cannot do without. A lot at
+ * nought is one: the price handed in is the modified one, and a factor of
+ * nought is somebody saying every lot of that is theirs for the taking.
  */
 function eligible(line: WantedLine, lot: CandidateLot): boolean {
   if (!buyable(line) || lot.record !== line.record) {
     return false
   }
-  if (typeof lot.price !== 'number' || !Number.isFinite(lot.price) || lot.price <= 0) {
+  if (typeof lot.price !== 'number' || !Number.isFinite(lot.price) || lot.price < 0) {
     return false
   }
   if (!lot.store) {

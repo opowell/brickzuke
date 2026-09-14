@@ -715,16 +715,17 @@ export const colorItemColumns: ColumnDef[] = [
 
 /**
  * The factor somebody has put on every lot of this row's — colour, seller,
- * category, condition, country or item type — as the box that sets it.
+ * category, condition, country, item type, region or province — as the box
+ * that sets it.
  *
- * One column on six tables, and the same on each: what it scales is the lots
+ * One column on eight tables, and the same on each: what it scales is the lots
  * table's price, whichever table it stands on. See [CellPriceModifier], and
  * [priceModifiers] for what the factors do.
  */
 const priceModifierColumn: ColumnDef = {
   key: 'priceModifier',
   label: 'Price mod.',
-  hint: 'Multiplies the price of every lot of this — 1.1 marks them up a tenth, 0.9 down; blank leaves them alone',
+  hint: 'Multiplies the price of every lot of this — 1.1 marks them up a tenth, 0.9 down, 0 makes them free; blank leaves them alone',
   kind: 'component',
   component: CellPriceModifier,
   width: '110px',
@@ -1473,7 +1474,8 @@ export const regionColumns: ColumnDef[] = [
     sort: 'countries',
     format: counted,
     click: (row) => narrowTo('countries', 'region', String(row.fields.region ?? ''))
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -1588,7 +1590,8 @@ export const provinceColumns: ColumnDef[] = [
     width: '140px',
     sort: 'region',
     click: (row) => narrowTo('regions', 'region', String(row.fields.region ?? ''))
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -2593,6 +2596,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'countries',
           label: 'Countries'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },
@@ -2657,6 +2664,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'region',
           label: 'Region'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },

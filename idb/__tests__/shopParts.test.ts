@@ -196,6 +196,22 @@ describe('what a line refuses', () => {
     expect(plan.lines[0].shortfall).toBe('none')
   })
 
+  it('takes a lot at nought, that being a modifier of nought and not a missing price', async () => {
+    const plan = await planPurchase([wanting()], walking([
+      lot({
+        store: 'dear',
+        price: 0.5
+      }),
+      lot({
+        store: 'free',
+        price: 0
+      })
+    ]))
+    expect(plan.lines[0].store).toBe('free')
+    expect(plan.lines[0].price).toBe(0)
+    expect(plan.lines[0].cost).toBe(0)
+  })
+
   it('says a part of somebody own is not for sale anywhere', async () => {
     // A `U-` record — one of theirs — which no lot will ever carry, however
     // many lots are walked.

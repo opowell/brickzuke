@@ -592,9 +592,8 @@ interface LotDirectory {
   /**
    * BrickLink's category id behind each record the lots are of — for the
    * category factors, which are the one modifier a lot cannot apply off its
-   * own fields. Empty wherever nobody has put a factor on a category, or
-   * where the lots come off a cursor and their records are not known ahead:
-   * see [categoriesBehind].
+   * own fields. Empty wherever nobody has put a factor on a category: see
+   * [categoriesBehind].
    */
   categories: Map<string, string>
 }
@@ -702,7 +701,7 @@ async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
  */
 export async function eachLot(visit: (lot: ShellRow) => void): Promise<number> {
   let seen = 0
-  const directory = await lotDirectory()
+  const directory = await lotDirectory(await recordsOfEveryLot())
   for (const lot of readStoreInventories()) {
     visit(toStoreInventoryRow(lot, directory))
     seen++
@@ -719,6 +718,38 @@ export async function eachLot(visit: (lot: ShellRow) => void): Promise<number> {
     db.close()
   }
   return seen
+}
+
+/**
+ * The distinct records every lot brickzuke holds is of — what [eachLot] has to
+ * know ahead of its walk for the category factors to reach the lots off the
+ * cursor, a lookup being nothing that can happen between one cursor step and
+ * the next.
+ *
+ * A second pass over the stored lots, keeping one string per distinct record
+ * and nothing else: a seller stocks the same part in nine colours, so the set
+ * is bounded well below the lots. Not made at all while nobody has put a
+ * factor on a category, which leaves the walk as it was.
+ */
+async function recordsOfEveryLot(): Promise<Set<string>> {
+  const records = new Set<string>()
+  if (!anyPriceModifierOn('categories')) {
+    return records
+  }
+  for (const lot of readStoreInventories()) {
+    records.add(`${lot.itemType}-${lot.itemNumber}`)
+  }
+  const db = await getDbConnection()
+  try {
+    let cursor = await openCursor(db, dbStores.STORE_LOTS)
+    while (cursor) {
+      records.add((cursor.value as StoredStoreLot).record)
+      cursor = await cursor.continue()
+    }
+  } finally {
+    db.close()
+  }
+  return records
 }
 
 /**
@@ -797,7 +828,10 @@ function toRegionRow(region: Region): ShellRow {
       // The field a country carries its region in, which is this type's scope.
       region: region.name,
       name: region.name,
-      countries: region.countryCount
+      countries: region.countryCount,
+      // The factor somebody has put on every lot from this part of the
+      // world, if any — see [priceModifiers].
+      priceModifier: priceModifierOf('regions', region.name)
     }
   }
 }
@@ -1172,7 +1206,9 @@ async function provinceRows(request: QueryRequest, fetching = true): Promise<She
       stores: province.stores,
       // Every piece for sale in the province, summed over its sellers from the
       // directory's own per-seller figure — see the stores table's `items`.
-      items: province.items
+      items: province.items,
+      // As on a region: the factor on every lot from this province.
+      priceModifier: priceModifierOf('provinces', id)
     }
   }))
 }

@@ -596,7 +596,11 @@ function asPreview(entityKey: string, read: Read, expr: string): Preview {
   const columns = shownColumns(
     catalogSchema.value.entities.find((entity) => entity.key === entityKey)
   )
-  const pictures = read.rows.some((row) => row.fields.image)
+  // Countries carry a flag in `fields.image`, but a flag with no name beside
+  // it says less than the directory itself does: `DE` on its own is not
+  // Germany the way a 2 x 2 brick in Aqua is Aqua. So the card stays a list
+  // of names, each with its own flag in front of it — see [home__pill-flag].
+  const pictures = entityKey !== 'countries' && read.rows.some((row) => row.fields.image)
   const shown = read.rows.slice(0, pictures ? PICTURES_SHOWN : PILLS_SHOWN)
   return {
     kind: pictures ? 'pictures' : 'pills',
