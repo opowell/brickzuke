@@ -32,6 +32,7 @@ const stores: {
   SHOP_LIST_ITEMS: StoreDefinition
   CARTS: StoreDefinition
   CART_LINES: StoreDefinition
+  PRICE_MODIFIERS: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -268,6 +269,20 @@ const stores: {
     name: 'cartLines',
     keyPath: 'id',
     autoIncrement: true
+  },
+  /**
+   * A price modifier: a factor somebody puts on every lot of one colour, one
+   * seller, one category — see [PriceModifier].
+   *
+   * Keyed by what it is on rather than by a number of its own, because that
+   * is the one thing a modifier cannot be changed to: a factor on Red is a
+   * factor on Red, and typing a second one over it is changing it, not making
+   * another. The only store here with a compound key, for that reason.
+   * Somebody's own, like the eight above, and never cleared.
+   */
+  PRICE_MODIFIERS: {
+    name: 'priceModifiers',
+    keyPath: ['entity', 'key']
   }
 }
 

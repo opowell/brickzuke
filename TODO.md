@@ -1,1 +1,1 @@
-- add "price modifier" fields, store as modifier profiles.
+- price modifier profiles: several named sets of modifiers, switched between in Settings. The modifiers themselves are in (see PRICE_MODIFIERS).

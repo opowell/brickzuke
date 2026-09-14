@@ -40,6 +40,8 @@ import {createCart,
   updateCart,
   updateCartLine} from '../../idb/cart'
 import type { CartLot } from '../../idb/cart'
+import { setPriceModifier } from '../../idb/priceModifier'
+import { MODIFIED } from './priceModifiers'
 import { forgetPlan } from './shopPlan'
 import { forgetCatalogRows } from './catalogRows'
 import { forgetPartCounts } from './partCounts'
@@ -65,6 +67,12 @@ async function writing<T>(
   } finally {
     db.close()
     if (touches === 'categories' || touches === 'items') {
+      forgetCatalogRows()
+    }
+    // A factor is a field on the row it is on, and three of the tables it
+    // can be on are held — so a modifier written drops them too, or the box
+    // would read the old factor the next time the table was opened.
+    if (touches === 'priceModifiers') {
       forgetCatalogRows()
     }
     // A part added to a set of theirs is a number on that set's row of the
@@ -356,6 +364,28 @@ function cartLotOf(lot: Record<string, unknown>): CartLot {
     nativePrice: text(lot.nativePrice),
     available: Number.isFinite(available) && available > 0 ? available : undefined
   }
+}
+
+/**
+ * The factor box on a row of one of the six modifiable tables: this factor on
+ * every lot of it, or none.
+ *
+ * The row is what the box has, so the modifier is keyed off it: the table it
+ * is a row of, and the key that table's own scope field carries — see
+ * [MODIFIED]. Nothing is written for a row of any other table, or a row that
+ * carries no key; blank takes the factor off.
+ */
+export async function setPriceModifierFor(
+  entityKey: string,
+  fields: Record<string, unknown>,
+  factor: number | undefined
+): Promise<void> {
+  const on = MODIFIED[entityKey]?.on
+  const key = on === undefined ? undefined : fields[on]
+  if (key === undefined || key === null || key === '') {
+    return
+  }
+  await writing('priceModifiers', (db) => setPriceModifier(db, entityKey, String(key), factor))
 }
 
 /**

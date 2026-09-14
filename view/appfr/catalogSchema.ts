@@ -34,6 +34,7 @@ import CellCartQuantity from './CellCartQuantity.vue'
 import CellUserNumber from './CellUserNumber.vue'
 import CellUserPick from './CellUserPick.vue'
 import CellUserText from './CellUserText.vue'
+import CellPriceModifier from './CellPriceModifier.vue'
 import { openedOwnSet } from './userWrites'
 import { SETTINGS } from './settings'
 import { userCounts } from './userCounts'
@@ -713,6 +714,24 @@ export const colorItemColumns: ColumnDef[] = [
 ]
 
 /**
+ * The factor somebody has put on every lot of this row's — colour, seller,
+ * category, condition, country or item type — as the box that sets it.
+ *
+ * One column on six tables, and the same on each: what it scales is the lots
+ * table's price, whichever table it stands on. See [CellPriceModifier], and
+ * [priceModifiers] for what the factors do.
+ */
+const priceModifierColumn: ColumnDef = {
+  key: 'priceModifier',
+  label: 'Price mod.',
+  hint: 'Multiplies the price of every lot of this — 1.1 marks them up a tenth, 0.9 down; blank leaves them alone',
+  kind: 'component',
+  component: CellPriceModifier,
+  width: '110px',
+  sort: 'priceModifier'
+}
+
+/**
  * Categories, as the original draws them: type, how many items are in it, and
  * the name with its id after it. Both the count and the name lead to those
  * items, which is what `clickCategoryItemsFn` does.
@@ -758,7 +777,8 @@ export const categoryColumns: ColumnDef[] = [
     width: '300px',
     sort: 'name',
     click: (row) => narrowToCategoryItems(row)
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -870,7 +890,8 @@ export const colorColumns: ColumnDef[] = [
     hint: 'The last year anything was made in it, which for a colour still in use is this one',
     width: '115px',
     sort: 'yearTo'
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -914,7 +935,8 @@ export const itemTypeColumns: ColumnDef[] = [
     sort: 'categories',
     format: counted,
     click: (row) => narrowTo('categories', 'type', String(row.fields.type ?? ''))
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -1152,10 +1174,19 @@ function pricedIn(columns: ColumnDef[], currency: string): ColumnDef[] {
   if (!currency) {
     return columns
   }
-  return columns.map((column) => (column.key === 'priceValue' ? {
-    ...column,
-    hint: `What one piece costs in ${currency}, converted from what the seller charges`
-  } : column))
+  return columns.map((column) =>
+    column.key === 'priceValue'
+      ? {
+        ...column,
+        hint: `What one piece costs in ${currency}, converted from what the seller charges`
+      }
+      : column.key === 'modPrice'
+        ? {
+          ...column,
+          hint: `That price in ${currency} times every price modifier that applies to this lot — hover for the working`
+        }
+        : column
+  )
 }
 
 /** The expression the shell is showing, which is the one in the URL. */
@@ -1204,6 +1235,18 @@ export const storeInventoryColumns: ColumnDef[] = [
     hint: 'What one piece costs, converted into your own currency',
     width: '95px',
     sort: 'priceValue'
+  },
+  // The same figure with the price modifiers on this lot applied — its
+  // colour's, its seller's, its category's — and the working on hover. Beside
+  // the price because it is read against it. See [priceModifiers].
+  {
+    key: 'modPrice',
+    kind: 'component',
+    component: CellPrice,
+    label: 'Mod. price',
+    hint: 'The price times every price modifier that applies to this lot — hover for the working',
+    width: '115px',
+    sort: 'modPrice'
   },
   // What the lot is *of*, and the way through to it. The original had no such
   // column: every row on an item's page is the same item, so the only thing
@@ -1328,7 +1371,8 @@ export const conditionColumns: ColumnDef[] = [
     width: '125px',
     sort: 'quantity',
     format: counted
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -1477,7 +1521,8 @@ export const countryColumns: ColumnDef[] = [
     width: '140px',
     sort: 'region',
     click: (row) => narrowTo('regions', 'region', String(row.fields.region ?? ''))
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -1618,7 +1663,8 @@ export const storeColumns: ColumnDef[] = [
     hint: 'Whether the seller takes payment straight away, rather than by invoice after they have quoted postage',
     width: '190px',
     sort: 'instantCheckout'
-  }
+  },
+  priceModifierColumn
 ]
 
 /**
@@ -2162,6 +2208,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'name',
           label: 'Name'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },
@@ -2205,6 +2255,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'yearTo',
           label: 'Year to'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },
@@ -2232,6 +2286,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'categories',
           label: 'Categories'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },
@@ -2455,6 +2513,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'feedback',
           label: 'Feedback'
+        },
+        {
+          key: 'modPrice',
+          label: 'Mod. price'
         }
       ]
     },
@@ -2484,6 +2546,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'quantity',
           label: 'Quantity'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },
@@ -2553,6 +2619,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'region',
           label: 'Region'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },
@@ -2621,6 +2691,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'instantCheckout',
           label: 'Instant Checkout'
+        },
+        {
+          key: 'priceModifier',
+          label: 'Price mod.'
         }
       ]
     },

@@ -17,10 +17,16 @@
  * Not the `format` on an ordinary cell, which would have to put the currency
  * back into the text to say it at all: the shell's own hover is the cell's
  * value, and this needs a hover that is not the cell.
+ *
+ * Draws the modified price as well, under the `modPrice` column: the same
+ * figure with the factors on the lot applied — see [priceModifiers] — and a
+ * hover that shows the working, which is the one thing a scaled number
+ * needs beside it.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
+import { modifiersApplying } from './priceModifiers'
 
 const props = defineProps({
   row: {
@@ -62,15 +68,45 @@ const text = computed(() => {
   return amount.toFixed(places)
 })
 
+/** Which column this is, the two being drawn by the one cell. */
+const modified = computed(() => props.column.key === 'modPrice')
+
 /** What was converted, and what the seller asks — the same thing said once. */
 const title = computed(() => {
   const converted = String(props.row.fields.price ?? '')
+  if (modified.value) {
+    return working(converted)
+  }
   const native = String(props.row.fields.nativePrice ?? '')
   if (!native || native === converted) {
     return converted
   }
   return `${converted} — seller charges ${native}`
 })
+
+/** The tables a factor can be on, as the hover names them. */
+const ON: Record<string, string> = {
+  colors: 'colour',
+  stores: 'seller',
+  categories: 'category',
+  conditions: 'condition',
+  countries: 'country',
+  itemTypes: 'type'
+}
+
+/**
+ * The price and every factor on it — `EUR 0.10 × 1.2 (colour) × 0.9
+ * (seller)` — or the price alone, which says no factor applies.
+ */
+function working(price: string): string {
+  const applied = modifiersApplying(props.row.fields)
+  if (!applied.length) {
+    return price ? `${price} — no price modifier applies` : ''
+  }
+  return [price, ...applied.map(({
+    entity, factor
+  }) => `${factor} (${ON[entity] ?? entity})`)].join(' × ')
+}
 </script>
 
 <template>

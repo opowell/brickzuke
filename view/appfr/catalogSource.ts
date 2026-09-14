@@ -56,6 +56,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
+import { anyPriceModifierOn, modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
@@ -474,7 +475,7 @@ function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): Shel
   const seller = directory.sellers.get(lot.strSellerUsername)
   // The one place the viewer's currency is written down — see [priceCurrency].
   notePriceCurrency(lot.price)
-  return {
+  const row: ShellRow = {
     // Stringified here as well as at the parse. The shell trims a row's id, so
     // a number reaches it as a render-time TypeError that empties the table
     // without emptying the count — too quiet a failure to leave to one caller
@@ -525,6 +526,22 @@ function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): Shel
       cartQuantity: cartQuantityOf(lot.invId)
     }
   }
+  return priced(row, directory)
+}
+
+/**
+ * A lot's row with the two fields the price modifiers add — the item's
+ * category, where the directory looked it up, and what the price comes to
+ * with every factor applied. See [priceModifiers] for why the category is
+ * filed under a name no term reaches, and [modifiedPrice] for the figure.
+ */
+function priced(row: ShellRow, directory: LotDirectory): ShellRow {
+  const categoryId = directory.categories.get(String(row.fields.record ?? ''))
+  if (categoryId !== undefined) {
+    row.fields.categoryId = categoryId
+  }
+  row.fields.modPrice = modifiedPrice(row.fields)
+  return row
 }
 
 /**
@@ -561,16 +578,55 @@ function toPrice(value: string | undefined): number | undefined {
  * say what part of the world it is from without them. What must never be read
  * whole is the lots themselves, which is what [eachLot] is for.
  */
-async function lotDirectory(): Promise<LotDirectory> {
+async function lotDirectory(records: Iterable<string> = []): Promise<LotDirectory> {
   return {
     sellers: new Map((await readStores()).map((store) => [store.id, store])),
-    countries: new Map((await readCountries()).map((one) => [one.countryCode, one]))
+    countries: new Map((await readCountries()).map((one) => [one.countryCode, one])),
+    categories: await categoriesBehind(new Set(records))
   }
 }
 
 interface LotDirectory {
   sellers: Map<string, Store>
   countries: Map<string, Country>
+  /**
+   * BrickLink's category id behind each record the lots are of — for the
+   * category factors, which are the one modifier a lot cannot apply off its
+   * own fields. Empty wherever nobody has put a factor on a category, or
+   * where the lots come off a cursor and their records are not known ahead:
+   * see [categoriesBehind].
+   */
+  categories: Map<string, string>
+}
+
+/**
+ * The category behind each of these records, where one is worth looking up.
+ *
+ * One point lookup per distinct record, in one connection, the way [reach]
+ * reads the same store for its cards: a seller stocks the same part in nine
+ * colours, so the set is far smaller than the lots. Not paid at all while
+ * nobody has put a factor on a category — a lookup per record on every draw
+ * of a seller's front is a cost worth incurring only for an answer somebody
+ * asked for.
+ */
+async function categoriesBehind(records: ReadonlySet<string>): Promise<Map<string, string>> {
+  const categories = new Map<string, string>()
+  if (!records.size || !anyPriceModifierOn('categories')) {
+    return categories
+  }
+  const db = await getDbConnection()
+  try {
+    for (const record of records) {
+      const item = await get<BrickLinkItem>(db, dbStores.BRICK_LINK_ITEMS, record)
+      const category = item?.categoryId ?? item?.['Category ID']
+      if (category !== undefined && category !== '') {
+        categories.set(record, String(category))
+      }
+    }
+  } finally {
+    db.close()
+  }
+  return categories
 }
 
 /** One stored lot, as a row. */
@@ -582,7 +638,7 @@ function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
     const country = seller ? countries.get(seller.countryID) : undefined
     // As on an item's own lots: the printed figure is where the currency is.
     notePriceCurrency(lot.displayPrice)
-    return {
+    const row: ShellRow = {
       id: lot.id,
       entityKey: 'inventories',
       entityLabel: 'Store inventories',
@@ -620,11 +676,12 @@ function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
         cartQuantity: cartQuantityOf(lot.id)
       }
     }
+    return priced(row, directory)
   }
 }
 
 async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
-  const directory = await lotDirectory()
+  const directory = await lotDirectory(lots.map((lot) => lot.record))
   return lots.map((lot) => toStoreLotRow(lot, directory))
 }
 
@@ -759,7 +816,10 @@ function toCountryRow(country: Country): ShellRow {
       name: country.countryName,
       image: country.image,
       region: country.regionId,
-      stores: country.storeCount
+      stores: country.storeCount,
+      // The factor somebody has put on every lot from this country, if any
+      // — see [priceModifiers].
+      priceModifier: priceModifierOf('countries', country.countryCode)
     }
   }
 }
@@ -789,7 +849,9 @@ function toStoreRow(store: Store, regions: Map<string, string>): ShellRow {
       items: store.items,
       // A flag rather than a number, and drawn as the word or nothing: the
       // original prints the raw boolean, which puts `false` in every other row.
-      instantCheckout: store.instantCheckout === true ? 'Instant' : ''
+      instantCheckout: store.instantCheckout === true ? 'Instant' : '',
+      // As on a country: the factor on every lot of this seller's.
+      priceModifier: priceModifierOf('stores', store.id)
     }
   }
 }
@@ -923,7 +985,7 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
     return await asStoreLotRows(lots)
   }
   const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
-  const directory = await lotDirectory()
+  const directory = await lotDirectory(lots.map((lot) => `${lot.itemType}-${lot.itemNumber}`))
   const rows = lots.map((lot) => toStoreInventoryRow(lot, directory))
   if (record) {
     return rows
@@ -989,7 +1051,9 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
         lots: lots.length ? mine.length : undefined,
         quantity: lots.length
           ? mine.reduce((sum, lot) => sum + Number(lot.fields.quantity ?? 0), 0)
-          : undefined
+          : undefined,
+        // As on a country: the factor on every lot in this condition.
+        priceModifier: priceModifierOf('conditions', code)
       }
     }
   })

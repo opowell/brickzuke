@@ -42,6 +42,7 @@ import {createCart,
   loadCarts,
   setCartLine,
   updateCartLine} from '../cart'
+import { loadPriceModifiers, setPriceModifier } from '../priceModifier'
 
 let db: IDBPDatabase
 
@@ -56,6 +57,7 @@ beforeEach(async () => {
     STORES.SHOP_LIST_ITEMS,
     STORES.CARTS,
     STORES.CART_LINES,
+    STORES.PRICE_MODIFIERS,
     STORES.ITEM_INVENTORIES
   ]) {
     await db.clear(store.name)
@@ -333,7 +335,10 @@ describe('the stores nobody scraped', () => {
       'USER_INVENTORIES',
       'USER_INVENTORY_LINES',
       'SHOP_LISTS',
-      'SHOP_LIST_ITEMS'
+      'SHOP_LIST_ITEMS',
+      'CARTS',
+      'CART_LINES',
+      'PRICE_MODIFIERS'
     ]) {
       expect(cleared).not.toContain(store)
     }
@@ -410,5 +415,33 @@ describe('carts', () => {
     expect(held.quantity).toBe(9)
     expect(held.record).toBe('P-3001')
     expect(held.available).toBe(50)
+  })
+})
+
+describe('price modifiers', () => {
+  it('puts a factor on one thing, changes it in place, and takes it off', async () => {
+    await setPriceModifier(db, 'colors', '5', 1.2)
+    await setPriceModifier(db, 'stores', 'brickmeister', 0.9)
+    expect(await loadPriceModifiers(db)).toHaveLength(2)
+
+    // Keyed by what it is on: a second factor on Red is the first one
+    // changed, not a second row.
+    await setPriceModifier(db, 'colors', '5', 1.5)
+    const held = await loadPriceModifiers(db)
+    expect(held).toHaveLength(2)
+    expect(held.find((one) => one.entity === 'colors')).toMatchObject({
+      key: '5',
+      factor: 1.5
+    })
+
+    await setPriceModifier(db, 'colors', '5', undefined)
+    expect((await loadPriceModifiers(db)).map((one) => one.entity)).toEqual(['stores'])
+  })
+
+  it('refuses nought and less, a price scaled to nothing being nothing anybody meant', async () => {
+    expect(await setPriceModifier(db, 'colors', '5', 0)).toBeUndefined()
+    expect(await setPriceModifier(db, 'colors', '5', -1)).toBeUndefined()
+    expect(await setPriceModifier(db, 'colors', '5', Number.NaN)).toBeUndefined()
+    expect(await loadPriceModifiers(db)).toHaveLength(0)
   })
 })

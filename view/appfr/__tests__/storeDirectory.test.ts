@@ -994,3 +994,113 @@ async function settle() {
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
 }
+
+const {
+  holdPriceModifiers
+} = await import('../priceModifiers')
+
+describe('price modifiers', () => {
+  beforeAll(async () => {
+    // The item behind lot 901, for the one factor a lot cannot apply off its
+    // own fields: its category is on the catalogue record, not on the lot.
+    const db = await getDbConnection()
+    await put(db, STORES.BRICK_LINK_ITEMS, {
+      id: 'P-3001',
+      itemType: 'P',
+      Number: '3001',
+      Name: 'Brick 2 x 4',
+      'Category ID': '5',
+      categoryId: '5'
+    })
+    db.close()
+  })
+
+  afterAll(() => {
+    holdPriceModifiers([])
+  })
+
+  it('prices every lot as the price times each factor that applies to it', async () => {
+    holdPriceModifiers([
+      {
+        entity: 'colors',
+        key: '5',
+        factor: 2
+      },
+      {
+        entity: 'stores',
+        key: 'steinehaus',
+        factor: 0.5
+      },
+      {
+        entity: 'categories',
+        key: '5',
+        factor: 3
+      },
+      {
+        entity: 'conditions',
+        key: 'N',
+        factor: 10
+      }
+    ])
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    const byId = new Map(rows.map((row) => [row.fields.id, row]))
+    // Red, this seller's, a brick, used: three of the four apply.
+    expect(byId.get('901')!.fields.modPrice).toBeCloseTo(0.1 * 2 * 0.5 * 3)
+    // The set: this seller's and new, and nothing else applies — the item is
+    // not in the catalogue seeded here, so no category is found for it.
+    expect(byId.get('902')!.fields.modPrice).toBeCloseTo(24 * 0.5 * 10)
+    // The category is carried under a name no term reaches, so `category:`
+    // goes on meaning on the lots table what it meant before.
+    expect(byId.get('901')!.fields.categoryId).toBe('5')
+    expect(byId.get('901')!.fields.category).toBeUndefined()
+  })
+
+  it('is the price itself where nothing applies, so the column reads as prices throughout', async () => {
+    holdPriceModifiers([])
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'store:"steinehaus"'
+    })
+    const lot = rows.find((row) => row.fields.id === '901')!
+    expect(lot.fields.modPrice).toBe(0.1)
+    // And no lookup was made for a category nobody put a factor on.
+    expect(lot.fields.categoryId).toBeUndefined()
+  })
+
+  it('shows each factor on the row of the thing it is on', async () => {
+    holdPriceModifiers([
+      {
+        entity: 'stores',
+        key: 'steinehaus',
+        factor: 0.5
+      },
+      {
+        entity: 'countries',
+        key: 'US',
+        factor: 1.25
+      },
+      {
+        entity: 'conditions',
+        key: 'U',
+        factor: 0.8
+      }
+    ])
+    const stores = await rowsOf({
+      entity: 'stores'
+    })
+    expect(stores.find((row) => row.fields.store === 'steinehaus')!.fields.priceModifier).toBe(0.5)
+    expect(stores.find((row) => row.fields.store === 'brickmeister')!.fields.priceModifier).toBeUndefined()
+    const countries = await rowsOf({
+      entity: 'countries'
+    })
+    expect(countries.find((row) => row.fields.country === 'US')!.fields.priceModifier).toBe(1.25)
+    const conditions = await rowsOf({
+      entity: 'conditions'
+    })
+    expect(conditions.find((row) => row.fields.condition === 'U')!.fields.priceModifier).toBe(0.8)
+    expect(conditions.find((row) => row.fields.condition === 'N')!.fields.priceModifier).toBeUndefined()
+  })
+})

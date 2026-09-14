@@ -27,6 +27,7 @@ import type { Cart, UserCategory } from '../../idb/userTypes'
 import type { BrickLinkCategory } from '../stores/bricklink/catalog-download-page'
 import { userCategoryRef } from '../../idb/userCategory'
 import { refreshActiveCartLines } from './activeCart'
+import { refreshPriceModifiers } from './priceModifiers'
 import { activeCart } from './settings'
 
 /** The populations, by the entity key each is drawn under. */
@@ -127,6 +128,9 @@ export async function refreshUserCounts(): Promise<void> {
     // [activeCart]. In the same connection, and before the counts land, so the
     // query they re-run finds the lines already in hand.
     await refreshActiveCartLines(db)
+    // And the price modifiers, which every lot's row reads for the same
+    // reason — see [priceModifiers].
+    await refreshPriceModifiers(db)
     userCounts.value = counted
   } finally {
     db.close()

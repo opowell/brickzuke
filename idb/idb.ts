@@ -41,7 +41,10 @@ const DB_NAME = 'brickzuke'
 // 28 adds CARTS and CART_LINES — which lots somebody means to order, from whom
 // and how many. Made by the loop below like any other, and under the same rule
 // as the other stores nobody scraped: never cleared.
-const DB_VERSION = 28
+// 29 adds PRICE_MODIFIERS — a factor somebody puts on the prices of every lot
+// of one colour, seller, category, condition, country or item type. Made by
+// the loop below like any other; theirs, and never cleared.
+const DB_VERSION = 29
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

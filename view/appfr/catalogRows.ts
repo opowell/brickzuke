@@ -15,6 +15,7 @@
  */
 import type { ShellRow } from 'header-content-layout'
 import { SETTINGS } from './settings'
+import { priceModifierOf } from './priceModifiers'
 import type { IDBPDatabase } from 'idb'
 import { getAll, getAllFromIndex } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
@@ -103,7 +104,10 @@ async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
         // against — as `categoryId` is, and for the same reason.
         typeId: category.type?.split(',')[0].trim(),
         // The id after the name, the way the original category cell reads.
-        name: category.name + ' (' + category.id + ')'
+        name: category.name + ' (' + category.id + ')',
+        // The factor somebody has put on every lot of this category, if any
+        // — the one field here that is theirs. See [priceModifiers].
+        priceModifier: priceModifierOf('categories', brickLinkId)
       }
     })
   }
@@ -142,7 +146,8 @@ async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
         own: true,
         category: ref,
         items: items.filter((item) => item.categoryId === ref).length,
-        name: category.name
+        name: category.name,
+        priceModifier: priceModifierOf('categories', ref)
       }
     })
   }
@@ -195,7 +200,9 @@ async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
         wanted: total<BrickLinkColor>(joined, (c) => toNumber(c.Wanted)),
         forSale: total<BrickLinkColor>(joined, (c) => toNumber(c['For Sale'])),
         yearFrom: years.length ? Math.min(...years) : undefined,
-        yearTo: years.length ? Math.max(...years) : undefined
+        yearTo: years.length ? Math.max(...years) : undefined,
+        // As on a category: the factor on every lot of this colour.
+        priceModifier: priceModifierOf('colors', brickLinkId)
       }
     })
   }
@@ -229,7 +236,8 @@ async function itemTypeRows(db: IDBPDatabase): Promise<ShellRow[]> {
       // term in any of them reads back through this field to a type's name.
       type: itemTypeCode(itemType),
       items: itemType.countItems,
-      categories: itemType.categories
+      categories: itemType.categories,
+      priceModifier: priceModifierOf('itemTypes', itemTypeCode(itemType))
     }
   }))
 }

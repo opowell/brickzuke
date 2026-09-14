@@ -151,3 +151,29 @@ export interface CartLine {
   available?: number
   quantity: number
 }
+
+/**
+ * A price modifier: a factor on the price of every lot of one thing.
+ *
+ * The thing is a row of one of the catalogue's cross-sections over the lots —
+ * a colour, a seller, a category, a condition, a country, an item type — named
+ * by the table it is a row of and the key that table's own `scope` field
+ * carries: `colors` and `5` for Red, `stores` and `brickmeister`. A lot's
+ * modified price is its price times every factor that applies to it, so a
+ * factor of 1.1 on Red and 0.9 on one seller prices that seller's red lots at
+ * 0.99 of what they ask. Blank is no factor, and not a factor of nought; the
+ * box refuses nought and anything below it, a price scaled to nothing being
+ * nothing anybody meant.
+ *
+ * Why anybody wants one: prices across sellers are not the whole cost — this
+ * seller's postage is dear, that colour is always a bargain second-hand — and
+ * a factor is the plainest way to say so once and have every lot say it.
+ */
+export interface PriceModifier {
+  /** The table the modified thing is a row of — `colors`, `stores`. */
+  entity: string
+  /** That row's key as its `scope` field carries it, as text — `5`, `brickmeister`. */
+  key: string
+  /** What the price is multiplied by. Positive. */
+  factor: number
+}

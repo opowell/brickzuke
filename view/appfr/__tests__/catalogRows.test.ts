@@ -16,7 +16,8 @@ import {cellTextOf,
   recordTerm,
   roleColumn,
   scopedEntity} from 'header-content-layout'
-import { rowsFor } from '../catalogRows'
+import { forgetCatalogRows, rowsFor } from '../catalogRows'
+import { holdPriceModifiers } from '../priceModifiers'
 import { catalogSchema } from '../catalogSchema'
 import { getDbConnection } from '../../../idb/idb'
 import { putAll } from '../../../idb/db'
@@ -273,6 +274,45 @@ describe('colour rows', () => {
     expect(aqua.fields.sets).toBe(60)
     expect(aqua.fields.yearFrom).toBe(1998)
     expect(aqua.fields.yearTo).toBe(2006)
+  })
+})
+
+describe('price modifiers on the held tables', () => {
+  it('carries each factor on the row it is on, under BrickLink\'s key and not brickzuke\'s', async () => {
+    holdPriceModifiers([
+      {
+        // Aqua by BrickLink's id — brickzuke's 2 is Tan's BrickLink id.
+        entity: 'colors',
+        key: '41',
+        factor: 1.2
+      },
+      {
+        entity: 'categories',
+        key: '5',
+        factor: 0.8
+      },
+      {
+        entity: 'itemTypes',
+        key: 'S',
+        factor: 3
+      }
+    ])
+    // Held rows are read once, so a factor written after the read has to
+    // drop them — which is what [userWrites] does after every modifier.
+    forgetCatalogRows()
+    try {
+      const colors = (await rowsFor('colors', getDbConnection))!
+      expect(colors.find((row) => row.fields.name === 'Aqua')!.fields.priceModifier).toBe(1.2)
+      expect(colors.find((row) => row.fields.name === 'Tan')!.fields.priceModifier).toBeUndefined()
+      const categories = (await rowsFor('categories', getDbConnection))!
+      expect(categories.find((row) => row.fields.category === 5)!.fields.priceModifier).toBe(0.8)
+      const types = (await rowsFor('itemTypes', getDbConnection))!
+      expect(types.find((row) => row.fields.type === 'S')!.fields.priceModifier).toBe(3)
+      expect(types.find((row) => row.fields.type === 'P')!.fields.priceModifier).toBeUndefined()
+    } finally {
+      holdPriceModifiers([])
+      forgetCatalogRows()
+    }
   })
 })
 
