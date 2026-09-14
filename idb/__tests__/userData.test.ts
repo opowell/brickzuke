@@ -41,6 +41,7 @@ import {createCart,
   loadCartLines,
   loadCarts,
   setCartLine,
+  setCartLines,
   updateCartLine} from '../cart'
 import { loadAllPriceModifiers, loadPriceModifiers, setPriceModifier } from '../priceModifier'
 import {createPriceModifierProfile,
@@ -421,6 +422,65 @@ describe('carts', () => {
     expect(held.quantity).toBe(9)
     expect(held.record).toBe('P-3001')
     expect(held.available).toBe(50)
+  })
+
+  it('writes a table of figures at once, the last word per lot standing', async () => {
+    const cart = await createCart(db)
+    const other = {
+      ...lot,
+      lotId: '4220',
+      record: 'P-3002'
+    }
+    await setCartLine(db, cart.id, other, 5)
+
+    await setCartLines(db, cart.id, [
+      // A new line, then the same lot again at a later figure: one line, at 9.
+      {
+        lot,
+        quantity: 4
+      },
+      {
+        lot,
+        quantity: 9
+      },
+      // A held line taken out — and a lot proposed then withdrawn, never made.
+      {
+        lot: other,
+        quantity: 0
+      },
+      {
+        lot: {
+          ...lot,
+          lotId: '4221'
+        },
+        quantity: 3
+      },
+      {
+        lot: {
+          ...lot,
+          lotId: '4221'
+        },
+        quantity: 0
+      }
+    ])
+    const held = await loadCartLines(db, cart.id)
+    expect(held.map((line) => [line.lotId, line.quantity])).toEqual([['4219', 9]])
+
+    // A line taken out and then wanted again in the same table stays, at the
+    // wanted figure, under its old key.
+    const [before] = await loadCartLines(db, cart.id)
+    await setCartLines(db, cart.id, [
+      {
+        lot,
+        quantity: 0
+      },
+      {
+        lot,
+        quantity: 2
+      }
+    ])
+    const [after] = await loadCartLines(db, cart.id)
+    expect([after.id, after.quantity]).toEqual([before.id, 2])
   })
 })
 

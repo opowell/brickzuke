@@ -10,12 +10,14 @@
  * A line is found by its lot, not by its key. The box on a lot knows the lot's
  * BrickLink id and nothing else about the cart, so [setCartLine] is the one
  * write it makes: a quantity for that lot in that cart, which makes a line, or
- * changes one, or — at nought — removes it.
+ * changes one, or — at nought — removes it. [setCartLines] is the same for a
+ * table of them at once, which is what the buttons over the column do.
  */
 import type { IDBPDatabase } from 'idb'
 import indices from './indices'
 import stores from './stores'
 import type { Cart, CartLine } from './userTypes'
+import { dbDelete, putAll } from './db'
 import {createRecord,
   listChildren,
   listRecords,
@@ -106,4 +108,68 @@ export async function updateCartLine(
 
 export async function removeCartLine(db: IDBPDatabase, id: number): Promise<void> {
   return removeRecord(db, stores.CART_LINES, id)
+}
+
+/** One lot and how many of it — what the header's Apply hands over per row. */
+export interface CartLineChange {
+  lot: CartLot
+  quantity: number
+}
+
+/**
+ * [setCartLine] for many lots at once: the lines read once, and the puts made
+ * in one transaction rather than one each.
+ *
+ * A seller runs to thousands of lots, and "every one of them to the most the
+ * seller has" is that many lines — `putAll` exists for exactly this, as the
+ * note on it in db.ts says. The removals are still one each, `dbDelete` being
+ * what there is; they are the cheaper half, and a cart emptied is the rarer
+ * press. The last change for a lot named twice is the one that stands.
+ */
+export async function setCartLines(
+  db: IDBPDatabase,
+  cartId: number,
+  changes: CartLineChange[]
+): Promise<void> {
+  const held = new Map((await loadCartLines(db, cartId)).map((line) => [line.lotId, line]))
+  // By lot, so a lot proposed twice is written once, at the later figure —
+  // and a lot removed and then wanted again is wanted.
+  const puts = new Map<string, Omit<CartLine, 'id'> | CartLine>()
+  const removed = new Set<number>()
+  for (const {
+    lot, quantity
+  } of changes) {
+    const wanted = Number.isFinite(quantity) ? Math.round(quantity) : 0
+    const line = held.get(lot.lotId)
+    if (wanted <= 0) {
+      puts.delete(lot.lotId)
+      if (line) {
+        removed.add(line.id)
+      }
+      continue
+    }
+    if (line) {
+      removed.delete(line.id)
+    }
+    puts.set(
+      lot.lotId,
+      line
+        ? {
+          ...line,
+          ...lot,
+          quantity: wanted
+        }
+        : {
+          ...lot,
+          cartId,
+          quantity: wanted
+        }
+    )
+  }
+  if (puts.size) {
+    await putAll(db, stores.CART_LINES, Array.from(puts.values()))
+  }
+  for (const id of removed) {
+    await dbDelete(db, stores.CART_LINES, id)
+  }
 }

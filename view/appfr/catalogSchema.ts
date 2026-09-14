@@ -32,6 +32,7 @@ import CellFlag from './CellFlag.vue'
 import CellParts from './CellParts.vue'
 import CellSetting from './CellSetting.vue'
 import CellCartQuantity from './CellCartQuantity.vue'
+import CartHeader from './CartHeader.vue'
 import CellUserNumber from './CellUserNumber.vue'
 import CellUserPick from './CellUserPick.vue'
 import CellUserText from './CellUserText.vue'
@@ -1325,14 +1326,19 @@ export const storeInventoryColumns: ColumnDef[] = [
   // The one column here that is somebody's own: how many of the lot are in
   // the active cart, as the box that changes it. Beside the seller's quantity
   // because it is capped by it, and because the two are read together — how
-  // many there are, how many to take. See [CellCartQuantity].
+  // many there are, how many to take. See [CellCartQuantity]; and over it the
+  // whole column at once, Max, 0, Apply and Reset — see [CartHeader], which is
+  // what the width is for.
   {
     key: 'cartQuantity',
     label: 'Cart',
     hint: 'How many of this lot to put in the active cart — pick the cart in Settings',
     kind: 'component',
     component: CellCartQuantity,
-    width: '100px',
+    header: CartHeader,
+    // Room for the label and the four buttons, `Apply 3,002` among them: a
+    // header the shell cannot fit is a header it cuts to an ellipsis.
+    width: '340px',
     sort: 'cartQuantity'
   },
   {

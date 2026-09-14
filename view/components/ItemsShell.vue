@@ -50,6 +50,8 @@ import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 import { rememberType } from '../appfr/recentTypes'
 import { refreshUserCounts } from '../appfr/userCounts'
 import { createRecordFor, deleteRecordsFor, shopPartsOf } from '../appfr/userWrites'
+import { cartSelection } from '../appfr/cartDraft'
+import { activeCart } from '../appfr/settings'
 import { narrowTo } from '../appfr/catalogSchema'
 import HomeCards from '../appfr/HomeCards.vue'
 
@@ -234,6 +236,18 @@ async function shopOpenSet() {
   }
 }
 
+/**
+ * Ticks on the lots table, while there is a cart to put them in.
+ *
+ * The shell offers ticks on a type that names an operation on a selection,
+ * and `selectable` where the host's bulk action is its own — which this is:
+ * the buttons over the Cart column act on the ticked lots where any are
+ * ticked. See [cartDraft], which holds the selection for the header to read.
+ * Offered only on that table and only with a cart active, since a tick with
+ * nothing to do to what it ticks is a control that leads nowhere.
+ */
+const cartTicks = computed(() => urlEntity.value === 'inventories' && activeCart.value !== '')
+
 /* The populations the four standing user types are headed by, which are also
    what tells the shell to look again after one is written — see [userCounts]. */
 onMounted(() => {
@@ -271,6 +285,8 @@ const plainTokens = {
       :tokens="plainTokens"
       :defaults="shellDefaults"
       :pages-note="pagesNote"
+      :selectable="cartTicks"
+      v-model:selected="cartSelection"
       @query-change="onQueryChange"
       @create="onCreate"
       @delete="onDelete"

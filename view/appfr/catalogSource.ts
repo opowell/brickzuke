@@ -1707,6 +1707,31 @@ function present(
   return sorted(rows.filter((row) => matches(row) && inRange(row)), request.query.sort, request.query.dir)
 }
 
+/**
+ * Every row the query matches, across every page — for an operation on the
+ * whole table rather than on the page of it the shell has in hand: the cart
+ * header's "all rows", say.
+ *
+ * `query` above, without the page taken out of it and without its shortcut for
+ * an un-narrowed query: the home screen has no use for the whole of a store,
+ * but a button over a column of it does. Reads only, as `query` does — a press
+ * on a header is no reason to fetch — and answers only for the types that are
+ * read whole; the items scan is not one of them, and is empty here.
+ */
+export async function matchingRows(request: QueryRequest): Promise<ShellRow[]> {
+  const key = entityKey(request)
+  const source = key ? fetched[key] : undefined
+  if (source) {
+    return present(
+      await source.rows(request, false),
+      request,
+      matcherBesides(request, ...addressesOf(source, request))
+    )
+  }
+  const held = key ? rowsFor(key, getDbConnection) : undefined
+  return held ? present(await held, request) : []
+}
+
 export const catalogSource: DataSource = {
   /**
    * The home screen's summary, and its only caller: it runs one of these per

@@ -37,9 +37,11 @@ import {createCart,
   deleteCart,
   removeCartLine,
   setCartLine,
+  setCartLines,
   updateCart,
   updateCartLine} from '../../idb/cart'
 import type { CartLot } from '../../idb/cart'
+import { cartDraft, dropDraft, resetDraft } from './cartDraft'
 import { setPriceModifier } from '../../idb/priceModifier'
 import {createPriceModifierProfile,
   deletePriceModifierProfile,
@@ -357,7 +359,36 @@ export async function setCartQuantity(
   }
   const available = Number(lot.quantity)
   const held = Number.isFinite(available) && available > 0 ? Math.min(quantity, available) : quantity
+  // What was typed is the word for this lot: a proposal the header made for it
+  // is dropped, and the box shows what it wrote.
+  dropDraft(lotId)
   await writing('cartLines', (db) => setCartLine(db, cartId, cartLotOf(lot), held))
+}
+
+/**
+ * Apply, over the Cart column: every figure the draft proposes, written.
+ *
+ * One transaction for the puts — see [setCartLines] — because a seller's
+ * whole inventory is what the draft most often holds. Held to what each
+ * seller has, as a typed figure is. The draft is dropped once written, so
+ * the boxes go back to reading the cart, which now says the same thing.
+ */
+export async function applyCartDraft(): Promise<void> {
+  const cartId = activeCartId()
+  if (!cartId || !cartDraft.value.size) {
+    return
+  }
+  const changes = Array.from(cartDraft.value.values()).map(({
+    fields, quantity
+  }) => {
+    const available = Number(fields.quantity)
+    return {
+      lot: cartLotOf(fields),
+      quantity: Number.isFinite(available) && available > 0 ? Math.min(quantity, available) : quantity
+    }
+  })
+  await writing('cartLines', (db) => setCartLines(db, cartId, changes))
+  resetDraft()
 }
 
 /** What a line keeps of the lot, read off the lot's row. */

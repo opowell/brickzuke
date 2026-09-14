@@ -14,10 +14,16 @@
  *
  * Disabled, and says why, while no cart is active: the box is still drawn so
  * the column reads as what it is, and the title is where to go to make it take.
+ *
+ * Where the header has proposed a figure for this lot — see [cartDraft] — the
+ * box shows that instead, marked as proposed, until Apply writes it or Reset
+ * drops it. Typing into the box is the word for this lot either way: it
+ * writes at once, and the proposal for it goes.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
+import { draftQuantityOf } from './cartDraft'
 import { activeCart } from './settings'
 import { setCartQuantity } from './userWrites'
 
@@ -46,10 +52,21 @@ function shown(value: unknown): string {
 
 const typed = ref(shown(props.value))
 
+/** The header's proposal for this lot, where it made one. */
+const proposed = computed(() => draftQuantityOf(props.row.fields.id))
+
+/*
+ * The box follows the proposal while there is one, and the stored figure
+ * otherwise — including the moment the proposal is dropped, when it has to
+ * fall back to what the cart holds rather than keep the number it was showing.
+ */
 watch(
-  () => props.value,
-  (value) => {
-    typed.value = shown(value)
+  [() => props.value, proposed],
+  ([value, draft]) => {
+    typed.value = draft === undefined ? shown(value) : String(draft)
+  },
+  {
+    immediate: true
   }
 )
 
@@ -62,9 +79,11 @@ const available = computed(() => {
 })
 
 const title = computed(() =>
-  active.value
-    ? 'How many of this lot to put in the active cart — blank or 0 takes it out'
-    : 'Choose an active cart in Settings first, or make one on the Carts table'
+  !active.value
+    ? 'Choose an active cart in Settings first, or make one on the Carts table'
+    : proposed.value !== undefined
+      ? 'Proposed by the buttons over the column — Apply writes it, Reset drops it, typing here writes this lot now'
+      : 'How many of this lot to put in the active cart — blank or 0 takes it out'
 )
 
 function write() {
@@ -92,6 +111,7 @@ function write() {
     <input
       v-model="typed"
       class="cart-quantity__value"
+      :class="{ 'cart-quantity__value--proposed': proposed !== undefined }"
       type="number"
       min="0"
       :max="available"
@@ -118,5 +138,12 @@ function write() {
 
 .cart-quantity__value:disabled {
   opacity: 0.5;
+}
+
+/* Proposed and not yet written: the same box, edged in a dashed line, which
+   is the difference between a figure the cart holds and one it might. */
+.cart-quantity__value--proposed {
+  outline: 1px dashed currentColor;
+  outline-offset: 1px;
 }
 </style>
