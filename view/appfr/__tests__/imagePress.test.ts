@@ -5,6 +5,10 @@
  * colour, so the press has to carry both halves: the part alone is the picture
  * with the colour taken out of it, which is what it used to lead to. These pin
  * the pair, and pin the one table where there is no colour to carry.
+ *
+ * The picture is the row's own identity, not a count of any one population,
+ * so every one of these lands on `Everything` — no `e` in the query — rather
+ * than pivoting to a specific table.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
@@ -88,11 +92,11 @@ describe('pressing a picture', () => {
       // Each table's press is independent of the last one's landing, the same
       // reason the suite itself starts clean.
       await router.replace({ path: '/', query: {} })
-      // The lots table addressed by the item and narrowed to the colour, which
-      // is BrickLink's part-and-colour page: everyone selling that brick in
-      // black.
+      // Everything addressed by the item and narrowed to the colour, which
+      // resolves to BrickLink's part-and-colour page: everyone selling that
+      // brick in black.
       expect(await press(columns, coloured)).toEqual({
-        entity: 'inventories',
+        entity: undefined,
         expr: 'record:"P-3001" colorid:"11"'
       })
     }
@@ -106,7 +110,7 @@ describe('pressing a picture', () => {
       type: 'P',
       itemId: '3001'
     })).toEqual({
-      entity: 'items',
+      entity: undefined,
       expr: 'name:"(P-3001)"'
     })
   })
@@ -118,7 +122,7 @@ describe('pressing a picture', () => {
     expect(await press(storeInventoryColumns, {
       colorid: 11
     })).toEqual({
-      entity: 'inventories',
+      entity: undefined,
       expr: 'record:"P-3001" colorid:"11"'
     })
   })

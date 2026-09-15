@@ -136,7 +136,11 @@ export function narrowingTo(row: ShellRow): ((options?: PressOptions) => void) |
 
 /**
  * The same press, when what it leads to is a different type: "show me the
- * items in this category".
+ * items in this category" — or, `entity` null, "show me everything filed
+ * under it": a count column names the population it counts, so it pivots to
+ * that population's own table; a bucket's Name or picture names the bucket
+ * itself, which is not a population of any one type, so it pivots to
+ * `Everything` narrowed to it instead.
  *
  * The record terms carry over — a store or a country still identifies the
  * same store or country on the far side — with the stated term added to
@@ -146,7 +150,7 @@ export function narrowingTo(row: ShellRow): ((options?: PressOptions) => void) |
  * goes for the same reason — the type on the far side declares its own, and
  * the shell falls back to it when the URL names none.
  */
-export function narrowTo(entity: string, field: string, value: string) {
+export function narrowTo(entity: string | null, field: string, value: string) {
   if (!value) {
     return
   }
@@ -192,10 +196,18 @@ function addTerms(base: string, expr: string): string {
  * terms rather than one is what the presses needing both ask for: a colour is
  * a colour and a catalogue type, and a picture is a part and the colour it is
  * moulded in.
+ *
+ * `entity` null is `Everything`: no type in force, the query alone doing the
+ * narrowing — the same absence of `e` the home screen opens on, so pressing
+ * back to a bucket's own name reads as coming from nowhere in particular.
  */
-function openWith(entity: string, expr: string) {
+function openWith(entity: string | null, expr: string) {
   const params = new URLSearchParams(window.location.search)
-  params.set(PARAM_ENTITY, entity)
+  if (entity === null) {
+    params.delete(PARAM_ENTITY)
+  } else {
+    params.set(PARAM_ENTITY, entity)
+  }
   params.set(PARAM_EXPR, addTerms(recordTerms(params.get(PARAM_EXPR) ?? ''), expr))
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
@@ -262,10 +274,16 @@ export function openType(entity: string) {
  * The catalogue item behind one part of a set.
  *
  * An inventory row carries BrickLink's own numbering — `P` and `3001` — and
- * never brickzuke's item id, so the way back into the items table is the
- * record id an item states after its name: `Brick 2 x 4 (P-3001)`. The
- * parentheses are load-bearing, `:` being a substring match: `(P-3001)` finds
- * that part and not the `P-3001-2` printed beside it.
+ * never brickzuke's item id, so what names it is the record id an item states
+ * after its name: `Brick 2 x 4 (P-3001)`. The parentheses are load-bearing,
+ * `:` being a substring match: `(P-3001)` finds that part and not the
+ * `P-3001-2` printed beside it.
+ *
+ * `Everything` rather than the items table: the picture and the name are the
+ * row's own identity, not a count of anything, so what they press to is the
+ * record itself rather than a population it belongs to — the items table
+ * being one such population is what its own `year`, `category` and `type`
+ * columns pivot to instead.
  */
 function narrowToItem(row: ShellRow) {
   const type = String(row.fields.type ?? '')
@@ -273,7 +291,7 @@ function narrowToItem(row: ShellRow) {
   if (!type || !number) {
     return
   }
-  narrowTo('items', 'name', `(${type}-${number})`)
+  narrowTo(null, 'name', `(${type}-${number})`)
 }
 
 /**
@@ -284,9 +302,10 @@ function narrowToItem(row: ShellRow) {
  * colourless catalogue entry throws away half of what was pressed. So it
  * states both terms: `record` addresses the item, which is what fetches the
  * lots, and `colorid` narrows them to the colour on the row. What comes back
- * is BrickLink's part-and-colour page — every seller with that part in that
- * colour — with the item and the colour columns dropped, both being settled by
- * the query.
+ * is `Everything` narrowed to that part in that colour — BrickLink's
+ * part-and-colour listing among whatever else the two terms resolve
+ * against — with the item and the colour columns dropped, both being settled
+ * by the query.
  *
  * A row with no colour is an item and nothing more, and falls back to the
  * catalogue entry rather than to a table it cannot address.
@@ -299,7 +318,7 @@ function narrowToVariant(row: ShellRow) {
     narrowToItem(row)
     return
   }
-  openWith('inventories', `record:"${type}-${number}" colorid:"${colorId}"`)
+  openWith(null, `record:"${type}-${number}" colorid:"${colorId}"`)
 }
 
 /**
@@ -724,10 +743,10 @@ export function counted(value: unknown): string {
  * item rather than on the colour's listing of it, and a column that is always
  * blank is not a wired-up column.
  *
- * The name leads back into the items table, this being the end of the road
- * for the item itself: a colour's listing says which items, and the items
- * table is where an item is. The picture leads to that item in this colour,
- * which is the pair the listing is of.
+ * The name leads to `Everything` narrowed to the item itself, this being the
+ * end of the road for the item as such — its own identity, not a count of any
+ * one population. The picture leads to that item in this colour, the pair the
+ * listing is of, narrowed the same way.
  */
 export const colorItemColumns: ColumnDef[] = [
   {
@@ -785,8 +804,10 @@ const priceModifierColumn: ColumnDef = {
 
 /**
  * Categories, as the original draws them: type, how many items are in it, and
- * the name with its id after it. Both the count and the name lead to those
- * items, which is what `clickCategoryItemsFn` does.
+ * the name with its id after it. The count leads to those items —
+ * `narrowToCategoryItems` — and the name to `Everything` filed under the
+ * category, the name being the category's own identity rather than a count of
+ * the one population its Items column already names.
  */
 export const categoryColumns: ColumnDef[] = [
   {
@@ -828,7 +849,7 @@ export const categoryColumns: ColumnDef[] = [
     component: CellUserText,
     width: '300px',
     sort: 'name',
-    click: (row) => narrowToCategoryItems(row)
+    click: (row) => narrowTo(null, 'category', String(row.fields.category ?? ''))
   },
   priceModifierColumn
 ]
@@ -964,7 +985,10 @@ export const itemTypeColumns: ColumnDef[] = [
     label: 'Name',
     width: '160px',
     sort: 'name',
-    click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
+    // The type's own identity rather than a count, so it pivots to
+    // `Everything` narrowed to it — the Items and Categories columns beside
+    // it are what lead to those two populations.
+    click: (row) => narrowTo(null, 'type', String(row.fields.type ?? ''))
   },
   {
     key: 'items',
@@ -1410,7 +1434,9 @@ export const conditionColumns: ColumnDef[] = [
     label: 'Condition',
     width: '130px',
     sort: 'name',
-    click: (row) => narrowTo('inventories', 'condition', String(row.fields.condition ?? ''))
+    // Its own identity, not the count beside it, so it pivots to `Everything`
+    // narrowed to it rather than to the lots the Lots column counts.
+    click: (row) => narrowTo(null, 'condition', String(row.fields.condition ?? ''))
   },
   {
     key: 'lots',
@@ -1435,9 +1461,10 @@ export const conditionColumns: ColumnDef[] = [
 /**
  * The years the catalogue covers, and how many items came out in each.
  *
- * Both cells lead to those items, which is what every count in this schema
+ * The count leads to those items, which is what every count in this schema
  * does — see the categories table, where the same press is the whole point of
- * the column.
+ * the column. The year itself, being the row's own identity rather than a
+ * count, leads to `Everything` narrowed to it instead.
  */
 export const yearColumns: ColumnDef[] = [
   {
@@ -1452,7 +1479,7 @@ export const yearColumns: ColumnDef[] = [
     label: 'Year',
     width: '95px',
     sort: 'year',
-    click: (row) => narrowTo('items', 'year', String(row.fields.name ?? ''))
+    click: (row) => narrowTo(null, 'year', String(row.fields.name ?? ''))
   },
   {
     key: 'items',
@@ -1520,7 +1547,10 @@ export const regionColumns: ColumnDef[] = [
     label: 'Name',
     width: '200px',
     sort: 'name',
-    click: (row) => narrowTo('countries', 'region', String(row.fields.region ?? ''))
+    // The region's own identity, not the count beside it, so it pivots to
+    // `Everything` narrowed to it rather than to the countries the Countries
+    // column counts.
+    click: (row) => narrowTo(null, 'region', String(row.fields.region ?? ''))
   },
   {
     key: 'countries',
@@ -1608,9 +1638,11 @@ export const provinceColumns: ColumnDef[] = [
     label: 'Name',
     width: '200px',
     sort: 'name',
-    // The country as well as the province, so the sellers table opens on the
-    // country that fetches them and the header names both.
-    click: (row) => openWith('stores', provinceTerms(row))
+    // The country as well as the province, so whichever table fetches sellers
+    // by country still does and the header names both. `Everything` rather
+    // than the sellers table, being the province's own identity and not a
+    // count of the sellers the Stores column already leads to.
+    click: (row) => openWith(null, provinceTerms(row))
   },
   {
     key: 'countryName',
