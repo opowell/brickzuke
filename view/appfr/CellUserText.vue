@@ -21,8 +21,14 @@
  * with the whole on hover the way the shell's own text cell is. The box is
  * what says a row is theirs; offering one on a row that is not would be a
  * promise the write cannot keep.
+ *
+ * That plain text is a button where the column says pressing it leads
+ * somewhere — see CellCount and CellFlag for the same press. The box never is,
+ * whatever the column says: reaching for a text box to change it is not a
+ * request to be taken to the items it heads, and a name of somebody's own
+ * still narrows by the count beside it.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { pressOptions, type ColumnDef, type ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
 import { recordId, writableRow, writeField } from './userWrites'
@@ -70,11 +76,27 @@ function write() {
   }
   void writeField(props.row.entityKey, id, field, typed.value.trim())
 }
+
+/** Pressing the cell, and not the row under it — see CellCount for the twin. */
+function press(event: MouseEvent) {
+  if (!props.column?.click) {
+    return
+  }
+  event.stopPropagation()
+  props.column.click(props.row, pressOptions(event))
+}
 </script>
 
 <template>
+  <button
+    v-if="!writable && column?.click"
+    type="button"
+    class="user-text__plain"
+    :title="typed"
+    @click="press"
+  >{{ typed }}</button>
   <span
-    v-if="!writable"
+    v-else-if="!writable"
     class="user-text__plain"
     :title="typed"
   >{{ typed }}</span
