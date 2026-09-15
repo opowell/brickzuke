@@ -807,7 +807,9 @@ const priceModifierColumn: ColumnDef = {
  * the name with its id after it. The count leads to those items —
  * `narrowToCategoryItems` — and the name to `Everything` filed under the
  * category, the name being the category's own identity rather than a count of
- * the one population its Items column already names.
+ * the one population its Items column already names. Type narrows this same
+ * table — a category row carries its own `typeId` — rather than leaving for
+ * the item types table and losing whatever this list was narrowed to.
  */
 export const categoryColumns: ColumnDef[] = [
   {
@@ -821,7 +823,7 @@ export const categoryColumns: ColumnDef[] = [
     label: 'Type',
     width: '95px',
     sort: 'type',
-    click: (row) => narrowTo('items', 'type', String(row.fields.typeId ?? ''))
+    click: (row, options) => narrowBy('type', String(row.fields.typeId ?? ''), options)
   },
   {
     key: 'items',
@@ -1610,7 +1612,11 @@ export const countryColumns: ColumnDef[] = [
     hint: 'The part of the world BrickLink groups the country under',
     width: '140px',
     sort: 'region',
-    click: (row) => narrowTo('regions', 'region', String(row.fields.region ?? ''))
+    // Narrows the countries on screen to that region, as `provinceColumns`
+    // does with the same field — a country row carries `region` itself, so
+    // pressing it need not leave for the regions table and lose the rest of
+    // whatever this list was narrowed to.
+    click: (row, options) => narrowBy('region', String(row.fields.region ?? ''), options)
   },
   priceModifierColumn
 ]
@@ -1679,7 +1685,9 @@ export const provinceColumns: ColumnDef[] = [
     hint: 'The part of the world BrickLink groups the country under',
     width: '140px',
     sort: 'region',
-    click: (row) => narrowTo('regions', 'region', String(row.fields.region ?? ''))
+    // Narrows the provinces on screen to that region, as `countryColumns` does
+    // with the same field — a province row carries `region` itself.
+    click: (row, options) => narrowBy('region', String(row.fields.region ?? ''), options)
   },
   priceModifierColumn
 ]
