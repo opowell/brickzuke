@@ -15,6 +15,7 @@ import {PARAM_ENTITY,
   addTerm,
   excludingTerm,
   formatExpression,
+  formatTerm,
   parseExpression,
   scopeTermFor,
   scopedEntity} from 'header-content-layout'
@@ -137,10 +138,13 @@ export function narrowingTo(row: ShellRow): ((options?: PressOptions) => void) |
  * The same press, when what it leads to is a different type: "show me the
  * items in this category".
  *
- * It states the term rather than adding to what is there, because an
- * expression written against one type's fields means nothing against
- * another's. The sort goes for the same reason — the type on the far side
- * declares its own, and the shell falls back to it when the URL names none.
+ * The record terms carry over — a store or a country still identifies the
+ * same store or country on the far side — with the stated term added to
+ * them, the way `openType`'s press narrows plus the one term this press
+ * states. An ordinary text or value term does not carry over: it was written
+ * against one type's fields and means nothing against another's. The sort
+ * goes for the same reason — the type on the far side declares its own, and
+ * the shell falls back to it when the URL names none.
  */
 export function narrowTo(entity: string, field: string, value: string) {
   if (!value) {
@@ -150,14 +154,49 @@ export function narrowTo(entity: string, field: string, value: string) {
 }
 
 /**
- * One type opened on a stated expression, which is what the two presses that
- * take more than one term do — a colour is a colour and a catalogue type, and
- * a picture is a part and the colour it is moulded in.
+ * Every term of `expr` added to `base`, each superseding whatever `base`
+ * already says on that field rather than ANDing with it.
+ *
+ * A record term names one record: `record:"S-10511-1"` kept from the last
+ * press and `record:"S-43217-1"` stated by this one both together would ask
+ * for a record that is two sets at once, a query that finds nothing rather
+ * than the one this press is pointing at. So a field the new expression
+ * states is dropped from `base` first — `addTerm` reads only the first term
+ * of what it is handed, which is why a press stating two, like
+ * `narrowToVariant`'s `record:` and `colorid:`, still needs each folded in on
+ * its own rather than passed through in one call.
+ */
+function addTerms(base: string, expr: string): string {
+  if (!base.trim()) {
+    return expr
+  }
+  const stated = parseExpression(expr).flat()
+  const statedFields = new Set(
+    stated.map((term) => (term.kind === 'field' ? term.field : null)).filter((field) => field !== null)
+  )
+  const kept = formatExpression(
+    parseExpression(base).map((group) =>
+      group.filter((term) => !(term.kind === 'field' && statedFields.has(term.field)))
+    )
+  )
+  if (!kept) {
+    return expr
+  }
+  return stated.reduce((acc, term) => addTerm(acc, formatTerm(term)), kept)
+}
+
+/**
+ * One type opened on a stated expression, added to whatever of the current
+ * query still applies to it — the same record terms `openType` keeps, with
+ * the terms this press states layered on top rather than replacing them. Two
+ * terms rather than one is what the presses needing both ask for: a colour is
+ * a colour and a catalogue type, and a picture is a part and the colour it is
+ * moulded in.
  */
 function openWith(entity: string, expr: string) {
   const params = new URLSearchParams(window.location.search)
   params.set(PARAM_ENTITY, entity)
-  params.set(PARAM_EXPR, expr)
+  params.set(PARAM_EXPR, addTerms(recordTerms(params.get(PARAM_EXPR) ?? ''), expr))
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())

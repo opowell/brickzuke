@@ -6,7 +6,7 @@
  * with the colour taken out of it, which is what it used to lead to. These pin
  * the pair, and pin the one table where there is no colour to carry.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { PARAM_ENTITY, PARAM_EXPR } from 'header-content-layout'
 import type { ColumnDef, ShellRow } from 'header-content-layout'
@@ -68,6 +68,14 @@ const coloured = {
   colorid: 11
 }
 
+// The press now carries over what a route already asks that still applies, so
+// each of these has to start from a route with nothing of its own to carry —
+// what a table's own first press is landing on, rather than what a previous
+// test in this file left the route holding.
+beforeEach(async () => {
+  await router.replace({ path: '/', query: {} })
+})
+
 describe('pressing a picture', () => {
   it('asks for the part in that colour, on every table that has one', async () => {
     for (const columns of [
@@ -77,6 +85,9 @@ describe('pressing a picture', () => {
       itemVariantColumns,
       storeInventoryColumns
     ]) {
+      // Each table's press is independent of the last one's landing, the same
+      // reason the suite itself starts clean.
+      await router.replace({ path: '/', query: {} })
       // The lots table addressed by the item and narrowed to the colour, which
       // is BrickLink's part-and-colour page: everyone selling that brick in
       // black.
