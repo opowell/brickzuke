@@ -5,6 +5,9 @@ export async function fetchBrickLink() {
   const catalogDownloadPage = useCatalogDownloadPageStore()
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.ITEM_TYPES)
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.CATEGORIES)
+  // The categories download carries no type column — only the tree page does,
+  // one item type at a time — so a category stays typeless until this runs.
+  await catalogDownloadPage.updateCatalogTree()
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.COLORS)
   await catalogDownloadPage.fetchViewType(BRICK_LINK_CATALOG.PART_AND_COLOR_CODES)
 }

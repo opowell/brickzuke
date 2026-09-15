@@ -1176,6 +1176,9 @@ export const itemVariantColumns: ColumnDef[] = [
 const SETTLED_BY: Record<string, string[]> = {
   item: ['record'],
   color: ['colorid'],
+  // A record's category never varies row to row, whether it is pinned
+  // directly or through the one record it names.
+  categoryName: ['category', 'record'],
   countryName: ['country', 'store'],
   storeName: ['store'],
   feedback: ['store'],
@@ -1341,6 +1344,14 @@ export const storeInventoryColumns: ColumnDef[] = [
     click: narrowToItem
   },
   {
+    key: 'categoryName',
+    role: 'reference',
+    label: 'Category',
+    width: '150px',
+    sort: 'categoryName',
+    click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
+  },
+  {
     key: 'description',
     label: 'Remark',
     hint: 'The seller’s own note on this lot, which is theirs to write and often empty',
@@ -1401,8 +1412,10 @@ export const storeInventoryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellCartQuantity,
     header: CartHeader,
-    // Room for the label and the four buttons, `Apply 3,002` among them: a
-    // header the shell cannot fit is a header it cuts to an ellipsis.
+    // Room for the label and the four buttons — all four fixed words, not
+    // "Apply 3,002": a header the shell cannot fit is a header it cuts to an
+    // ellipsis, and Max with nothing ticked can propose thousands of rows, a
+    // count with no bound to hold a width budget to. See [CartHeader].
     width: '340px',
     sort: 'cartQuantity'
   },
@@ -2582,6 +2595,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'itemName',
           label: 'Item'
+        },
+        {
+          key: 'categoryName',
+          label: 'Category'
         },
         {
           key: 'description',

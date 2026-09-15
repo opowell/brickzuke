@@ -54,6 +54,7 @@ import { cartSelection } from '../appfr/cartDraft'
 import { activeCart } from '../appfr/settings'
 import { narrowTo } from '../appfr/catalogSchema'
 import HomeCards from '../appfr/HomeCards.vue'
+import { fillCategoryTypes } from '../appfr/categoryTypesFetch'
 
 const router = useRouter()
 const route = createVueRouterAdapter(router)
@@ -232,6 +233,12 @@ const cartTicks = computed(() => urlEntity.value === 'inventories' && activeCart
    what tells the shell to look again after one is written — see [userCounts]. */
 onMounted(() => {
   void refreshUserCounts()
+})
+
+// See [categoryTypesFetch]: a category otherwise sits with a name and an item
+// count forever, and never a `type` a `type:` term can find it by.
+onMounted(() => {
+  void fillCategoryTypes()
 })
 
 const plainTokens = {

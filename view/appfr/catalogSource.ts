@@ -58,7 +58,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
-import { anyPriceModifierOn, modifiedPrice, priceModifierOf } from './priceModifiers'
+import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
@@ -544,15 +544,16 @@ function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): Shel
 }
 
 /**
- * A lot's row with the two fields the price modifiers add — the item's
- * category, where the directory looked it up, and what the price comes to
- * with every factor applied. See [priceModifiers] for why the category is
- * filed under a name no term reaches, and [modifiedPrice] for the figure.
+ * A lot's row with the fields the directory looked up rather than the lot
+ * stating itself — the item's category, both for `category:` and the
+ * Category column, and what the price comes to with every factor applied.
+ * See [modifiedPrice] for the figure.
  */
 function priced(row: ShellRow, directory: LotDirectory): ShellRow {
-  const categoryId = directory.categories.get(String(row.fields.record ?? ''))
-  if (categoryId !== undefined) {
-    row.fields.categoryId = categoryId
+  const category = directory.categories.get(String(row.fields.record ?? ''))
+  if (category !== undefined) {
+    row.fields.category = category.id
+    row.fields.categoryName = category.name
   }
   row.fields.modPrice = modifiedPrice(row.fields)
   return row
@@ -604,36 +605,35 @@ interface LotDirectory {
   sellers: Map<string, Store>
   countries: Map<string, Country>
   /**
-   * BrickLink's category id behind each record the lots are of — for the
-   * category factors, which are the one modifier a lot cannot apply off its
-   * own fields. Empty wherever nobody has put a factor on a category: see
+   * BrickLink's category id and name behind each record the lots are of — for
+   * the `category:` term and the Category column, neither of which a lot
+   * states on its own fields, and for the category price factors besides. See
    * [categoriesBehind].
    */
-  categories: Map<string, string>
+  categories: Map<string, { id: string; name: string }>
 }
 
 /**
- * The category behind each of these records, where one is worth looking up.
+ * The category behind each of these records, where one is on file.
  *
  * One point lookup per distinct record, in one connection, the way [reach]
  * reads the same store for its cards: a seller stocks the same part in nine
- * colours, so the set is far smaller than the lots. Not paid at all while
- * nobody has put a factor on a category — a lookup per record on every draw
- * of a seller's front is a cost worth incurring only for an answer somebody
- * asked for.
+ * colours, so the set is far smaller than the lots.
  */
-async function categoriesBehind(records: ReadonlySet<string>): Promise<Map<string, string>> {
-  const categories = new Map<string, string>()
-  if (!records.size || !anyPriceModifierOn('categories')) {
+async function categoriesBehind(
+  records: ReadonlySet<string>
+): Promise<Map<string, { id: string; name: string }>> {
+  const categories = new Map<string, { id: string; name: string }>()
+  if (!records.size) {
     return categories
   }
   const db = await getDbConnection()
   try {
     for (const record of records) {
       const item = await get<BrickLinkItem>(db, dbStores.BRICK_LINK_ITEMS, record)
-      const category = item?.categoryId ?? item?.['Category ID']
-      if (category !== undefined && category !== '') {
-        categories.set(record, String(category))
+      const id = item?.categoryId ?? item?.['Category ID']
+      if (id !== undefined && id !== '') {
+        categories.set(record, { id: String(id), name: item?.['Category Name'] ?? '' })
       }
     }
   } finally {
@@ -736,20 +736,16 @@ export async function eachLot(visit: (lot: ShellRow) => void): Promise<number> {
 
 /**
  * The distinct records every lot brickzuke holds is of — what [eachLot] has to
- * know ahead of its walk for the category factors to reach the lots off the
+ * know ahead of its walk for the category behind each lot to reach it off the
  * cursor, a lookup being nothing that can happen between one cursor step and
  * the next.
  *
  * A second pass over the stored lots, keeping one string per distinct record
  * and nothing else: a seller stocks the same part in nine colours, so the set
- * is bounded well below the lots. Not made at all while nobody has put a
- * factor on a category, which leaves the walk as it was.
+ * is bounded well below the lots.
  */
 async function recordsOfEveryLot(): Promise<Set<string>> {
   const records = new Set<string>()
-  if (!anyPriceModifierOn('categories')) {
-    return records
-  }
   for (const lot of readStoreInventories()) {
     records.add(`${lot.itemType}-${lot.itemNumber}`)
   }

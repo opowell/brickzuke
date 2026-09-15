@@ -11,7 +11,7 @@
  * The choices come from the column's own key, so which field this is and what
  * it may hold are stated in one place.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { pressOptions, type ColumnDef, type ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
 import { recordId, writableRow, writeField } from './userWrites'
@@ -104,6 +104,15 @@ watch(
   }
 )
 
+/** Pressing the cell, and not the row under it — see CellUserText for the twin. */
+function press(event: MouseEvent) {
+  if (!props.column?.click) {
+    return
+  }
+  event.stopPropagation()
+  props.column.click(props.row, pressOptions(event))
+}
+
 function write() {
   const id = recordId(props.row.fields)
   const field = props.column?.key
@@ -125,7 +134,18 @@ function write() {
 </script>
 
 <template>
-  <span v-if="!writable">{{ pickedLabel }}</span>
+  <button
+    v-if="!writable && column?.click"
+    type="button"
+    class="user-pick__plain"
+    :title="pickedLabel"
+    @click="press"
+  >{{ pickedLabel }}</button>
+  <span
+    v-else-if="!writable"
+    class="user-pick__plain"
+    :title="pickedLabel"
+  >{{ pickedLabel }}</span>
   <span
     v-else
     class="user-pick"
@@ -148,6 +168,14 @@ function write() {
 </template>
 
 <style scoped>
+/* The shell's own text cell, near enough: one line, the rest on hover. */
+.user-pick__plain {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .user-pick {
   display: inline-flex;
 }

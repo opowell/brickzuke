@@ -86,7 +86,12 @@ async function run(work: () => Promise<void>) {
       :title="draftCount ? `Write the ${draftCount} proposed figure${draftCount === 1 ? '' : 's'} to the cart` : 'Nothing proposed — Max or 0 first'"
       @click="run(applyCartDraft)"
     >
-      Apply{{ draftCount ? ` ${draftCount}` : '' }}
+      <!-- Not `Apply {{ draftCount }}`: a Max with nothing ticked can propose
+           thousands of rows, and this header's width is fixed — a count with
+           no bound would grow past it and the shell clips the whole span,
+           taking Reset with it and leaving no way back. The count is still
+           the title above. -->
+      Apply
     </button>
     <button
       type="button"

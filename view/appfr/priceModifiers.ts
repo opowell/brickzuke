@@ -33,11 +33,10 @@ import { activeProfileId } from './settings'
  * field a term names one of its rows by — and `lot` is the field a lot row
  * carries the same key in. The two are the same name wherever a lot states
  * the thing directly. A category is the exception: a lot never states its
- * item's category, so the row builder looks it up and files it under a name
- * no term can reach — the parser lowercases a term's field, and `categoryId`
- * is not lowercase — because `category:` on the lots table has meant nothing
- * so far, and a field that matched only the lots looked up would be a term
- * that narrows differently on different days.
+ * item's category itself, so the row builder looks it up and files it under
+ * `category`, the same name the catalogue's own category rows use — see
+ * [priced] in catalogSource.ts, which is also what makes `category:` and the
+ * Category column work on the lots table.
  */
 export const MODIFIED: Record<string, { on: string; lot: string }> = {
   colors: {
@@ -50,7 +49,7 @@ export const MODIFIED: Record<string, { on: string; lot: string }> = {
   },
   categories: {
     on: 'category',
-    lot: 'categoryId'
+    lot: 'category'
   },
   conditions: {
     on: 'condition',
@@ -140,11 +139,6 @@ export function priceModifierOf(entity: string, key: unknown): number | undefine
     return undefined
   }
   return priceModifiers.value.get(entity)?.get(String(key))
-}
-
-/** Whether any factor is on a row of this table — what decides if a lookup is worth making. */
-export function anyPriceModifierOn(entity: string): boolean {
-  return (priceModifiers.value.get(entity)?.size ?? 0) > 0
 }
 
 /** One factor that applies to a lot, and what it is on — for the hover to spell out. */

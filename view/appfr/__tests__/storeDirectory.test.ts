@@ -1010,7 +1010,8 @@ describe('price modifiers', () => {
       Number: '3001',
       Name: 'Brick 2 x 4',
       'Category ID': '5',
-      categoryId: '5'
+      categoryId: '5',
+      'Category Name': 'Brick'
     })
     db.close()
   })
@@ -1052,10 +1053,11 @@ describe('price modifiers', () => {
     // The set: this seller's and new, and nothing else applies — the item is
     // not in the catalogue seeded here, so no category is found for it.
     expect(byId.get('902')!.fields.modPrice).toBeCloseTo(24 * 0.5 * 10)
-    // The category is carried under a name no term reaches, so `category:`
-    // goes on meaning on the lots table what it meant before.
-    expect(byId.get('901')!.fields.categoryId).toBe('5')
-    expect(byId.get('901')!.fields.category).toBeUndefined()
+    // The category is looked up onto the row under the same name the
+    // catalogue's own category rows use, so `category:` and the Category
+    // column read it there too.
+    expect(byId.get('901')!.fields.category).toBe('5')
+    expect(byId.get('901')!.fields.categoryName).toBe('Brick')
   })
 
   it('is the price itself where nothing applies, so the column reads as prices throughout', async () => {
@@ -1066,8 +1068,9 @@ describe('price modifiers', () => {
     })
     const lot = rows.find((row) => row.fields.id === '901')!
     expect(lot.fields.modPrice).toBe(0.1)
-    // And no lookup was made for a category nobody put a factor on.
-    expect(lot.fields.categoryId).toBeUndefined()
+    // The category is always looked up, whether or not a factor is on it —
+    // the Category column and `category:` need it either way.
+    expect(lot.fields.category).toBe('5')
   })
 
   it('shows each factor on the row of the thing it is on', async () => {
