@@ -248,6 +248,13 @@ function groupAt(batch: JoinedItem[], start: number): number {
   return end
 }
 
+/** Whether a parsed expression names `field` at all, however it compares. */
+function references(expr: string, field: string): boolean {
+  return parseExpression(expr).some((group) =>
+    group.some((term) => term.kind === 'field' && term.field === field)
+  )
+}
+
 async function scan(
   db: IDBPDatabase,
   request: QueryRequest,
@@ -255,13 +262,27 @@ async function scan(
 ): Promise<void> {
   const index = indices.BRICK_LINK_ITEMS_BY_ITEM_ID
   const matches = matcherFor(request)
-  // Before the first row, so every row carries the parts count it sorts by.
-  // One pass over the sets already opened, held for the session.
-  await ensurePartCounts()
-  // And the same for the stores fold, so every row carries the count this
-  // query's store terms reach — see [storeInventoryCounts].
-  await ensureStoreInventories()
   const expr = request.query.expr
+  /*
+   * Both folds are one pass over a table that only grows — the sets already
+   * opened, and every lot any seller's front has given up — so kicking them
+   * off is cheap, but every row on screen already reads them live rather than
+   * off what a row was baked with (see [CellParts], [CellStoreInventory]).
+   * Waiting for either here buys nothing for the common query, which sorts
+   * and filters by neither, and it is the wait that used to sit in front of
+   * the very first row a scan found. What still needs it: sorting by the
+   * column the fold fills, or a term that reads it directly — either puts a
+   * row exactly where the fold says to, which a row inserted ahead of it
+   * cannot be moved to afterwards.
+   */
+  const partsFold = ensurePartCounts()
+  const storesFold = ensureStoreInventories()
+  if (request.query.sort === 'parts' || references(expr, 'parts')) {
+    await partsFold
+  }
+  if (request.query.sort === 'storeInventory' || references(expr, 'storeInventory')) {
+    await storesFold
+  }
   /*
    * Somebody's own items first, then the catalogue's. They are rows of this
    * one table — an item of theirs is an item — and the page places each row
