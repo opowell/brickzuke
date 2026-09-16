@@ -1056,7 +1056,9 @@ describe('price modifiers', () => {
     // The category is looked up onto the row under the same name the
     // catalogue's own category rows use, so `category:` and the Category
     // column read it there too.
-    expect(byId.get('901')!.fields.category).toBe('5')
+    // A number, not the string BrickLink's own field holds it as — `:`
+    // compares a number exactly and only substring-matches a string.
+    expect(byId.get('901')!.fields.category).toBe(5)
     expect(byId.get('901')!.fields.categoryName).toBe('Brick')
   })
 
@@ -1070,7 +1072,7 @@ describe('price modifiers', () => {
     expect(lot.fields.modPrice).toBe(0.1)
     // The category is always looked up, whether or not a factor is on it —
     // the Category column and `category:` need it either way.
-    expect(lot.fields.category).toBe('5')
+    expect(lot.fields.category).toBe(5)
   })
 
   it('shows each factor on the row of the thing it is on', async () => {

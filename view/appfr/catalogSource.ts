@@ -28,6 +28,7 @@ import { inventoryFields, rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
 import { inventoryFor, readInventory } from './inventoryFetch'
 import { ensurePartCounts, partsOf } from './partCounts'
+import { ensureStoreInventories, storeInventoryOf } from './storeInventoryCounts'
 import { colorItemsFill, colorItemsFor, readColorItems } from './colorItemsFetch'
 import { notePriceCurrency } from './priceCurrency'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
@@ -81,7 +82,7 @@ function toWeight(value: string | undefined): number | undefined {
  * a column reads goes in `fields` under the name that column names — the shell
  * reads nothing here itself.
  */
-function toRow(itemId: number, brickLinkItems: JoinedItem[]): ShellRow {
+function toRow(itemId: number, brickLinkItems: JoinedItem[], expr: string): ShellRow {
   const first = brickLinkItems[0]
   // `Year Released` and `Dimensions` are on the stored records but not yet on
   // the BrickLinkItem interface — the same gap model.ts:177 reads through.
@@ -104,7 +105,10 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[]): ShellRow {
       // The id takes the plain name, because that is what an expression term
       // addresses: `parseExpression` lowercases a field, so `categoryId` never
       // resolves, and an unresolvable field in this language matches every row.
-      category: first['Category ID'],
+      // A number, not the string BrickLink's own field holds it as — `:`
+      // compares a number exactly and only substring-matches a string, so
+      // `category:5` against a string id also answered for 15, 51 and 205.
+      category: Number(first['Category ID']),
       categoryName: brickLinkItems.map((bi) => bi['Category Name']).join(', '),
       image: brickLinkItems.find((bi) => bi.image)?.image,
       // The BrickLink id an inventory is keyed by — `S-10511-1`. An item is
@@ -117,6 +121,11 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[]): ShellRow {
       // opened after the scan shows its number without another scan — see
       // [partCounts].
       parts: partsOf(first.id)?.parts,
+      // As with `parts`: what the fold knew when the scan ran, which is what
+      // sorting by this column compares. The cell reads the live fold
+      // instead, so a seller fetched after the scan shows its number without
+      // another scan — see [storeInventoryCounts].
+      storeInventory: storeInventoryOf(first.id, expr),
       year: raw['Year Released'],
       // A number, not the stored string: sorting a column of weights
       // lexicographically puts 10g before 9g. Absent rather than NaN when there
@@ -249,6 +258,10 @@ async function scan(
   // Before the first row, so every row carries the parts count it sorts by.
   // One pass over the sets already opened, held for the session.
   await ensurePartCounts()
+  // And the same for the stores fold, so every row carries the count this
+  // query's store terms reach — see [storeInventoryCounts].
+  await ensureStoreInventories()
+  const expr = request.query.expr
   /*
    * Somebody's own items first, then the catalogue's. They are rows of this
    * one table — an item of theirs is an item — and the page places each row
@@ -281,7 +294,7 @@ async function scan(
       // The final group of a full batch may continue into the next one, so it
       // is left for the next pass to read whole.
       if (!complete && key === lastKey) break
-      const row = toRow(key, batch.slice(at, end))
+      const row = toRow(key, batch.slice(at, end), expr)
       if (matches(row) && !emit(row)) return
       emitted++
       at = end
@@ -294,7 +307,7 @@ async function scan(
       // One key filled the whole batch. Read that group on its own rather than
       // asking for the same thousand records again forever.
       const whole = (await getAllFromIndex<JoinedItem>(db, index, lastKey)) ?? []
-      const row = toRow(lastKey, whole)
+      const row = toRow(lastKey, whole, expr)
       if (matches(row) && !emit(row)) return
       range = IDBKeyRange.lowerBound(lastKey, true)
     } else {
@@ -341,7 +354,9 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
       name: brickLinkItem.Name,
       type: brickLinkItem.itemType,
       typeId: brickLinkItem.itemType,
-      category: brickLinkItem['Category ID'],
+      // A number, not the string BrickLink's own field holds it as — see the
+      // same fix on `toRow` above.
+      category: Number(brickLinkItem['Category ID']),
       categoryName: brickLinkItem['Category Name'],
       image: brickLinkItem.image,
       year: raw['Year Released'],
@@ -610,7 +625,7 @@ interface LotDirectory {
    * states on its own fields, and for the category price factors besides. See
    * [categoriesBehind].
    */
-  categories: Map<string, { id: string; name: string }>
+  categories: Map<string, { id: number; name: string }>
 }
 
 /**
@@ -622,8 +637,8 @@ interface LotDirectory {
  */
 async function categoriesBehind(
   records: ReadonlySet<string>
-): Promise<Map<string, { id: string; name: string }>> {
-  const categories = new Map<string, { id: string; name: string }>()
+): Promise<Map<string, { id: number; name: string }>> {
+  const categories = new Map<string, { id: number; name: string }>()
   if (!records.size) {
     return categories
   }
@@ -632,8 +647,13 @@ async function categoriesBehind(
     for (const record of records) {
       const item = await get<BrickLinkItem>(db, dbStores.BRICK_LINK_ITEMS, record)
       const id = item?.categoryId ?? item?.['Category ID']
-      if (id !== undefined && id !== '') {
-        categories.set(record, { id: String(id), name: item?.['Category Name'] ?? '' })
+      const numericId = Number(id)
+      // A number, not the string BrickLink's own field holds it as: `:`
+      // compares a number exactly and only substring-matches a string, so
+      // `category:5` against a string id was finding every id with a `5` in
+      // it anywhere — 15, 51, 205 — not just category 5.
+      if (id !== undefined && id !== '' && Number.isFinite(numericId)) {
+        categories.set(record, { id: numericId, name: item?.['Category Name'] ?? '' })
       }
     }
   } finally {

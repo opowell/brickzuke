@@ -197,7 +197,7 @@ describe('items schema', () => {
     expect(shell.find('option[value="items"]').text()).toBe('Items · 199k')
   })
 
-  it('draws the seven columns the table has today, the parts count, and two more', () => {
+  it('draws the eight columns the table has today, the parts count, and two more', () => {
     const headers = mountShell().findAll('th').map((th) => th.text().replace(/[↑↓]\s*$/, '').trim())
     expect(headers).toEqual([
       // The ticks, because the table lists items of somebody's own beside
@@ -210,6 +210,7 @@ describe('items schema', () => {
       'Category',
       'Year',
       'Parts',
+      'Store inventories',
       'Weight',
       'Dimensions',
       // And their note, blank on every row of BrickLink's.

@@ -31,6 +31,7 @@ import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
 import CellFlag from './CellFlag.vue'
 import CellParts from './CellParts.vue'
+import CellStoreInventory from './CellStoreInventory.vue'
 import CellSetting from './CellSetting.vue'
 import CellCartQuantity from './CellCartQuantity.vue'
 import CartHeader from './CartHeader.vue'
@@ -449,6 +450,28 @@ export const itemColumns: ColumnDef[] = [
     width: '100px',
     sort: 'parts',
     click: (row) => narrowTo('inventory', 'record', String(row.fields.record ?? ''))
+  },
+  /**
+   * How much of the piece the stores this query reaches are selling.
+   *
+   * A floor rather than a tally — see CellStoreInventory and
+   * [storeInventoryCounts] — read from the lots brickzuke already holds and
+   * grown, once a `store:` term names a seller nobody has looked at yet, by
+   * fetching that seller's own front the same way pressing it by hand would.
+   *
+   * Pressing the number opens that record's own lots, on the `inventories`
+   * table — `store:` and every other term this query carries still narrows
+   * it, `openWith`'s own `recordTerms` being what carries them across.
+   */
+  {
+    key: 'storeInventory',
+    label: 'Store inventories',
+    hint: 'How many of this piece the stores the current query reaches have on offer — a floor: only a seller somebody has actually looked at is counted',
+    kind: 'component',
+    component: CellStoreInventory,
+    width: '160px',
+    sort: 'storeInventory',
+    click: (row) => narrowTo('inventories', 'record', String(row.fields.record ?? ''))
   },
   {
     key: 'weight',
@@ -2452,6 +2475,12 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'parts',
           label: 'Parts'
+        },
+        // As with `parts`: sorted over what the fold over held lots knew when
+        // the scan ran — see [storeInventoryCounts].
+        {
+          key: 'storeInventory',
+          label: 'Store inventories'
         },
         {
           key: 'weight',

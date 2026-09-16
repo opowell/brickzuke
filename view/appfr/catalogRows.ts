@@ -268,7 +268,10 @@ export function inventoryFields(stored: StoredItemInventory): Record<string, unk
     // because `:` compares numbers exactly where it substring-matches strings
     // — `colorid:"85"` must not also answer for colour 185.
     colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
-    category: variant.catString,
+    // A number for the same reason `colorid` above is one: `:` compares a
+    // number exactly and only substring-matches a string, so `category:5`
+    // against `catString` — a string — also answered for 15, 51 and 205.
+    category: Number(variant.catString),
     categoryName: variant.categoryName,
     variant: variant.variantId
   }
@@ -336,7 +339,9 @@ async function itemVariantRows(db: IDBPDatabase): Promise<ShellRow[]> {
       itemId: variant.itemId,
       color: variant.colorName,
       colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
-      category: variant.catString,
+      // See `inventoryFields` above: a number, not the string `catString`
+      // holds it as.
+      category: Number(variant.catString),
       categoryName: variant.categoryName,
       sets: records.size
     }
