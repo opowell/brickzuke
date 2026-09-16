@@ -387,9 +387,14 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         instructions: itemInfos[3],
         categories,
       })
-      this.fetchImages(itemNumber, itemId, itemType)
+      // Awaited, so both are actually in the queue before `processQueue` reads
+      // it — `queueCall` writes them through a chain of its own awaits, and a
+      // `processQueue` fired without waiting for that ran ahead of the write
+      // almost every time. Both calls then sat there until the next tick of
+      // the worker's ten-second interval drained them, one call a tick.
+      await this.fetchImages(itemNumber, itemId, itemType)
       console.log('fetch inventory', itemNumber, itemId, itemType)
-      this.fetchInventories(itemNumber, itemId, itemType)
+      await this.fetchInventories(itemNumber, itemId, itemType)
       processQueue(2)
     },
   },
