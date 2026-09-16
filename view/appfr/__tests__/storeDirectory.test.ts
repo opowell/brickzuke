@@ -60,6 +60,9 @@ const {
 const {
   shipTo
 } = await import('../settings')
+const {
+  forgetConditionCounts
+} = await import('../conditionCounts')
 const router = (await import('@/router')).default
 const STORES = (await import('../../../idb/stores')).default
 
@@ -1185,5 +1188,140 @@ describe('price modifiers', () => {
     // Steinehaus is in Bayern: nought times anything is a lot for nothing,
     // which is a figure and not a blank.
     expect(rows.find((row) => row.fields.id === '901')!.fields.modPrice).toBe(0)
+  })
+})
+
+/**
+ * The lots table naming no item and no seller, which is every lot stored.
+ *
+ * A few hundred thousand once a handful of sellers have been opened, and it
+ * used to be read whole, made into rows and sorted before the first of them
+ * was shown. It is walked now, a chunk at a time through the same page window
+ * the items scan uses — see `streamLots` — so what is asserted is the page:
+ * the query's own rows and no others, in its order, over the count of all of
+ * them, and that a stream cancelled part way pushes nothing more.
+ */
+describe('every lot stored, as one page', () => {
+  const stored = Array.from({
+    length: 120
+  }, (_, at) => ({
+    id: `walk-${String(at).padStart(3, '0')}`,
+    store: at % 2 ? 'steinehaus' : 'bricksusa',
+    record: 'P-3001',
+    itemType: 'P',
+    itemNumber: '3001',
+    itemName: 'Brick 2 x 4',
+    description: '',
+    condition: at % 3 ? 'N' : 'U',
+    colorId: '5',
+    colorName: 'Red',
+    quantity: 1,
+    // Descending as stored, so a page taken in key order is the wrong one.
+    price: 200 - at,
+    displayPrice: `EUR ${200 - at}`,
+    nativePrice: `EUR ${200 - at}`,
+    image: ''
+  }))
+
+  beforeAll(async () => {
+    const db = await getDbConnection()
+    await putAll(db, STORES.STORE_LOTS, stored)
+    db.close()
+  })
+
+  afterAll(async () => {
+    const db = await getDbConnection()
+    const tx = db.transaction(STORES.STORE_LOTS.name, 'readwrite')
+    await Promise.all([...stored.map((lot) => tx.store.delete(lot.id)), tx.done])
+    db.close()
+    forgetConditionCounts()
+  })
+
+  it('shows the page the sort asks for, over the count of every lot', async () => {
+    const {
+      state, scope
+    } = runStream({
+      entity: 'inventories',
+      sort: 'priceValue',
+      dir: 'asc'
+    })
+    for (let i = 0; i < 50 && state.pending.value; i++) {
+      await nextTick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    const rows = state.rows.value
+    scope.stop()
+    expect(rows).toHaveLength(50)
+    const prices = rows.map((row) => Number(row.fields.priceValue))
+    expect(prices).toEqual(prices.slice().sort((a, b) => a - b))
+    // The cheapest of the walk sort to the front of the page whatever order
+    // the store handed them over in.
+    expect(prices[0]).toBeLessThanOrEqual(81)
+    // Everything counted: the three lots this file put in memory, the ones
+    // earlier tests stored, and these.
+    expect(state.total.value).toBeGreaterThanOrEqual(120)
+  })
+
+  it('shows only the rows the query matches, the walk narrowing as it goes', async () => {
+    // Neither term is an address — a seller alone would be the seller's own
+    // page — so this is the walk, narrowed chunk by chunk: the condition off
+    // the lot itself, the country through the seller's directory record.
+    const rows = await rowsOf({
+      entity: 'inventories',
+      expr: 'condition:"U" country:"US"',
+      sort: 'priceValue',
+      dir: 'asc'
+    })
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((row) => row.fields.condition === 'U')).toBe(true)
+    // A lot whose seller the directory has never heard of has no country to
+    // test, and a field a row does not carry matches — the language's own
+    // rule, and the same one the whole read applied. Every lot that does say
+    // where it is from says the right place.
+    expect(rows.every((row) => row.fields.country === undefined || row.fields.country === 'US')).toBe(true)
+    expect(rows.some((row) => row.fields.country === 'US')).toBe(true)
+  })
+
+  it('pushes nothing more once the query has moved on', async () => {
+    const {
+      state, scope
+    } = runStream({
+      entity: 'inventories',
+      sort: 'priceValue',
+      dir: 'asc'
+    })
+    // Torn down before the walk has answered: the rows it would have pushed
+    // belong to a query nobody is looking at.
+    scope.stop()
+    for (let i = 0; i < 20; i++) {
+      await nextTick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    expect(state.rows.value).toEqual([])
+  })
+
+  it('draws the two conditions at once, and their counts as the fold lands', async () => {
+    forgetConditionCounts()
+    const {
+      state, scope
+    } = runStream({
+      entity: 'conditions'
+    })
+    for (let i = 0; i < 50 && !state.rows.value.length; i++) {
+      await nextTick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    // Both rows are up before any lot has been read — named, and blank where
+    // the numbers will go.
+    expect(state.rows.value.map((row) => row.fields.name).sort()).toEqual(['New', 'Used'])
+    for (let i = 0; i < 50 && state.pending.value; i++) {
+      await nextTick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    const used = state.rows.value.find((row) => row.fields.condition === 'U')!
+    scope.stop()
+    // Forty of the hundred and twenty here are used, beside whatever earlier
+    // tests left stored: the numbers come off the fold, not off rows read.
+    expect(Number(used.fields.lots)).toBeGreaterThanOrEqual(40)
   })
 })

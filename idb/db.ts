@@ -11,8 +11,10 @@ export async function openCursor(db: IDBPDatabase, store: StoreDefinition) {
 export async function getAll<T>(
   db: IDBPDatabase,
   storeDefinition: StoreDefinition,
+  query?: IDBKeyRange | IDBValidKey | null,
+  count?: number,
 ): Promise<T[] | undefined> {
-  return db.getAll(storeDefinition.name)
+  return db.getAll(storeDefinition.name, query, count)
 }
 
 export async function count(db: IDBPDatabase, storeDefinition: StoreDefinition) {

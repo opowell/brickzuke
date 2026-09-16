@@ -82,6 +82,51 @@ async function policyCounts(): Promise<{
   }
 }
 
+/**
+ * The counts that are one cheap read each, by the type they head.
+ *
+ * Split out from the pass below because a table opened straight from the
+ * address bar heads itself with one of these too — the shell states a type's
+ * population over an un-narrowed table — and nothing else on the way into a
+ * table is a reason to make the whole home screen's pass. See [refreshCount].
+ */
+const quick: Record<string, (db: IDBPDatabase) => Promise<number>> = {
+  regions: (db) => count(db, stores.STORE_REGIONS),
+  countries: (db) => count(db, stores.STORE_COUNTRIES),
+  stores: (db) => count(db, stores.BRICK_LINK_STORES),
+  // Two sources, because the lots table is filled from two pages. An item's
+  // lots are held in the item page store rather than in IndexedDB, going
+  // stale in a way a catalogue entry does not — see itemPageFetch — so those
+  // are what has been read this session. A seller's own lots cost a request
+  // per hundred and so are kept, and they count from where they are kept.
+  // Together that is what the table shows.
+  inventories: async (db) => readStoreInventories().length + (await count(db, stores.STORE_LOTS)),
+  images: async () => readImages().length
+}
+
+/**
+ * One type's count, for the table of it that was opened directly.
+ *
+ * Only the types whose count is one read: the rest are the home screen's to
+ * make, and a table of them says its own total once a query narrows it.
+ */
+export async function refreshCount(key: string): Promise<void> {
+  const counter = quick[key]
+  if (!counter) {
+    return
+  }
+  const db = await getDbConnection()
+  try {
+    const counted = await counter(db)
+    browsedCounts.value = {
+      ...browsedCounts.value,
+      [key]: counted
+    }
+  } finally {
+    db.close()
+  }
+}
+
 /** One refresh at a time: the home screen draws more often than this changes. */
 let running: Promise<void> | undefined
 
@@ -91,22 +136,16 @@ async function read(): Promise<void> {
     browsedCounts.value = {
       ...browsedCounts.value,
       ...(await inventoryCounts(db)),
-      regions: await count(db, stores.STORE_REGIONS),
-      countries: await count(db, stores.STORE_COUNTRIES),
-      stores: await count(db, stores.BRICK_LINK_STORES),
+      regions: await quick.regions(db),
+      countries: await quick.countries(db),
+      stores: await quick.stores(db),
       // Derived from the sellers rather than counted from a store of their
       // own, there being none — see `provincesOf`. Read whole, which the sellers
       // can be: they are bounded by how many there are in the world.
       provinces: provincesOf(await readStores()).size,
-      // Two sources, because the lots table is filled from two pages. An
-      // item's lots are held in the item page store rather than in IndexedDB,
-      // going stale in a way a catalogue entry does not — see itemPageFetch —
-      // so those are what has been read this session. A seller's own lots cost
-      // a request per hundred and so are kept, and they count from where they
-      // are kept. Together that is what the table shows.
-      inventories: readStoreInventories().length + (await count(db, stores.STORE_LOTS)),
+      inventories: await quick.inventories(db),
       ...(await policyCounts()),
-      images: readImages().length
+      images: await quick.images(db)
     }
   } finally {
     db.close()

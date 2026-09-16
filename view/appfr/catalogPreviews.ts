@@ -32,6 +32,7 @@ import indices from '../../idb/indices'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 import { catalogSchema, counted, narrowTo, narrowToColor, narrowingTo } from './catalogSchema'
 import { catalogSource, sorted, storedRows } from './catalogSource'
+import { ensureConditionCounts } from './conditionCounts'
 import { forgetReach, matching, reachFor, reaches } from './reach'
 import { awaitedStores } from './homeFill'
 import { openingOrderFor } from './openingOrder'
@@ -701,6 +702,19 @@ const specs: Record<
   stores: {
     shown: ROWS_READ,
     read: storeTiles
+  },
+  /*
+   * The two conditions, with how many lots are in each. The numbers come off
+   * a fold over the stored lots that the table itself draws blank and fills
+   * in as it lands — see [conditionCounts] — but a card is read once and
+   * held, so it waits the second the fold takes rather than keep a blank.
+   */
+  conditions: {
+    shown: ROWS_READ,
+    read: async (_shown, expr) => {
+      await ensureConditionCounts()
+      return fromRows('conditions', expr)
+    }
   }
 }
 

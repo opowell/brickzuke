@@ -19,7 +19,7 @@ import type {DataSource,
   Term} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import type { Fill } from './pageFill'
-import { count, get, getAllFromIndex, openCursor } from '../../idb/db'
+import { count, get, getAll, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
 // `dbStores` rather than `stores`, that name being taken here by a seller.
@@ -29,6 +29,7 @@ import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-p
 import { inventoryFor, readInventory } from './inventoryFetch'
 import { ensurePartCounts, partsOf } from './partCounts'
 import { ensureStoreInventories, storeInventoryOf } from './storeInventoryCounts'
+import { conditionCounts, conditionCountsVersion, ensureConditionCounts } from './conditionCounts'
 import { colorItemsFill, colorItemsFor, readColorItems } from './colorItemsFetch'
 import { notePriceCurrency } from './priceCurrency'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
@@ -630,11 +631,22 @@ function toPrice(value: string | undefined): number | undefined {
  * whole is the lots themselves, which is what [eachLot] is for.
  */
 async function lotDirectory(records: Iterable<string> = []): Promise<LotDirectory> {
-  return {
+  const directory: LotDirectory = {
     sellers: new Map((await readStores()).map((store) => [store.id, store])),
     countries: new Map((await readCountries()).map((one) => [one.countryCode, one])),
-    categories: await categoriesBehind(new Set(records))
+    categories: new Map(),
+    asked: new Set()
   }
+  const wanted = new Set(records)
+  if (wanted.size) {
+    const db = await getDbConnection()
+    try {
+      await categoriesBehind(db, directory, wanted)
+    } finally {
+      db.close()
+    }
+  }
+  return directory
 }
 
 interface LotDirectory {
@@ -647,40 +659,59 @@ interface LotDirectory {
    * [categoriesBehind].
    */
   categories: Map<string, { id: number; name: string }>
+  /**
+   * The records looked up so far, whether or not one was on file — a record
+   * with no category is not asked about again on the next chunk of lots.
+   */
+  asked: Set<string>
 }
 
 /**
- * The category behind each of these records, where one is on file.
+ * The category behind each of these records, where one is on file, added to
+ * the directory.
  *
- * One point lookup per distinct record, in one connection, the way [reach]
+ * One point lookup per distinct record not already looked up, the way [reach]
  * reads the same store for its cards: a seller stocks the same part in nine
- * colours, so the set is far smaller than the lots.
+ * colours, so the set is far smaller than the lots. The lookups of one call
+ * go out together in one transaction rather than one awaited after another —
+ * thirty thousand records is under a second that way and nearly two the
+ * other. Filled a chunk of lots at a time by [eachLotRows], which is what lets
+ * a walk over every lot start handing rows over before it has seen the last
+ * of them.
  */
 async function categoriesBehind(
-  records: ReadonlySet<string>
-): Promise<Map<string, { id: number; name: string }>> {
-  const categories = new Map<string, { id: number; name: string }>()
-  if (!records.size) {
-    return categories
-  }
-  const db = await getDbConnection()
-  try {
-    for (const record of records) {
-      const item = await get<BrickLinkItem>(db, dbStores.BRICK_LINK_ITEMS, record)
-      const id = item?.categoryId ?? item?.['Category ID']
-      const numericId = Number(id)
-      // A number, not the string BrickLink's own field holds it as: `:`
-      // compares a number exactly and only substring-matches a string, so
-      // `category:5` against a string id was finding every id with a `5` in
-      // it anywhere — 15, 51, 205 — not just category 5.
-      if (id !== undefined && id !== '' && Number.isFinite(numericId)) {
-        categories.set(record, { id: numericId, name: item?.['Category Name'] ?? '' })
-      }
+  db: IDBPDatabase,
+  directory: LotDirectory,
+  records: Iterable<string>
+): Promise<void> {
+  const wanted: string[] = []
+  for (const record of records) {
+    if (!directory.asked.has(record)) {
+      directory.asked.add(record)
+      wanted.push(record)
     }
-  } finally {
-    db.close()
   }
-  return categories
+  if (!wanted.length) {
+    return
+  }
+  const store = db.transaction(dbStores.BRICK_LINK_ITEMS.name).store
+  const items = await Promise.all(
+    wanted.map((record) => store.get(record) as Promise<BrickLinkItem | undefined>)
+  )
+  items.forEach((item, at) => {
+    const id = item?.categoryId ?? item?.['Category ID']
+    const numericId = Number(id)
+    // A number, not the string BrickLink's own field holds it as: `:`
+    // compares a number exactly and only substring-matches a string, so
+    // `category:5` against a string id was finding every id with a `5` in
+    // it anywhere — 15, 51, 205 — not just category 5.
+    if (id !== undefined && id !== '' && Number.isFinite(numericId)) {
+      directory.categories.set(wanted[at], {
+        id: numericId,
+        name: item?.['Category Name'] ?? ''
+      })
+    }
+  })
 }
 
 /** One stored lot, as a row. */
@@ -755,52 +786,62 @@ async function asStoreLotRows(lots: StoredStoreLot[]): Promise<ShellRow[]> {
  * count for itself without keeping them.
  */
 export async function eachLot(visit: (lot: ShellRow) => void): Promise<number> {
-  let seen = 0
-  const directory = await lotDirectory(await recordsOfEveryLot())
-  for (const lot of readStoreInventories()) {
-    visit(toStoreInventoryRow(lot, directory))
-    seen++
-  }
-  const db = await getDbConnection()
-  try {
-    let cursor = await openCursor(db, dbStores.STORE_LOTS)
-    while (cursor) {
-      visit(toStoreLotRow(cursor.value as StoredStoreLot, directory))
-      seen++
-      cursor = await cursor.continue()
-    }
-  } finally {
-    db.close()
-  }
-  return seen
+  return eachLotRows((rows) => {
+    rows.forEach(visit)
+    return true
+  })
 }
 
 /**
- * The distinct records every lot brickzuke holds is of — what [eachLot] has to
- * know ahead of its walk for the category behind each lot to reach it off the
- * cursor, a lookup being nothing that can happen between one cursor step and
- * the next.
+ * Stored lots pulled per round trip.
  *
- * A second pass over the stored lots, keeping one string per distinct record
- * and nothing else: a seller stocks the same part in nine colours, so the set
- * is bounded well below the lots.
+ * Every other read of the database waits behind whichever chunk is in hand,
+ * so this is a latency put on everything else for as long as a walk runs —
+ * and the walk itself holds only this many at once. Five thousand is a dozen
+ * milliseconds or so at the sizes a stored lot runs to.
  */
-async function recordsOfEveryLot(): Promise<Set<string>> {
-  const records = new Set<string>()
-  for (const lot of readStoreInventories()) {
-    records.add(`${lot.itemType}-${lot.itemNumber}`)
-  }
+const LOT_CHUNK = 5_000
+
+/**
+ * The same walk, a chunk at a time: the lots in memory first, as one chunk,
+ * then the stored ones in key order. The category behind each record is
+ * looked up as the chunk holding it arrives, so the first chunk's rows are in
+ * hand a few round trips in rather than after a pass over the whole store —
+ * which is what lets a table drawn from this show its first page while the
+ * rest is still being read. The visitor answers whether to go on; a table
+ * whose query has moved on says no. Returns how many were handed over.
+ */
+async function eachLotRows(visit: (rows: ShellRow[]) => boolean): Promise<number> {
+  let seen = 0
+  const directory = await lotDirectory()
   const db = await getDbConnection()
   try {
-    let cursor = await openCursor(db, dbStores.STORE_LOTS)
-    while (cursor) {
-      records.add((cursor.value as StoredStoreLot).record)
-      cursor = await cursor.continue()
+    const held = readStoreInventories()
+    if (held.length) {
+      await categoriesBehind(db, directory, held.map((lot) => `${lot.itemType}-${lot.itemNumber}`))
+      const rows = held.map((lot) => toStoreInventoryRow(lot, directory))
+      seen += rows.length
+      if (!visit(rows)) {
+        return seen
+      }
+    }
+    let range: IDBKeyRange | null = null
+    for (;;) {
+      const batch = (await getAll<StoredStoreLot>(db, dbStores.STORE_LOTS, range, LOT_CHUNK)) ?? []
+      if (!batch.length) {
+        return seen
+      }
+      await categoriesBehind(db, directory, batch.map((lot) => lot.record))
+      const rows = batch.map((lot) => toStoreLotRow(lot, directory))
+      seen += rows.length
+      if (!visit(rows) || batch.length < LOT_CHUNK) {
+        return seen
+      }
+      range = IDBKeyRange.lowerBound(batch[batch.length - 1].id, true)
     }
   } finally {
     db.close()
   }
-  return records
 }
 
 /**
@@ -825,17 +866,23 @@ const LOT_FIELDS = {
   columns: []
 } as unknown as EntitySchema
 
-function lotsMatching(request: QueryRequest, lots: ShellRow[]): ShellRow[] {
+/**
+ * The terms of a query that narrow the lots a cross-section counts, or nothing
+ * where none does — a group left with no terms constrains nothing, so it
+ * matches every lot, and the whole expression with it.
+ */
+function lotTerms(request: QueryRequest): Term[][] | undefined {
   const groups = parseExpression(request.query.expr).map((group) =>
     group.filter(
       (term) => !['record', 'store', 'condition'].some((field) => addresses(term, field))
     )
   )
-  // A group left with no terms constrains nothing, so it matches every lot.
-  if (!groups.length || groups.some((group) => !group.length)) {
-    return lots
-  }
-  return lots.filter((lot) => matchesExpression(groups, lot, LOT_FIELDS))
+  return !groups.length || groups.some((group) => !group.length) ? undefined : groups
+}
+
+function lotsMatching(request: QueryRequest, lots: ShellRow[]): ShellRow[] {
+  const groups = lotTerms(request)
+  return groups ? lots.filter((lot) => matchesExpression(groups, lot, LOT_FIELDS)) : lots
 }
 
 /** The two conditions BrickLink sells in, under the codes a lot carries. */
@@ -1114,10 +1161,55 @@ async function imageRows(request: QueryRequest, fetching = true): Promise<ShellR
  * opened an item and two counted ones after.
  */
 async function conditionRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
-  const lots = await storeInventoryRows(request, fetching)
-  const narrowed = lotsMatching(request, lots)
+  /*
+   * Over the lots themselves only where the query says which: an item's or a
+   * seller's, or the ones some other term reaches — a region, a colour. Those
+   * are bounded by what one page holds, or are a question only the lots can
+   * answer. Un-narrowed, the lots are every one stored, and the two numbers
+   * this table wants of them come off the fold instead — see
+   * [conditionCounts] — with the ones an item's page put in memory this
+   * session counted live beside them, there being few and already in hand.
+   */
+  if (termValue(request, 'record') || termValue(request, 'store') || lotTerms(request)) {
+    const lots = await storeInventoryRows(request, fetching)
+    const narrowed = lotsMatching(request, lots)
+    return conditionRowsOf(lots.length > 0, (code) => {
+      const mine = narrowed.filter((lot) => lot.fields.condition === code)
+      return {
+        lots: mine.length,
+        quantity: mine.reduce((sum, lot) => sum + Number(lot.fields.quantity ?? 0), 0)
+      }
+    })
+  }
+  const held = readStoreInventories()
+  const stored = conditionCounts()
+  const storedLots = [...(stored?.values() ?? [])].reduce((sum, count) => sum + count.lots, 0)
+  return conditionRowsOf(held.length + storedLots > 0, (code) => {
+    const mine = held.filter((lot) => lot.condition === code)
+    const folded = stored?.get(code)
+    return {
+      lots: mine.length + (folded?.lots ?? 0),
+      quantity: mine.reduce((sum, lot) => sum + (Number(lot.quantity) || 0), 0) + (folded?.quantity ?? 0)
+    }
+  })
+}
+
+/**
+ * Both rows, each counted by `count`.
+ *
+ * Blank rather than nought where nothing is loaded: no lots read is not the
+ * same claim as no lots on offer, which is the distinction `total` in
+ * catalogRows exists to keep. Gated on what was read rather than on what
+ * matched, those being the two different questions — a query that matches
+ * none of the lots brickzuke holds is a nought, and holding none at all is
+ * still a blank.
+ */
+function conditionRowsOf(
+  read: boolean,
+  count: (code: string) => { lots: number; quantity: number }
+): ShellRow[] {
   return Object.entries(CONDITIONS).map(([code, name]) => {
-    const mine = narrowed.filter((lot) => lot.fields.condition === code)
+    const mine = read ? count(code) : undefined
     return {
       id: code,
       entityKey: 'conditions',
@@ -1126,21 +1218,31 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
         id: code,
         condition: code,
         name,
-        // Blank rather than nought where nothing is loaded: no lots read is
-        // not the same claim as no lots on offer, which is the distinction
-        // `total` in catalogRows exists to keep. Gated on what was read rather
-        // than on what matched, those being the two different questions — a
-        // query that matches none of the lots brickzuke holds is a nought, and
-        // holding none at all is still a blank.
-        lots: lots.length ? mine.length : undefined,
-        quantity: lots.length
-          ? mine.reduce((sum, lot) => sum + Number(lot.fields.quantity ?? 0), 0)
-          : undefined,
+        lots: mine?.lots,
+        quantity: mine?.quantity,
         // As on a country: the factor on every lot in this condition.
         priceModifier: priceModifierOf('conditions', code)
       }
     }
   })
+}
+
+/**
+ * The rest of the un-narrowed conditions table: the fold over the stored lots,
+ * which the first push does without where it has not landed. Its version
+ * moves as the fold lands and again as a seller's pages refold it, and the
+ * table is redrawn on each — see `stream`. Nothing to stop: the fold is one
+ * pass, held for whoever asks next.
+ */
+function conditionCountsFill(request: QueryRequest): Fill | undefined {
+  if (termValue(request, 'record') || termValue(request, 'store') || lotTerms(request)) {
+    return undefined
+  }
+  return {
+    version: conditionCountsVersion,
+    run: ensureConditionCounts,
+    stop() {}
+  }
 }
 
 /**
@@ -1561,7 +1663,8 @@ const fetched: Record<string, Fetched> = {
   },
   conditions: {
     addresses: ['record'],
-    rows: conditionRows
+    rows: conditionRows,
+    fill: conditionCountsFill
   },
   regions: {
     addresses: [],
@@ -1769,6 +1872,62 @@ export async function matchingRows(request: QueryRequest): Promise<ShellRow[]> {
   return held ? present(await held, request) : []
 }
 
+/**
+ * Every lot brickzuke holds, as the page the query asks for, pushed as the
+ * walk finds them.
+ *
+ * Un-narrowed, the lots table is every stored lot — a few hundred thousand
+ * once a handful of sellers have been opened — and the one push the other
+ * fetched types make read the whole of it into rows, sorted them all and cut
+ * fifty out: three and a half seconds before the first row. This is the items
+ * scan's shape instead. The page keeps only the rows that could still be on
+ * it (see [pageOf]), the walk hands over a chunk at a time (see
+ * [eachLotRows]), and the table is told the page as it stands after each — so
+ * the first rows are up a few round trips in, and the order settles as the
+ * rest arrives. What is on the page is only ever rows the query matches; what
+ * changes as the walk goes on is which of them sort into it.
+ */
+function streamLots(request: QueryRequest, sink: QuerySink): () => void {
+  let cancelled = false
+  const matches = matcherBesides(request, 'record', 'store')
+  const inRange = facetMatcher(request)
+  const page = pageOf(request)
+  void (async () => {
+    try {
+      await eachLotRows((rows) => {
+        if (cancelled || !sink.open) {
+          return false
+        }
+        let changed = false
+        for (const row of rows) {
+          if (matches(row) && inRange(row) && page.take(row)) {
+            changed = true
+          }
+        }
+        // A chunk sorting wholly past the end of the page changes the count
+        // and nothing that is on screen.
+        sink.set(
+          changed
+            ? {
+              rows: page.rows(),
+              total: page.total()
+            }
+            : {
+              total: page.total()
+            }
+        )
+        return true
+      })
+      sink.close()
+    } catch (thrown) {
+      sink.fail(thrown)
+    }
+  })()
+  return () => {
+    cancelled = true
+  }
+}
+
 export const catalogSource: DataSource = {
   /**
    * The home screen's summary, and its only caller: it runs one of these per
@@ -1856,6 +2015,12 @@ export const catalogSource: DataSource = {
   stream(request: QueryRequest, sink: QuerySink) {
     const key = entityKey(request)
     let cancelled = false
+
+    // The lots table naming no item and no seller is every lot stored, and is
+    // walked rather than read whole — see [streamLots].
+    if (key === 'inventories' && !termValue(request, 'record') && !termValue(request, 'store')) {
+      return streamLots(request, sink)
+    }
 
     const source = key ? fetched[key] : undefined
     if (source) {

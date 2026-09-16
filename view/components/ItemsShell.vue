@@ -40,7 +40,7 @@ import type { EntitySchema, Selection, ShellQuery } from 'header-content-layout'
 import 'header-content-layout/style.css'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { refreshCounts } from '../appfr/catalogCounts'
+import { refreshCount, refreshCounts } from '../appfr/catalogCounts'
 import { startHomeFill, stopHomeFill } from '../appfr/homeFill'
 import { catalogSchema } from '../appfr/catalogSchema'
 import { catalogSource } from '../appfr/catalogSource'
@@ -103,6 +103,10 @@ watch(
       // table: the table is fetching for itself, and the store directory has
       // waited this long.
       stopHomeFill()
+      // The one number a table opened straight from the address bar is headed
+      // by, where it is one cheap read — the shell states the population over
+      // an un-narrowed table, and the home screen's pass has not run.
+      void refreshCount(entity)
     } else {
       // Before the counts, so the pass over the years is started by the fill
       // and reports its progress to it — both ask for the same held pass, and
