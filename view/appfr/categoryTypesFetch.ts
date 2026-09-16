@@ -13,7 +13,7 @@
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
 import { useCatalogDownloadPageStore } from '../stores/bricklink/catalog-download-page'
-import type { BrickLinkItemType } from '../stores/bricklink/catalog-download-page'
+import type { BrickLinkCategory, BrickLinkItemType } from '../stores/bricklink/catalog-download-page'
 import { getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
@@ -23,6 +23,16 @@ let started = false
 /**
  * Runs once per session — a second call while the first is still queuing or
  * draining would queue the same six requests twice.
+ *
+ * `started` alone only ever meant "once per page load": it is reset by
+ * reloading, which `ItemsShell` does every time it mounts, so the walk this
+ * runs — over every category of every item type, a `get` and a `put` apiece —
+ * ran again on every reload regardless of whether anything had changed. The
+ * page fetches behind it are cached for a month, but a cached page still
+ * replays through the same handler once it lands, so the caching bought
+ * nothing here. A category carrying a `catType` is proof the walk has reached
+ * it before, so that is checked here instead — the same trust the caches
+ * themselves place in a month-old answer.
  */
 export async function fillCategoryTypes(): Promise<void> {
   if (started) {
@@ -31,10 +41,14 @@ export async function fillCategoryTypes(): Promise<void> {
   started = true
   const db = await getDbConnection()
   const itemTypes = (await getAll<BrickLinkItemType>(db, STORES.BRICK_LINK_ITEM_TYPES)) ?? []
+  const categories = (await getAll<BrickLinkCategory>(db, STORES.BRICK_LINK_CATEGORIES)) ?? []
   db.close()
   // Nothing to walk the tree for yet — the item types themselves have to be
   // downloaded first, same as the button's own `updateCatalogTree` requires.
   if (!itemTypes.length) {
+    return
+  }
+  if (categories.some((category) => category.catType)) {
     return
   }
   installResponseListener()
