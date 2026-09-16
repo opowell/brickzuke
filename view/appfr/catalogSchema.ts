@@ -2433,6 +2433,14 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
     {
       key: 'items',
       label: 'Items',
+      // The field every other record carries this item's id in — `id`, on a
+      // lot of any store's or a set's own inventory, because that is what
+      // `toRow` names it and an expression field is read verbatim. Declaring
+      // it is what lets the header say `item: Tile 6 x 6` where the query
+      // says `id:"21971"` — `scopeLabel` says "item" in place of the field's
+      // own bare name, which reads as nothing to a reader.
+      scope: 'id',
+      scopeLabel: 'item',
       // The catalogue's count and theirs, this table listing both — and
       // reading `userCounts` is what rebuilds the schema after one of theirs
       // is written. See [userCounts].
