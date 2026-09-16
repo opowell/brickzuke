@@ -12,6 +12,7 @@
  * item's page; that handler fires the two that actually carry the answers, so
  * three round trips stand behind one call here.
  */
+import { watch } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
 import { useCatalogItemPageStore } from '../stores/bricklink/catalog-item-page'
@@ -19,6 +20,24 @@ import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
 
 /** The same budget an inventory gets, over a chain of three requests. */
 const DEADLINE_MS = 30_000
+
+const MISSING_EXTENSION =
+  'No answer from the BrickZuke extension. It fetches BrickLink pages on the ' +
+  "app's behalf — check it is installed and that you are signed in to BrickLink."
+
+/**
+ * The two halves of an item's page, by the map each lands in.
+ *
+ * A caller waits on the one it asked for and no other. They used to share one
+ * wait that ended when *either* had landed, on the argument that an item with
+ * no lots is an ordinary answer — and so it is, but the two answers land
+ * apart: the image list is replayed from the cache in the same tick the page
+ * is, and the lots come back a round trip later. So `storeInventoriesFor` was
+ * regularly woken by the pictures, read the lots before they were there, and
+ * handed the table an empty page that then closed — and stayed empty, nothing
+ * being left to push the lots in when they arrived.
+ */
+type Half = 'inventoriesMap' | 'imagesMap'
 
 /**
  * Types whose page this can read.
@@ -67,48 +86,68 @@ export function readImages(record?: string): ItemImage[] {
 }
 
 /** One fetch per record at a time: lots and pictures are one page between them. */
-const inFlight = new Map<string, Promise<void>>()
+const inFlight = new Map<string, Promise<boolean>>()
 
-async function scrape(record: string): Promise<void> {
+/** Opens the page. False where there is no page this can read, and so nothing to wait for. */
+async function scrape(record: string): Promise<boolean> {
   const parts = splitRecord(record)
   if (!parts || !READABLE.has(parts.type)) {
-    return
+    return false
   }
   installResponseListener()
   const store = useCatalogItemPageStore()
   // Queues the call, or replays a cached response — a page read within the
-  // week never leaves the browser.
-  await store.fetchItemPage(parts.type, parts.number)
-  // Three deep: the page's own handler queues the image and inventory calls
-  // once it has the numeric item id, and drains them itself.
-  await processQueue(1)
-
-  const deadline = Date.now() + DEADLINE_MS
-  for (;;) {
-    // Either half arriving is enough to stop waiting. An item with no lots on
-    // offer is an ordinary answer, and so is one with no extra pictures, so
-    // waiting for both would hang on the commonplace.
-    if (readStoreInventories(record).length || readImages(record).length) {
-      return
-    }
-    if (Date.now() > deadline) {
-      throw new Error(
-        'No answer from the BrickZuke extension. It fetches BrickLink pages on the ' +
-          "app's behalf — check it is installed and that you are signed in to BrickLink.",
-      )
-    }
-    await new Promise((resolve) => setTimeout(resolve, 400))
+  // week never leaves the browser. Three deep either way: the page's own
+  // handler queues the image and inventory calls once it has the numeric
+  // item id, and drains them itself. Replayed, that handler has already run
+  // by the time this returns, so there is nothing here to send; queued, the
+  // page call is sitting in the queue and this is what sends it.
+  const replayed = await store.fetchItemPage(parts.type, parts.number)
+  if (!replayed) {
+    await processQueue(1)
   }
+  return true
 }
 
-function fetchRecord(record: string): Promise<void> {
-  const running = inFlight.get(record)
-  if (running) {
-    return running
+/**
+ * Resolves once the half of the page a caller wants is in its map — an empty
+ * list included, an item with no lots on offer being an ordinary answer — and
+ * fails once nothing has come back within the budget.
+ *
+ * Watched rather than polled: the old loop looked every 400ms, so a reply that
+ * had already landed still cost up to that long before the table drew it.
+ */
+function landed(record: string, half: Half): Promise<void> {
+  const store = useCatalogItemPageStore()
+  if (store[half].has(record)) {
+    return Promise.resolve()
   }
-  const attempt = scrape(record).finally(() => inFlight.delete(record))
-  inFlight.set(record, attempt)
-  return attempt
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      stop()
+      reject(new Error(MISSING_EXTENSION))
+    }, DEADLINE_MS)
+    const stop = watch(
+      () => store[half].has(record),
+      (has) => {
+        if (has) {
+          clearTimeout(timer)
+          stop()
+          resolve()
+        }
+      }
+    )
+  })
+}
+
+/** Opens the page once for however many callers want a half of it. */
+function fetchRecord(record: string, half: Half): Promise<void> {
+  let running = inFlight.get(record)
+  if (!running) {
+    running = scrape(record).finally(() => inFlight.delete(record))
+    inFlight.set(record, running)
+  }
+  return running.then((asked) => (asked ? landed(record, half) : undefined))
 }
 
 /**
@@ -123,11 +162,11 @@ export async function storeInventoriesFor(record?: string): Promise<StoreInvento
   if (!record) {
     return readStoreInventories()
   }
-  const held = readStoreInventories(record)
-  if (held.length) {
-    return held
+  // Held, whether or not there was anything to hold: an item with no lots on
+  // offer has been answered, and is not asked about again on every read.
+  if (!useCatalogItemPageStore().inventoriesMap.has(record)) {
+    await fetchRecord(record, 'inventoriesMap')
   }
-  await fetchRecord(record)
   return readStoreInventories(record)
 }
 
@@ -136,10 +175,8 @@ export async function imagesFor(record?: string): Promise<ItemImage[]> {
   if (!record) {
     return readImages()
   }
-  const held = readImages(record)
-  if (held.length) {
-    return held
+  if (!useCatalogItemPageStore().imagesMap.has(record)) {
+    await fetchRecord(record, 'imagesMap')
   }
-  await fetchRecord(record)
   return readImages(record)
 }
