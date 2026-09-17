@@ -1224,8 +1224,10 @@ function lotNarrowingOf(request: QueryRequest): LotNarrowing {
  * that ends at once. Nothing to fill where the query narrows by nothing the
  * list takes: then there is only the un-narrowed page.
  */
-function itemLotsFill(request: QueryRequest): Fill | undefined {
-  const narrowing = lotNarrowingOf(request)
+function itemLotsFill(
+  request: QueryRequest,
+  narrowing = lotNarrowingOf(request)
+): Fill | undefined {
   if (!lotAsksFor(narrowing).length) {
     return undefined
   }
@@ -1360,10 +1362,7 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
    * session counted live beside them, there being few and already in hand.
    */
   if (namesItem(request) || termValue(request, 'store') || lotTerms(request)) {
-    // Both conditions, whichever the query names — see [lotNarrowingOf].
-    const lots = await storeInventoryRows(request, fetching, {
-      region: termValue(request, 'region')
-    })
+    const lots = await storeInventoryRows(request, fetching, conditionNarrowingOf(request))
     const narrowed = lotsMatching(request, lots)
     return conditionRowsOf(lots.length > 0, (code) => {
       const mine = narrowed.filter((lot) => lot.fields.condition === code)
@@ -1426,8 +1425,27 @@ function conditionRowsOf(
  * table is redrawn on each — see `stream`. Nothing to stop: the fold is one
  * pass, held for whoever asks next.
  */
+/**
+ * What the conditions table asks BrickLink to narrow an item's lots by: the
+ * region and not the condition, the table stating both conditions whichever
+ * one the query names — see [lotNarrowingOf].
+ */
+function conditionNarrowingOf(request: QueryRequest): LotNarrowing {
+  return {
+    region: termValue(request, 'region')
+  }
+}
+
 function conditionCountsFill(request: QueryRequest): Fill | undefined {
-  if (namesItem(request) || termValue(request, 'store') || lotTerms(request)) {
+  // An item's lots under a region are pages of an answer, and this table
+  // counted the first of them as if it were all of them — `New 9` beside
+  // `Used 491` for a part with thousands of each in Europe. The same fill
+  // the lots table runs, over the same ask, redraws the two counts as each
+  // page lands.
+  if (namesItem(request)) {
+    return itemLotsFill(request, conditionNarrowingOf(request))
+  }
+  if (termValue(request, 'store') || lotTerms(request)) {
     return undefined
   }
   return {

@@ -185,6 +185,15 @@ beforeAll(async () => {
   // apart from the page, under the ask. The query narrowing by condition and
   // region reads this, the page holding only a sample of the market.
   store.narrowedLotsMap.set('P-2465|cond=N|reg=6', [lot('1', 'P-2465', 'brickmeister', 'DE', 'N')])
+  // And asked for Europe alone, both conditions — the conditions table's
+  // ask, whole in one page, so nothing is left for its fill to fetch. Fewer
+  // than the page narrowed to Europe would give (BrickLink's answer, not a
+  // sample of it), which is what tells the two apart.
+  store.narrowedLotsMap.set('P-2465|cond=|reg=6', [lot('2', 'P-2465', 'brickmeister', 'DE', 'U', '7')])
+  store.narrowedLotsScope.set('P-2465|cond=|reg=6', {
+    total: 1,
+    pages: 1
+  })
   store.imagesMap.set('P-2465', [])
   store.imagesMap.set('S-2465-1', [])
 })
@@ -349,5 +358,59 @@ describe('the colours table, over the lots a query reaches', () => {
 
   it('is every colour when nothing asks about lots', async () => {
     expect((await rowsOf('colors', '')).map((row) => row.fields.name)).toEqual(['Blue', 'Red'])
+  })
+})
+
+/** The rows of a type as the source streams them, settled: the last page set before it closed. */
+async function settledRowsOf(entityKey: string, expr: string): Promise<Record<string, unknown>[]> {
+  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)!
+  const request: QueryRequest = {
+    query: {
+      entity: entityKey,
+      view: 'table',
+      sort: 'name',
+      dir: 'asc',
+      expr,
+      facets: {},
+      page: 1
+    },
+    schema: catalogSchema.value,
+    entity,
+    limit: 50,
+    offset: 0
+  }
+  return await new Promise((resolve, reject) => {
+    let last: { fields: Record<string, unknown> }[] = []
+    catalogSource.stream!(request, {
+      get open() {
+        return true
+      },
+      insert() {},
+      set(next) {
+        last = (next as { rows: { fields: Record<string, unknown> }[] }).rows
+      },
+      close() {
+        resolve(last.map((row) => row.fields))
+      },
+      fail(thrown) {
+        reject(thrown)
+      }
+    })
+  })
+}
+
+/*
+ * The conditions table over an item in a region counts both conditions off
+ * the region's own ask — not the un-narrowed page, which is a sample of the
+ * whole market and not of Europe — and runs the same fill over it, so a
+ * count is of the whole answer once the pages are in. The page narrowed to
+ * Europe would say one of each; the region's ask says one used and no new.
+ */
+describe('the conditions table, over an item\'s lots in a region', () => {
+  it('counts both conditions off the region\'s ask', async () => {
+    const rows = await settledRowsOf('conditions', 'type:P region:Europe id:"21051"')
+    const byCode = new Map(rows.map((row) => [row.condition, row.lots]))
+    expect(byCode.get('N')).toBe(0)
+    expect(byCode.get('U')).toBe(1)
   })
 })
