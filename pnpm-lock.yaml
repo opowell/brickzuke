@@ -12,8 +12,8 @@ importers:
         specifier: ^14.0.0
         version: 14.0.0(vue@3.5.13(typescript@5.8.3))
       header-content-layout:
-        specifier: github:opowell/appfr#v0.27.5
-        version: https://codeload.github.com/opowell/appfr/tar.gz/dbc00c892e36efdcedfbc0da9c492c6bcf76d154(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3))
+        specifier: github:opowell/appfr#v0.27.6
+        version: https://codeload.github.com/opowell/appfr/tar.gz/6ebe7277d48d5e523d96f5f44e191b7dd5bbd62c(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3))
       idb:
         specifier: ^8.0.3
         version: 8.0.3
@@ -1593,9 +1593,9 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/dbc00c892e36efdcedfbc0da9c492c6bcf76d154:
-    resolution: {tarball: https://codeload.github.com/opowell/appfr/tar.gz/dbc00c892e36efdcedfbc0da9c492c6bcf76d154}
-    version: 0.27.5
+  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/6ebe7277d48d5e523d96f5f44e191b7dd5bbd62c:
+    resolution: {tarball: https://codeload.github.com/opowell/appfr/tar.gz/6ebe7277d48d5e523d96f5f44e191b7dd5bbd62c}
+    version: 0.27.6
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
       vue: ^3.4.0
@@ -4168,7 +4168,7 @@ snapshots:
 
   he@1.2.0: {}
 
-  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/dbc00c892e36efdcedfbc0da9c492c6bcf76d154(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3)):
+  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/6ebe7277d48d5e523d96f5f44e191b7dd5bbd62c(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3)):
     dependencies:
       vue: 3.5.13(typescript@5.8.3)
     optionalDependencies:
