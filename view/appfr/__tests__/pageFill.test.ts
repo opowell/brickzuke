@@ -61,7 +61,7 @@ vi.mock('../../stores/bricklink/catalog-list-color-page', () => ({
 }))
 
 const {
-  fillPages
+  fillPages, resetPace
 } = await import('../pageFill')
 const {
   storeLotsFill
@@ -140,6 +140,9 @@ async function landColorPage(scope: string) {
 
 beforeEach(() => {
   asked.length = 0
+  // The gap between requests is reserved on one clock for every fill, and a
+  // reservation made on a stub clock outlives it.
+  resetPace()
 })
 
 /**
@@ -223,6 +226,44 @@ describe('the run', () => {
     await run(fillPages(answer(60, false), version))
     expect(asked).toEqual([2])
     expect(version.value).toBe(0)
+  })
+
+  /** The answer above, noting the stub clock at every ask. */
+  function timed(pages: number, times: number[]) {
+    const pace = answer(pages)
+    const fetch = pace.fetch
+    pace.fetch = async (page: number) => {
+      times.push(Date.now())
+      await fetch(page)
+    }
+    return pace
+  }
+
+  it('spaces its requests a second or more apart, however many fills are running', async () => {
+    // One clock for every fill: two tables filling at once are not twice the
+    // traffic, they take turns — and neither is ever on the beat.
+    const times: number[] = []
+    const one = fillPages(timed(4, times), ref(0))
+    const two = fillPages(timed(4, times), ref(0))
+    const done = Promise.all([one.run(), two.run()])
+    await vi.advanceTimersByTimeAsync(600_000)
+    await done
+    expect(times).toHaveLength(6)
+    const sorted = [...times].sort((a, b) => a - b)
+    for (let at = 1; at < sorted.length; at++) {
+      expect(sorted[at] - sorted[at - 1]).toBeGreaterThanOrEqual(1_000)
+    }
+  })
+
+  it('slows down the longer a run goes on', async () => {
+    const times: number[] = []
+    await run(fillPages(timed(60, times), ref(0)), 3_600_000)
+    expect(times).toHaveLength(59)
+    const gaps = times.slice(1).map((time, at) => time - times[at])
+    // Brisk to begin with, and settled at three seconds and a bit by the end.
+    expect(gaps[0]).toBeLessThan(1_600)
+    expect(gaps[gaps.length - 1]).toBeGreaterThanOrEqual(3_000)
+    expect(gaps[gaps.length - 1]).toBeLessThan(3_600)
   })
 
   it('stops rather than throwing when the fetch itself fails', async () => {

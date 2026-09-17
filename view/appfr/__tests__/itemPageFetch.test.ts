@@ -248,12 +248,12 @@ describe('an item\'s lots under a narrowing', () => {
     })).toEqual([{
       cond: 'N'
     }])
-    // Nothing the list can take, so nothing to ask: the page is what there is.
-    expect(lotAsksFor({})).toEqual([])
+    // Nothing the list can take is still an ask — the whole list, paged.
+    expect(lotAsksFor({})).toEqual([{}])
     expect(lotAsksFor({
       condition: 'New',
       region: 'Atlantis'
-    })).toEqual([])
+    })).toEqual([{}])
   })
 
   it('asks BrickLink for the condition and the region, off the item\'s page', async () => {
@@ -360,6 +360,37 @@ describe('the rest of a narrowed answer', () => {
     const pages = extension.urls.filter((url) => url.includes('catalogifs') && url.includes('reg=6'))
     expect(pages.filter((url) => url.includes('pi=2'))).toHaveLength(1)
     expect(pages.some((url) => url.includes('pi=3'))).toBe(false)
+  }, 15_000)
+
+  it('walks the whole list when the query narrows by nothing, from the page already read', async () => {
+    // The page handler's own un-narrowed fetch is the bare ask's first page:
+    // one request for it, not two, and the fill carries on from page two.
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, (url) => {
+      const page = Number(/pi=(\d+)/.exec(url)?.[1] ?? 1)
+      return {
+        list: page === 1 ? pageOf(3000, PAGE) : page === 2 ? pageOf(4000, 200) : [],
+        total_count: 700
+      }
+    })
+    const first = await narrowedStoreInventoriesFor('P-3030', {})
+    expect(first).toHaveLength(PAGE)
+    expect(extension.urls.filter((url) => url.includes('catalogifs'))).toHaveLength(1)
+    const store = useCatalogItemPageStore()
+    expect(store.narrowedLotsScope.get('P-3030|cond=|reg=')).toEqual({
+      total: 700,
+      pages: 1
+    })
+    await narrowedLotsFill('P-3030', {}).run()
+    expect(await narrowedStoreInventoriesFor('P-3030', {}, false)).toHaveLength(700)
+    const asked = extension.urls.filter((url) => url.includes('catalogifs'))
+    expect(asked).toHaveLength(2)
+    expect(asked[1]).toContain('pi=2')
+    // And the un-narrowed read is the whole of it too, each lot once.
+    expect(readStoreInventories('P-3030')).toHaveLength(700)
   }, 15_000)
 
   it('has nothing to fill when the first page was the whole answer', async () => {

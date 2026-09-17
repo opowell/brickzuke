@@ -45,7 +45,6 @@ import {countriesFor,
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
 import {imagesFor,
   readImages,
-  lotAsksFor,
   narrowedLotsFill,
   narrowedLotsVersion,
   narrowedStoreInventoriesFor,
@@ -1221,16 +1220,13 @@ function lotNarrowingOf(request: QueryRequest): LotNarrowing {
  * other. The records are looked up in the run rather than before it — a
  * fill is made in the same breath as the query, and the lookup is a read of
  * the catalogue — so the fill for an id with nothing behind it is a run
- * that ends at once. Nothing to fill where the query narrows by nothing the
- * list takes: then there is only the un-narrowed page.
+ * that ends at once. A query narrowing by nothing the list takes is the
+ * bare ask — the whole list, paged — see [lotAsksFor].
  */
 function itemLotsFill(
   request: QueryRequest,
   narrowing = lotNarrowingOf(request)
-): Fill | undefined {
-  if (!lotAsksFor(narrowing).length) {
-    return undefined
-  }
+): Fill {
   let stopped = false
   let running: Fill | undefined
   return {
@@ -1245,7 +1241,7 @@ function itemLotsFill(
           return
         }
         running = narrowedLotsFill(record, narrowing)
-        await running?.run()
+        await running.run()
       }
     }
   }
@@ -1936,10 +1932,10 @@ const fetched: Record<string, Fetched> = {
     rows: storeInventoryRows,
     fill: (request) => {
       const store = termValue(request, 'store')
-      // The seller's own front is paged, and so is an item's narrowed answer
-      // — see [itemLotsFill]. The un-narrowed page of an item is one request
-      // and whole when it lands, and the un-narrowed table is what browsing
-      // has gathered rather than an answer with more of it to come.
+      // The seller's own front is paged, and so is an item's answer, narrowed
+      // or not — see [itemLotsFill]. The un-narrowed table naming no item is
+      // what browsing has gathered rather than an answer with more of it to
+      // come.
       if (store && !namesItem(request)) {
         return storeLotsFill(store)
       }

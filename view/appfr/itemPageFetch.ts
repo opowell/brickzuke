@@ -92,22 +92,27 @@ const SALE_REGIONS: Record<string, number[]> = {
 }
 
 /**
- * The narrowing as the asks BrickLink can answer, or none where it can take
- * no part of it — a condition it does not know, a region the directory does
- * not name — and the un-narrowed list is what there is to narrow.
+ * The narrowing as the asks BrickLink can answer.
+ *
+ * What it cannot take — a condition it does not know, a region the directory
+ * does not name — is left out of the ask and narrowed off the answer
+ * afterwards. An ask with nothing in it is still an ask: the whole list,
+ * paged, which is what an item's lots are when the query narrows by nothing
+ * — thirty-seven thousand for a common plate, of which the page on its own
+ * was the cheapest five hundred.
  */
 export function lotAsksFor(narrowing: LotNarrowing): LotAsk[] {
   const cond = narrowing.condition === 'N' || narrowing.condition === 'U' ? narrowing.condition : undefined
   const regs = narrowing.region === undefined ? undefined : SALE_REGIONS[narrowing.region]
-  if (!cond && !regs) {
-    return []
+  if (regs) {
+    return regs.map((reg) => ({
+      cond,
+      reg
+    }))
   }
-  return regs ? regs.map((reg) => ({
-    cond,
-    reg 
-  })) : [{
-    cond 
-  }]
+  return [cond ? {
+    cond
+  } : {}]
 }
 
 /** Each lot once, whichever lists it was on. */
@@ -147,7 +152,7 @@ export function readStoreInventories(record?: string): StoreInventory[] {
 
 /**
  * The lots of one record under a narrowing, as BrickLink answers that
- * narrowing itself — or nothing, where it can answer no part of it, or where
+ * narrowing itself — or nothing, where there is no page to ask by, or where
  * this is only reading and the asks have not been made.
  *
  * The page is opened first where it has not been, that being where the
@@ -160,9 +165,6 @@ export async function narrowedStoreInventoriesFor(
   fetching = true
 ): Promise<StoreInventory[] | undefined> {
   const asks = lotAsksFor(narrowing)
-  if (!asks.length) {
-    return undefined
-  }
   const store = useCatalogItemPageStore()
   const keys = asks.map((ask) => lotAskKey(record, ask))
   const held = () => distinctLots(keys.map((key) => store.narrowedLotsMap.get(key) ?? []))
@@ -177,9 +179,14 @@ export async function narrowedStoreInventoriesFor(
   // image list and the un-narrowed lots behind the page and drains the two
   // itself, and asks queued beside those would be drained by both drains —
   // each sending the newest, neither the rest. Once the page's lots are in,
-  // the queue is clear and the id the asks are made by is known.
+  // the queue is clear and the id the asks are made by is known — and the
+  // bare ask's first page is in with them, the handler filing the same
+  // answer under both names.
   if (!store.inventoriesMap.has(record)) {
     await fetchRecord(record, 'inventoriesMap')
+    if (keys.every((key) => store.narrowedLotsMap.has(key))) {
+      return held()
+    }
   }
   const item = store.itemsMap.get(record)
   if (!item?.itemId) {
@@ -348,11 +355,8 @@ export const narrowedLotsVersion = ref(0)
  * is filled one ask after the other rather than side by side: two fills
  * draining one queue would each send the other's page.
  */
-export function narrowedLotsFill(record: string, narrowing: LotNarrowing): Fill | undefined {
+export function narrowedLotsFill(record: string, narrowing: LotNarrowing): Fill {
   const asks = lotAsksFor(narrowing)
-  if (!asks.length) {
-    return undefined
-  }
   const store = useCatalogItemPageStore()
   const fills = asks.map((ask) => {
     const key = lotAskKey(record, ask)

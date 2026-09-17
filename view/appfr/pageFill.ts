@@ -23,8 +23,9 @@
  *     page replayed from the call cache and a seller with fewer lots than
  *     BrickLink says are indistinguishable from here, and all three are the
  *     end of the run rather than a reason to ask again.
- *   - it leaves a gap between pages. Nobody asked for page forty-one; a table
- *     is simply open in front of somebody.
+ *   - it leaves a gap between requests, one shared by every fill and growing
+ *     with the run. Nobody asked for page forty-one; a table is simply open
+ *     in front of somebody. See [pace].
  */
 import type { Ref } from 'vue'
 
@@ -39,15 +40,47 @@ const DEADLINE_MS = 20_000
 const POLL_MS = 400
 
 /**
- * The gap between one page and the next.
+ * The gap between one request and the next — across every fill, not per
+ * fill, and growing as a run goes on.
  *
- * Half a second against a round trip through the extension, so it is a fifth
- * of the time a page takes rather than the whole of it: enough that a
- * sixty-page seller reads as a table filling in rather than as a burst of
- * requests, and little enough that somebody watching the count climb is not
- * kept waiting by it.
+ * These are somebody else's pages, asked for on nobody's instruction but a
+ * table being open, and a walk through a common part's lots is two hundred
+ * of them. What keeps that from reading as a scrape — and from being
+ * answered with a block on the address, which would take the browser's own
+ * BrickLink session with it — is the shape of the traffic: one request at a
+ * time, a second apart at the least, never on the beat, and slower the
+ * longer it has been going. So the gap is reserved on one clock that every
+ * fill shares, with a random part so no two requests are the same distance
+ * apart, and it lengthens by a little with every page a run has landed, up
+ * to three seconds. A short answer still fills in briskly; a long one
+ * settles into the pace of somebody paging through it by hand.
  */
-const BETWEEN_MS = 500
+const BETWEEN_MS = 1_000
+const JITTER_MS = 500
+const RAMP_MS = 50
+const LONGEST_MS = 3_000
+
+/** The earliest moment the next request may go, on the shared clock. */
+let nextAt = 0
+
+/** Forgets the reservation — for tests that move the clock about. */
+export function resetPace(): void {
+  nextAt = 0
+}
+
+/**
+ * Waits for the gap, having claimed it: two fills asking at once are asked
+ * one after the other, the second no sooner than a gap after the first.
+ */
+async function pace(landed: number): Promise<void> {
+  const now = Date.now()
+  const at = Math.max(now, nextAt)
+  const gap = Math.min(BETWEEN_MS + RAMP_MS * landed, LONGEST_MS) + Math.random() * JITTER_MS
+  nextAt = at + gap
+  if (at > now) {
+    await wait(at - now)
+  }
+}
 
 /** The pages of one answer, as the three things a fill has to know about them. */
 export interface Pages {
@@ -109,12 +142,19 @@ export function fillPages(pages: Pages, version: Ref<number>): Fill {
       stopped = true
     },
     async run() {
+      let count = 0
       while (!stopped) {
         const page = await pages.next()
         if (page === undefined || stopped) {
           return
         }
         const before = await pages.reach()
+        // Waited before the ask rather than after the answer, so the gap is
+        // between requests wherever they come from — see [pace].
+        await pace(count)
+        if (stopped) {
+          return
+        }
         try {
           await pages.fetch(page)
         } catch {
@@ -125,8 +165,8 @@ export function fillPages(pages: Pages, version: Ref<number>): Fill {
         if (!(await landed(before))) {
           return
         }
+        count++
         version.value++
-        await wait(BETWEEN_MS)
       }
     }
   }

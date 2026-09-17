@@ -344,7 +344,21 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           pages: Math.max(page, this.narrowedLotsScope.get(key)?.pages ?? 0),
         })
       } else {
-        this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
+        const record = itemType + '-' + itemNumber
+        this.inventoriesMap.set(record, storeInventories)
+        // The same answer is the first page of the ask with nothing in it —
+        // filed under that name too, so a table paging through the whole
+        // list starts from this page rather than asking for it again. Not
+        // over a walk already under way: a replay of the page must not put
+        // it back at page one.
+        const bare = lotAskKey(record, {})
+        if (!this.narrowedLotsMap.has(bare)) {
+          this.narrowedLotsMap.set(bare, storeInventories)
+          this.narrowedLotsScope.set(bare, {
+            total: detail.response.total_count ?? storeInventories.length,
+            pages: 1,
+          })
+        }
       }
     },
     async handleImagesResponse(detail: ImagesResponse) {
