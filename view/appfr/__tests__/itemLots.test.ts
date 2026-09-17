@@ -147,6 +147,10 @@ beforeAll(async () => {
     lot('3', 'P-2465', 'bricksusa', 'US', 'N')
   ])
   store.inventoriesMap.set('S-2465-1', [lot('4', 'S-2465-1', 'brickmeister', 'DE', 'N')])
+  // And what BrickLink answered when asked for New lots in Europe — filed
+  // apart from the page, under the ask. The query narrowing by condition and
+  // region reads this, the page holding only a sample of the market.
+  store.narrowedLotsMap.set('P-2465|cond=N|reg=6', [lot('1', 'P-2465', 'brickmeister', 'DE', 'N')])
   store.imagesMap.set('P-2465', [])
   store.imagesMap.set('S-2465-1', [])
 })

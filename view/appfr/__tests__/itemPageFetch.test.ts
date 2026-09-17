@@ -28,7 +28,7 @@ vi.mock('../../../model', async () => {
 })
 
 const {
-  imagesFor, storeInventoriesFor
+  imagesFor, lotAsksFor, narrowedStoreInventoriesFor, readStoreInventories, storeInventoriesFor
 } = await import('../itemPageFetch')
 const {
   useCatalogItemPageStore
@@ -82,8 +82,12 @@ const IMAGES = {
 }
 
 /** The extension, answering each call after its own delay. */
-function answering(delays: { page: number; images: number; lots: number }, lots: object[]) {
+function answering(
+  delays: { page: number; images: number; lots: number },
+  lots: object[] | ((url: string) => object[])
+) {
   const sent: string[] = []
+  const urls: string[] = []
   const listener = (event: Event) => {
     const request = (event as CustomEvent).detail
     const call = String(request.call)
@@ -105,13 +109,14 @@ function answering(delays: { page: number; images: number; lots: number }, lots:
       delay = delays.images
     } else if (call.includes('catalogifs')) {
       response = {
-        list: lots
+        list: typeof lots === 'function' ? lots(request.url) : lots
       }
       delay = delays.lots
     } else {
       return
     }
     sent.push(call)
+    urls.push(request.url)
     setTimeout(() => {
       document.dispatchEvent(
         new CustomEvent('bzServerToClient', {
@@ -126,6 +131,7 @@ function answering(delays: { page: number; images: number; lots: number }, lots:
   document.addEventListener('bzClientToServer', listener)
   return {
     sent,
+    urls,
     stop: () => document.removeEventListener('bzClientToServer', listener)
   }
 }
@@ -195,5 +201,95 @@ describe('an item whose lots are not loaded', () => {
     }, [lot(9, 'N')])
     expect(await storeInventoriesFor('M-sw0001')).toEqual([])
     expect(extension.sent).toHaveLength(0)
+  })
+})
+
+/*
+ * A narrowed ask: the condition and the region put to BrickLink's list rather
+ * than taken out of its first page afterwards. What is pinned is the ask
+ * itself — the parameters on the wire — that the answer is filed apart from
+ * the un-narrowed page and read back with it, and that a region the list
+ * takes as two of its own is two asks joined.
+ */
+describe('an item\'s lots under a narrowing', () => {
+  /** Lots as BrickLink answers the narrowing on the wire, by the URL asked. */
+  const byAsk = (url: string) => {
+    const cond = /cond=([NU])/.exec(url)?.[1]
+    const reg = /reg=(\d+)/.exec(url)?.[1]
+    if (cond === 'N' && reg === '6') return [lot(31, 'N'), lot(32, 'N')]
+    if (cond === 'N' && reg === '3') return [lot(41, 'N')]
+    if (cond === 'N' && reg === '4') return [lot(42, 'N')]
+    if (!cond && !reg) return [lot(1, 'U'), lot(2, 'N')]
+    return []
+  }
+
+  it('turns the query\'s words into what the list takes', () => {
+    expect(lotAsksFor({
+      condition: 'N',
+      region: 'Europe'
+    })).toEqual([{
+      cond: 'N',
+      reg: 6
+    }])
+    expect(lotAsksFor({
+      condition: 'N'
+    })).toEqual([{
+      cond: 'N'
+    }])
+    // Nothing the list can take, so nothing to ask: the page is what there is.
+    expect(lotAsksFor({})).toEqual([])
+    expect(lotAsksFor({
+      condition: 'New',
+      region: 'Atlantis'
+    })).toEqual([])
+  })
+
+  it('asks BrickLink for the condition and the region, off the item\'s page', async () => {
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, byAsk)
+    const lots = await narrowedStoreInventoriesFor('P-3010', {
+      condition: 'N',
+      region: 'Europe'
+    })
+    expect(lots?.map((one) => one.invId)).toEqual(['31', '32'])
+    const asked = extension.urls.filter((url) => url.includes('catalogifs'))
+    expect(asked.some((url) => url.includes('cond=N') && url.includes('reg=6'))).toBe(true)
+    // Filed under the ask, and the un-narrowed page still where it was.
+    const store = useCatalogItemPageStore()
+    expect(store.narrowedLotsMap.get('P-3010|cond=N|reg=6')).toHaveLength(2)
+    expect(store.inventoriesMap.get('P-3010')?.map((one) => one.invId)).toEqual(['1', '2'])
+    // Read back as what browsing gathered: every lot once, from either list.
+    expect(readStoreInventories('P-3010').map((one) => one.invId).sort()).toEqual(['1', '2', '31', '32'])
+  })
+
+  it('asks twice for a region the list files as two', async () => {
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, byAsk)
+    const lots = await narrowedStoreInventoriesFor('P-3011', {
+      condition: 'N',
+      region: 'Americas'
+    })
+    expect(lots?.map((one) => one.invId).sort()).toEqual(['41', '42'])
+  })
+
+  it('has nothing to say without fetching until the ask has been made', async () => {
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, byAsk)
+    const narrowing = {
+      condition: 'N',
+      region: 'Europe'
+    }
+    expect(await narrowedStoreInventoriesFor('P-3012', narrowing, false)).toBeUndefined()
+    await narrowedStoreInventoriesFor('P-3012', narrowing)
+    expect((await narrowedStoreInventoriesFor('P-3012', narrowing, false))?.length).toBe(2)
   })
 })

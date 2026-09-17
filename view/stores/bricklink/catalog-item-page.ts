@@ -55,8 +55,26 @@ export interface InventoriesResponse extends EventDetail {
   }
 }
 
-function getInventoriesUrl(itemId: string) {
-  return `https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=${itemId}&ss=AT&rpp=500&iconly=0`
+/**
+ * What BrickLink's lot list can be asked to leave out on its own side —
+ * `cond` is `N` or `U`, `reg` one of its seller-region ids (6 is Europe). A
+ * list is one page of five hundred out of tens of thousands, cheapest first,
+ * so a narrowing applied after the fact is applied to a sample: the first
+ * five hundred lots of a common part hold two dozen new ones.
+ */
+export interface LotAsk {
+  cond?: string
+  reg?: number
+}
+
+/** The ask as the key its answer is filed under, beside the item's record. */
+export function lotAskKey(record: string, ask: LotAsk): string {
+  return `${record}|cond=${ask.cond ?? ''}|reg=${ask.reg ?? ''}`
+}
+
+function getInventoriesUrl(itemId: string, ask: LotAsk = {}) {
+  const narrowing = (ask.cond ? `&cond=${ask.cond}` : '') + (ask.reg ? `&reg=${ask.reg}` : '')
+  return `https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=${itemId}${narrowing}&ss=AT&rpp=500&iconly=0`
 }
 
 function getImagesUrl(itemId: string) {
@@ -135,6 +153,8 @@ interface Item {
   itemType: string
   itemName: string
   itemNumber: string
+  /** BrickLink's own numeric id, which is what its lot list is asked by. */
+  itemId?: string
   yearReleased?: string
   weight?: string
   dimensions?: string
@@ -154,6 +174,12 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
   state: () => ({
     imagesMap: new Map<string, ItemImage[]>(),
     inventoriesMap: new Map<string, StoreInventory[]>(),
+    /**
+     * Lots asked for with a narrowing, under [lotAskKey]. Apart from the
+     * un-narrowed list because they overlap it: the same lot, listed under
+     * both, would be two rows of one table.
+     */
+    narrowedLotsMap: new Map<string, StoreInventory[]>(),
     itemsMap: new Map<string, Item>(),
     itemVariants: new Map<string, Map<string, Color>>(),
   }),
@@ -206,15 +232,20 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         ONE_WEEK,
       )
     },
-    async fetchInventories(itemNumber: string, itemId: string, itemType: string) {
+    async fetchInventories(itemNumber: string, itemId: string, itemType: string, ask?: LotAsk) {
       return await makeJsonCall(
         Call.GET_CATALOG_ITEM_INVENTORIES,
-        getInventoriesUrl(itemId),
+        getInventoriesUrl(itemId, ask),
         getOptions(itemType, itemNumber),
         {
           itemType,
           itemId,
           itemNumber,
+          // Narrowed, the answer is filed under the ask rather than the
+          // record — see `narrowedLotsMap`.
+          ...(ask ? {
+            lots: lotAskKey(itemType + '-' + itemNumber, ask) 
+          } : {}),
         },
         ONE_DAY,
       )
@@ -269,7 +300,12 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           colorId: i.idColor,
         }
       })
-      this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
+      const ask = detail.request.extraParams?.lots
+      if (ask !== undefined) {
+        this.narrowedLotsMap.set(String(ask), storeInventories)
+      } else {
+        this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
+      }
     },
     async handleImagesResponse(detail: ImagesResponse) {
       const itemNumber = detail.response.item.strItemNoFull
@@ -381,6 +417,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         itemType,
         itemName,
         itemNumber,
+        itemId,
         yearReleased: itemInfos[0],
         weight,
         dimensions: itemInfos[2],

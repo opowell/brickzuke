@@ -45,6 +45,7 @@ import {countriesFor,
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
 import {imagesFor,
   readImages,
+  narrowedStoreInventoriesFor,
   readStoreInventories,
   storeInventoriesFor} from './itemPageFetch'
 import { readAllStoreLots, readStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
@@ -52,7 +53,7 @@ import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePolicyFetch'
 import type { StoredShippingMethod, StoredStorePolicy } from '../stores/bricklink/store-policy-page'
 import { ratesApplying, termsOf, withPostage } from './shopPostage'
-import type { ItemImage } from './itemPageFetch'
+import type { ItemImage, LotNarrowing } from './itemPageFetch'
 import {cartLineRows,
   shopListItemRows,
   shopPlanRows,
@@ -1165,6 +1166,23 @@ async function recordRows(request: QueryRequest): Promise<ShellRow[]> {
 }
 
 /**
+ * What a lots query narrows by that BrickLink's own list can be asked to
+ * leave out: the condition, and the seller's region.
+ *
+ * Its list is one page of five hundred, cheapest first, out of tens of
+ * thousands, and a condition or a region taken out of that page afterwards
+ * leaves a couple of dozen rows of a market with ten thousand in it. A
+ * table that partitions by one of these asks without it — the conditions
+ * table states both conditions whichever one the query names.
+ */
+function lotNarrowingOf(request: QueryRequest): LotNarrowing {
+  return {
+    condition: termValue(request, 'condition'),
+    region: termValue(request, 'region')
+  }
+}
+
+/**
  * The lots on offer for the item a query names, or the ones a seller has, or
  * every lot loaded so far.
  *
@@ -1181,7 +1199,11 @@ async function recordRows(request: QueryRequest): Promise<ShellRow[]> {
  * gathered — see `storeInventoriesFor` for why there is no "all of them" to
  * ask BrickLink for.
  */
-async function storeInventoryRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+async function storeInventoryRows(
+  request: QueryRequest,
+  fetching = true,
+  narrowing = lotNarrowingOf(request)
+): Promise<ShellRow[]> {
   const named = namesItem(request)
   const store = termValue(request, 'store')
   if (!named && store) {
@@ -1200,11 +1222,17 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
   // and none at all for an id the catalogue has no record of, which is an
   // empty table rather than every lot stored.
   const records = named ? await itemRecords(request) : [undefined]
+  // The narrowing is put to BrickLink where it can be — see [lotNarrowingOf]
+  // — and what it cannot take is narrowed here as before, off the page.
   const lots = (
     await Promise.all(
-      records.map((record) =>
-        fetching ? storeInventoriesFor(record) : readStoreInventories(record)
-      )
+      records.map(async (record) => {
+        const narrowed = record && (await narrowedStoreInventoriesFor(record, narrowing, fetching))
+        if (narrowed) {
+          return narrowed
+        }
+        return fetching ? storeInventoriesFor(record) : readStoreInventories(record)
+      })
     )
   ).flat()
   if (fetching) {
@@ -1265,7 +1293,10 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
    * session counted live beside them, there being few and already in hand.
    */
   if (namesItem(request) || termValue(request, 'store') || lotTerms(request)) {
-    const lots = await storeInventoryRows(request, fetching)
+    // Both conditions, whichever the query names — see [lotNarrowingOf].
+    const lots = await storeInventoryRows(request, fetching, {
+      region: termValue(request, 'region')
+    })
     const narrowed = lotsMatching(request, lots)
     return conditionRowsOf(lots.length > 0, (code) => {
       const mine = narrowed.filter((lot) => lot.fields.condition === code)

@@ -15,8 +15,8 @@
 import { watch } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
-import { useCatalogItemPageStore } from '../stores/bricklink/catalog-item-page'
-import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
+import { lotAskKey, useCatalogItemPageStore } from '../stores/bricklink/catalog-item-page'
+import type { LotAsk, StoreInventory } from '../stores/bricklink/catalog-item-page'
 
 /** The same budget an inventory gets, over a chain of three requests. */
 const DEADLINE_MS = 30_000
@@ -37,7 +37,7 @@ const MISSING_EXTENSION =
  * handed the table an empty page that then closed — and stayed empty, nothing
  * being left to push the lots in when they arrived.
  */
-type Half = 'inventoriesMap' | 'imagesMap'
+type Half = 'inventoriesMap' | 'imagesMap' | 'narrowedLotsMap'
 
 /**
  * Types whose page this can read.
@@ -67,13 +67,161 @@ function splitRecord(record: string): { type: string; number: string } | undefin
   }
 }
 
-/** The lots loaded for one record, or for every record loaded so far. */
+/**
+ * What a lots query asks BrickLink to leave out: the condition, and the part
+ * of the world the seller is in, under the names the query uses — `N` or
+ * `U`, and a region as the store directory files countries by it.
+ */
+export interface LotNarrowing {
+  condition?: string
+  region?: string
+}
+
+/**
+ * BrickLink's ids for the seller regions its lot list can be narrowed to,
+ * under the directory's names. The directory files the world in four; the
+ * lot list takes eight, so two of the four are two ids each — and two asks.
+ */
+const SALE_REGIONS: Record<string, number[]> = {
+  Europe: [6],
+  Americas: [3, 4],
+  'Asia/Oceania': [1, 7],
+  'Africa/Middle East': [2, 5]
+}
+
+/**
+ * The narrowing as the asks BrickLink can answer, or none where it can take
+ * no part of it — a condition it does not know, a region the directory does
+ * not name — and the un-narrowed list is what there is to narrow.
+ */
+export function lotAsksFor(narrowing: LotNarrowing): LotAsk[] {
+  const cond = narrowing.condition === 'N' || narrowing.condition === 'U' ? narrowing.condition : undefined
+  const regs = narrowing.region === undefined ? undefined : SALE_REGIONS[narrowing.region]
+  if (!cond && !regs) {
+    return []
+  }
+  return regs ? regs.map((reg) => ({
+    cond,
+    reg 
+  })) : [{
+    cond 
+  }]
+}
+
+/** Each lot once, whichever lists it was on. */
+function distinctLots(lists: StoreInventory[][]): StoreInventory[] {
+  const seen = new Map<string, StoreInventory>()
+  for (const list of lists) {
+    for (const lot of list) {
+      seen.set(lot.invId, lot)
+    }
+  }
+  return [...seen.values()]
+}
+
+/** The narrowed lists held for one record: every ask made of it so far. */
+function narrowedListsOf(record: string): StoreInventory[][] {
+  const store = useCatalogItemPageStore()
+  const lists: StoreInventory[][] = []
+  for (const [key, lots] of store.narrowedLotsMap) {
+    if (key.startsWith(`${record}|`)) {
+      lists.push(lots)
+    }
+  }
+  return lists
+}
+
+/**
+ * The lots loaded for one record, or for every record loaded so far —
+ * whatever was asked for them, narrowed or not, each lot once.
+ */
 export function readStoreInventories(record?: string): StoreInventory[] {
   const store = useCatalogItemPageStore()
   if (record) {
-    return store.inventoriesMap.get(record) ?? []
+    return distinctLots([store.inventoriesMap.get(record) ?? [], ...narrowedListsOf(record)])
   }
-  return Array.from(store.inventoriesMap.values()).flat()
+  return distinctLots([...store.inventoriesMap.values(), ...store.narrowedLotsMap.values()])
+}
+
+/**
+ * The lots of one record under a narrowing, as BrickLink answers that
+ * narrowing itself — or nothing, where it can answer no part of it, or where
+ * this is only reading and the asks have not been made.
+ *
+ * The page is opened first where it has not been, that being where the
+ * numeric id the lot list is asked by comes from. The asks are then queued
+ * together and waited for together, and what comes back is the lists joined.
+ */
+export async function narrowedStoreInventoriesFor(
+  record: string,
+  narrowing: LotNarrowing,
+  fetching = true
+): Promise<StoreInventory[] | undefined> {
+  const asks = lotAsksFor(narrowing)
+  if (!asks.length) {
+    return undefined
+  }
+  const store = useCatalogItemPageStore()
+  const keys = asks.map((ask) => lotAskKey(record, ask))
+  const held = () => distinctLots(keys.map((key) => store.narrowedLotsMap.get(key) ?? []))
+  // Answered already, so no page to open: the id it is asked by is not needed.
+  if (keys.every((key) => store.narrowedLotsMap.has(key))) {
+    return held()
+  }
+  if (!fetching) {
+    return undefined
+  }
+  // The page's own lots first, not just the page: its handler queues the
+  // image list and the un-narrowed lots behind the page and drains the two
+  // itself, and asks queued beside those would be drained by both drains —
+  // each sending the newest, neither the rest. Once the page's lots are in,
+  // the queue is clear and the id the asks are made by is known.
+  if (!store.inventoriesMap.has(record)) {
+    await fetchRecord(record, 'inventoriesMap')
+  }
+  const item = store.itemsMap.get(record)
+  if (!item?.itemId) {
+    return undefined
+  }
+  // Queued together and drained together: `processQueue` sends the newest
+  // call first and as many as it is told, so two asks each draining one
+  // would both send the same one and leave the other sitting there.
+  const missing = keys.filter((key) => !store.narrowedLotsMap.has(key) && !inFlight.has(key))
+  if (missing.length) {
+    const batch = askLots(
+      item.itemNumber,
+      item.itemId,
+      item.itemType,
+      asks.filter((_ask, at) => missing.includes(keys[at])),
+      missing
+    ).finally(() => missing.forEach((key) => inFlight.delete(key)))
+    missing.forEach((key) => inFlight.set(key, batch))
+  }
+  await Promise.all(keys.map((key) => inFlight.get(key) ?? landed(key, 'narrowedLotsMap')))
+  return held()
+}
+
+/** The asks, sent — or replayed from the cache, which lands at once — and waited for. */
+async function askLots(
+  itemNumber: string,
+  itemId: string,
+  itemType: string,
+  asks: LotAsk[],
+  keys: string[]
+): Promise<boolean> {
+  installResponseListener()
+  const store = useCatalogItemPageStore()
+  let queued = 0
+  for (const ask of asks) {
+    if (!(await store.fetchInventories(itemNumber, itemId, itemType, ask))) {
+      queued++
+    }
+  }
+  if (queued) {
+    await processQueue(queued)
+  }
+  await Promise.all(keys.map((key) => landed(key, 'narrowedLotsMap')))
+  return true
 }
 
 /** The pictures loaded for one record, or for every record loaded so far. */
