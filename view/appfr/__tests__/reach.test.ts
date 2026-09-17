@@ -36,20 +36,25 @@ const counter = vi.hoisted(() => ({
   walks: 0
 }))
 
-vi.mock('../catalogSource', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../catalogSource')>()
-  return {
-    ...original,
-    eachLot: (visit: Parameters<typeof original.eachLot>[0]) => {
-      counter.walks++
-      return original.eachLot(visit)
-    }
-  }
-})
-
 const {
   previewFor
 } = await import('../catalogPreviews')
+const {
+  eachLot
+} = await import('../catalogSource')
+const {
+  provideLots
+} = await import('../reach')
+
+// The source's own walk, counted on the way past: the join reads the lots
+// from whatever was registered last, so wrapping the registration is the seam.
+provideLots({
+  each: (visit) => {
+    counter.walks++
+    return eachLot(visit)
+  },
+  named: () => undefined
+})
 
 // The lots are read through the item page's store as well as the seller's, so
 // the fact table needs somewhere to read from even when that half is empty.

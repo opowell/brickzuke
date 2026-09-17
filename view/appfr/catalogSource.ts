@@ -63,6 +63,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
+import { provideLots, reachFor, reaches } from './reach'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -276,8 +277,15 @@ async function scan(
   emit: (row: ShellRow) => boolean
 ): Promise<void> {
   const index = indices.BRICK_LINK_ITEMS_BY_ITEM_ID
-  const matches = matcherFor(request)
   const expr = request.query.expr
+  // The items the rest of the query reaches through the lots — the ones
+  // with a New lot in Europe, say — which a scan cannot read off any row:
+  // see [joined]. Nothing is walked for a query the items answer alone.
+  // `everything` names no entity and no schema: it is the un-narrowed pass,
+  // which the join has nothing to say to.
+  const reach = await reachFor('items', expr, [], request.entity ?? request.schema?.entities[0])
+  const own = matcherFor(request)
+  const matches = (row: ShellRow) => own(row) && reaches(reach, row)
   /*
    * Both folds are one pass over a table that only grows — the sets already
    * opened, and every lot any seller's front has given up — so kicking them
@@ -969,35 +977,6 @@ function lotsMatching(request: QueryRequest, lots: ShellRow[]): ShellRow[] {
   return groups ? lots.filter((lot) => matchesExpression(groups, lot, LOT_FIELDS)) : lots
 }
 
-/**
- * The terms of a query that only the lots can answer for a type: the ones no
- * row of it carries a field for, less the addresses. Nothing where there are
- * none — as [lotTerms], a group left empty constrains nothing.
- *
- * The vocabulary is read off the rows themselves, the way the home screen's
- * join reads it (see [reach]): a field some row carries is one the type
- * answers for itself, and a term on it stays a filter over the rows, where
- * `present` reads it. A colour's name is the colour's to answer; a condition
- * or a region is a question only a lot in that colour can.
- */
-function lotTermsBeyond(request: QueryRequest, rows: readonly ShellRow[]): Term[][] | undefined {
-  const carried = new Set<string>()
-  for (const row of rows) {
-    for (const field of Object.keys(row.fields)) {
-      carried.add(field.toLowerCase())
-    }
-  }
-  const groups = parseExpression(request.query.expr).map((group) =>
-    group.filter(
-      (term) =>
-        term.kind === 'field' &&
-        !carried.has(term.field) &&
-        !['record', 'id', 'store'].some((field) => addresses(term, field))
-    )
-  )
-  return !groups.length || groups.some((group) => !group.length) ? undefined : groups
-}
-
 /** The two conditions BrickLink sells in, under the codes a lot carries. */
 const CONDITIONS: Record<string, string> = {
   N: 'New',
@@ -1483,62 +1462,6 @@ function countryRegions(): Promise<Map<string, string>> {
   return regionByCountry
 }
 
-/**
- * The colours on offer, each with how many lots are in it — or every colour
- * the catalogue has, where nothing in the query is a question for the lots.
- *
- * The colours table is the catalogue's own list of them, read whole and
- * held. A query naming an item, a seller, a condition or a region is asking
- * about lots, and no colour row carries a field for any of those — so by the
- * language's rule they matched every row, and the picker read `Colors · 213`
- * beside `item: Plate 6 x 6`. Those terms go to the lots instead, as the
- * conditions table puts them, and the colours are the ones the surviving
- * lots come in, each counted the way a condition is. Only a colour some lot
- * is in is a row: two hundred colours with a nought against all but three
- * would be the whole table again with a worse column on it.
- */
-async function colorRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
-  const held = (await rowsFor('colors', getDbConnection)) ?? []
-  const beyond = lotTermsBeyond(request, held)
-  if (!namesItem(request) && !termValue(request, 'store') && !beyond) {
-    return held
-  }
-  const lots = await storeInventoryRows(request, fetching)
-  const matching = beyond ? lots.filter((lot) => matchesExpression(beyond, lot, LOT_FIELDS)) : lots
-  const tally = new Map<string, { lots: number; quantity: number }>()
-  for (const lot of matching) {
-    // Stringified on both sides, as the join does: a number on the lot and on
-    // the colour today, and nothing here should depend on that holding.
-    const colour = String(lot.fields.colorid ?? '')
-    if (!colour) {
-      continue
-    }
-    const mine = tally.get(colour) ?? {
-      lots: 0,
-      quantity: 0
-    }
-    mine.lots += 1
-    mine.quantity += Number(lot.fields.quantity ?? 0)
-    tally.set(colour, mine)
-  }
-  return held.flatMap((row) => {
-    const mine = tally.get(String(row.fields.colorid ?? ''))
-    if (!mine) {
-      return []
-    }
-    return [
-      {
-        ...row,
-        fields: {
-          ...row.fields,
-          lots: mine.lots,
-          quantity: mine.quantity
-        }
-      }
-    ]
-  })
-}
-
 /** Every region BrickLink groups its sellers into. */
 async function regionRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
   const regions = fetching ? await regionsFor() : await readRegions()
@@ -1876,15 +1799,6 @@ interface Fetched {
    * counting a type being no reason to fetch sixty pages of BrickLink.
    */
   fill?: (request: QueryRequest) => Fill | undefined
-  /**
-   * Read whole for the home screen whatever the query says, the card joining
-   * the rows through the lots itself — one lot at a time, and with the `~`
-   * that says the answer is a floor: see [reach]. The table reads the same
-   * rows narrowed here instead (see [colorRows]), over the lots it has in
-   * hand. Left off a type whose rows are *derived* under the query, the
-   * conditions above all — see [storedRows].
-   */
-  whole?: true
 }
 
 function addressesOf(source: Fetched, request: QueryRequest): string[] {
@@ -1950,16 +1864,6 @@ const fetched: Record<string, Fetched> = {
     addresses: ['record'],
     rows: conditionRows,
     fill: conditionCountsFill
-  },
-  /*
-   * The colours, read whole off the catalogue and narrowed through the lots
-   * where the query asks about lots — see [colorRows]. Nothing addresses it
-   * but the item, which every fetched type takes: see [addressesOf].
-   */
-  colors: {
-    addresses: [],
-    rows: colorRows,
-    whole: true
   },
   regions: {
     addresses: [],
@@ -2072,9 +1976,8 @@ export function storedRows(entityKey: string, expr = ''): Promise<ShellRow[]> | 
     // The expression goes in so a type whose rows are *derived* is derived
     // under it: the conditions are a count over the lots, and filtering the
     // two rows that come back cannot narrow the numbers written on them.
-    // Every other type here is filtered by the caller either way — and one
-    // the caller joins through the lots itself is read whole: see `whole`.
-    return source.rows(expr && !source.whole ? {
+    // Every other type here is filtered by the caller either way.
+    return source.rows(expr ? {
       query: {
         expr
       }
@@ -2144,6 +2047,61 @@ function present(
 }
 
 /**
+ * The same, with the rest of the query put to the lots first.
+ *
+ * A term a type carries no field for matches every row of it — the
+ * language's rule — so a colours table under `condition:N region:Europe`
+ * was every colour there is, and the picker said `Colors · 213` beside
+ * `Stores · 5.9k` over a query that had narrowed both to a handful. The
+ * home screen's cards answer that with the join in [reach]: a lot names
+ * the seller, the seller's country and region, the condition, the colour,
+ * the type and the item, so the terms a type cannot answer are put to the
+ * lots and the type is read off what survives. The tables and the picker
+ * read the same join here, so the number beside a type is the number of
+ * rows choosing it shows.
+ *
+ * Where the join counts — a colour is so many lots, so many pieces — the
+ * count goes on the row, which is what the colours table's Lots and Quantity
+ * draw. On before the sort, so the table can be ordered by it.
+ *
+ * The conditions table is the one joined type left to its own reading:
+ * it states both conditions whichever the query names, each with its count
+ * over the same lots (see [conditionRows]), and a join that dropped the
+ * condition no lot is in would take the nought off the table.
+ */
+async function joined(
+  rows: readonly ShellRow[],
+  request: QueryRequest,
+  matches: (row: ShellRow) => boolean = matcherFor(request)
+): Promise<ShellRow[]> {
+  const key = entityKey(request)
+  if (!key || key === 'conditions') {
+    return present(rows, request, matches)
+  }
+  const reach = await reachFor(key, request.query.expr, rows, request.entity ?? undefined)
+  if (!reach.values) {
+    return present(rows, request, matches)
+  }
+  const counted = rows.flatMap((row) => {
+    if (!reaches(reach, row)) {
+      return []
+    }
+    const mine = reach.counts?.get(String(row.fields[reach.field!] ?? '').trim())
+    return [
+      mine ? {
+        ...row,
+        fields: {
+          ...row.fields,
+          lots: mine.lots,
+          quantity: mine.quantity
+        }
+      } : row
+    ]
+  })
+  return present(counted, request, matches)
+}
+
+/**
  * Every row the query matches, across every page — for an operation on the
  * whole table rather than on the page of it the shell has in hand: the cart
  * header's "all rows", say.
@@ -2158,14 +2116,14 @@ export async function matchingRows(request: QueryRequest): Promise<ShellRow[]> {
   const key = entityKey(request)
   const source = key ? fetched[key] : undefined
   if (source) {
-    return present(
+    return joined(
       await source.rows(request, false),
       request,
       matcherBesides(request, ...addressesOf(source, request))
     )
   }
   const held = key ? rowsFor(key, getDbConnection) : undefined
-  return held ? present(await held, request) : []
+  return held ? joined(await held, request) : []
 }
 
 /**
@@ -2251,7 +2209,7 @@ export const catalogSource: DataSource = {
       // Reads only: the home screen runs one of these per type every time it
       // is drawn, and a summary card is no reason to scrape twenty pages of
       // BrickLink or to walk the whole catalogue.
-      const rows = present(
+      const rows = await joined(
         await source.rows(request, false),
         request,
         matcherBesides(request, ...addressesOf(source, request))
@@ -2265,7 +2223,7 @@ export const catalogSource: DataSource = {
 
     const held = key ? rowsFor(key, getDbConnection) : undefined
     if (held) {
-      const rows = present(await held, request)
+      const rows = await joined(await held, request)
       return {
         rows: rows.slice(request.offset, request.offset + request.limit),
         total: rows.length,
@@ -2328,11 +2286,12 @@ export const catalogSource: DataSource = {
         // The address terms are this table's address rather than a filter
         // over it, so the rows they fetched are not filtered by them again —
         // but whatever else the query carries does narrow them.
-        const rows = present(
+        const rows = await joined(
           all,
           request,
           matcherBesides(request, ...addressesOf(source, request))
         )
+        if (cancelled || !sink.open) return
         sink.set({
           rows: rows.slice(request.offset, request.offset + request.limit),
           total: rows.length
@@ -2381,9 +2340,10 @@ export const catalogSource: DataSource = {
     const held = key ? rowsFor(key, getDbConnection) : undefined
     if (held) {
       void held
-        .then((all) => {
+        .then(async (all) => {
           if (cancelled || !sink.open) return
-          const rows = present(all, request)
+          const rows = await joined(all, request)
+          if (cancelled || !sink.open) return
           sink.set({
             rows: rows.slice(request.offset, request.offset + request.limit),
             total: rows.length
@@ -2500,3 +2460,29 @@ export const catalogSource: DataSource = {
     }
   }
 }
+
+/**
+ * The lots a query names, as the lots table shows them: an item's page lots
+ * by `id:` or `record:`, a seller's stored front by `store:` — or nothing,
+ * where it names neither and the lots are every one held. Read and never
+ * fetched: a count in the picker is no reason to ask BrickLink.
+ */
+function namedLots(expr: string): Promise<ShellRow[]> | undefined {
+  const request = {
+    query: {
+      expr
+    }
+  } as unknown as QueryRequest
+  return namesItem(request) || termValue(request, 'store')
+    ? storeInventoryRows(request, false)
+    : undefined
+}
+
+/*
+ * The join reads its lots from here, and this source applies the join to its
+ * tables — handed over rather than imported both ways. See [LotSource].
+ */
+provideLots({
+  each: eachLot,
+  named: namedLots
+})

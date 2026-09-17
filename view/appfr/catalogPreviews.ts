@@ -214,8 +214,9 @@ async function opening(
    * terms matched every row, and the years card sat at eighty-one under a query
    * that had narrowed everything beside it.
    */
-  const reach = await reachFor(entity, expr, all)
-  const match = matching(entity, expr)
+  const asked = entityOf(entity)
+  const reach = await reachFor(entity, expr, all, asked)
+  const match = matching(asked, expr)
   // Kept apart, because the first of the two is also the ceiling the second is
   // climbing towards — and reaching it is what retires the `~`. See
   // {@link Read.floor}.
@@ -328,7 +329,7 @@ function itemTile(row: ShellRow): PreviewTile {
 async function reachedItems(shown: number, expr: string): Promise<Preview | undefined> {
   // No rows to read a vocabulary off — the items card is a scan rather than a
   // list — so the join reads the schema instead. See [vocabularyOf].
-  const reach = await reachFor('items', expr, [])
+  const reach = await reachFor('items', expr, [], entityOf('items'))
   if (!reach.values) {
     return undefined
   }
@@ -597,6 +598,11 @@ async function fromRows(entityKey: string, expr: string): Promise<Preview> {
 /** As many rows as either look could want, which of the two not yet being known. */
 const ROWS_READ = Math.max(PICTURES_SHOWN, PILLS_SHOWN)
 
+/** One type of the schema, by key. */
+function entityOf(entityKey: string): EntitySchema | undefined {
+  return catalogSchema.value.entities.find((entity) => entity.key === entityKey)
+}
+
 /** The rows read, as the card drawn from them. */
 function asPreview(entityKey: string, read: Read, expr: string): Preview {
   const columns = shownColumns(
@@ -657,7 +663,7 @@ async function storeTiles(shown: number, expr: string): Promise<Preview> {
     return preview
   }
   const held = storedRows('countries', expr)
-  const countries = held ? (await held).filter(matching('countries', expr)) : []
+  const countries = held ? (await held).filter(matching(entityOf('countries'), expr)) : []
   const waiting = awaitedStores(
     countries.map((row) => ({
       code: String(row.fields.country ?? ''),

@@ -136,6 +136,43 @@ beforeAll(async () => {
       'Color Name': 'Blue'
     }
   ])
+  // Two lines of two sets' inventories: the brick, and a part no lot is of.
+  await putAll(db, STORES.ITEM_INVENTORIES, [
+    {
+      id: 'S-100-1:P-2465',
+      record: 'S-100-1',
+      quantity: 2,
+      itemVariant: {
+        itemType: 'P',
+        itemId: '2465',
+        name: 'Brick 1 x 16',
+        thumbnail: '',
+        colorId: '5',
+        colorName: 'Red',
+        catType: 'P',
+        catString: '5',
+        variantId: '2465-5',
+        categoryName: 'Brick'
+      }
+    },
+    {
+      id: 'S-100-1:P-3001',
+      record: 'S-100-1',
+      quantity: 4,
+      itemVariant: {
+        itemType: 'P',
+        itemId: '3001',
+        name: 'Brick 2 x 4',
+        thumbnail: '',
+        colorId: '5',
+        colorName: 'Red',
+        catType: 'P',
+        catString: '5',
+        variantId: '3001-5',
+        categoryName: 'Brick'
+      }
+    }
+  ])
   // One item type, so the picker has a row to count against `type:P`.
   await putAll(db, STORES.ITEM_TYPES, [
     {
@@ -307,6 +344,17 @@ describe('the type picker, over a query naming an item', () => {
     expect(await countOf('colors', 'type:P id:"21051"')).toBe(2)
   })
 
+  it('counts the countries and sellers of the item\'s matching lots', async () => {
+    expect(await countOf('countries', NARROWED)).toBe(1)
+    expect(await countOf('countries', 'type:P id:"21051"')).toBe(2)
+    expect(await countOf('stores', NARROWED)).toBe(1)
+  })
+
+  it('counts the set lines and variants that are of the item', async () => {
+    expect(await countOf('itemInventories', 'id:"21051"')).toBe(1)
+    expect(await countOf('itemVariants', 'id:"21051"')).toBe(1)
+  })
+
   it('still counts the item itself by its id', async () => {
     expect(await countOf('items', NARROWED)).toBe(1)
     expect(await countOf('items', 'type:P id:"999999"')).toBe(0)
@@ -412,5 +460,26 @@ describe('the conditions table, over an item\'s lots in a region', () => {
     const byCode = new Map(rows.map((row) => [row.condition, row.lots]))
     expect(byCode.get('N')).toBe(0)
     expect(byCode.get('U')).toBe(1)
+  })
+})
+
+/*
+ * The same join with no item named: the lots are every one held, walked, and
+ * a type is what those lots reach — the items card's reading, now the items
+ * table's and the picker's too.
+ */
+describe('a query naming no item, joined through every lot held', () => {
+  it('narrows the items to the ones with such a lot', async () => {
+    expect(await countOf('items', 'condition:U')).toBe(1)
+    expect(await countOf('items', 'condition:U country:US')).toBe(0)
+  })
+
+  it('narrows the countries the same way', async () => {
+    expect((await rowsOf('countries', 'condition:U')).map((row) => row.id)).toEqual(['DE'])
+  })
+
+  it('leaves a type alone under a term it answers itself', async () => {
+    expect((await rowsOf('countries', 'region:Europe')).map((row) => row.id)).toEqual(['DE'])
+    expect(await countOf('countries', 'name:United')).toBe(1)
   })
 })

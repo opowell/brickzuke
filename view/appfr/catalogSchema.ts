@@ -913,7 +913,7 @@ function narrowToCategoryItems(row: ShellRow) {
  * `Lots` and `Quantity` are the conditions table's pair, and blank for the
  * same reason its are: they count the lots a query reached through — an
  * item's, a seller's, a region's — and an un-narrowed list of colours has
- * reached none. See [colorRows].
+ * reached none. See `joined` in the source, and [reach].
  */
 export const colorColumns: ColumnDef[] = [
   {

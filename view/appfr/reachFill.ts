@@ -46,6 +46,7 @@
 import { ref } from 'vue'
 import type { ShellRow } from 'header-content-layout'
 import { forgetPreview } from './catalogPreviews'
+import { catalogSchema } from './catalogSchema'
 import { storedRows } from './catalogSource'
 import { filled } from './homeFill'
 import { JOINED, forgetReach, matching, reachFor, reaches } from './reach'
@@ -115,8 +116,9 @@ async function sellersInScope(expr: string): Promise<ShellRow[]> {
   if (!rows.length) {
     return []
   }
-  const reach = await reachFor('stores', expr, rows)
-  const match = matching('stores', expr)
+  const stores = catalogSchema.value.entities.find((entity) => entity.key === 'stores')
+  const reach = await reachFor('stores', expr, rows, stores)
+  const match = matching(stores, expr)
   return rows.filter((row) => match(row) && reaches(reach, row))
 }
 

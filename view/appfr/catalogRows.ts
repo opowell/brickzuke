@@ -263,6 +263,10 @@ export function inventoryFields(stored: StoredItemInventory): Record<string, unk
     type: variant.itemType,
     name: variant.name,
     itemId: variant.itemId,
+    // The part as a record — `P-3001` — which is what a lot names, and so
+    // what joins a line to the lots on offer of it. A line of somebody's own
+    // set carries the same field: see [userLineFields].
+    part: `${variant.itemType}-${variant.itemId}`,
     color: variant.colorName,
     // Lowercase because the parser lowercases a term's field, and a number
     // because `:` compares numbers exactly where it substring-matches strings
@@ -337,6 +341,8 @@ async function itemVariantRows(db: IDBPDatabase): Promise<ShellRow[]> {
       type: variant.itemType,
       name: variant.name,
       itemId: variant.itemId,
+      // As on a line: the record a lot of this part names.
+      part: `${variant.itemType}-${variant.itemId}`,
       color: variant.colorName,
       colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
       // See `inventoryFields` above: a number, not the string `catString`

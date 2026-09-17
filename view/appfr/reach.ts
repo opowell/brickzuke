@@ -38,8 +38,32 @@ import { get } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
-import { catalogSchema } from './catalogSchema'
-import { eachLot } from './catalogSource'
+/**
+ * Where the lots come from — handed in by the source rather than imported
+ * from it, because the source applies this join to its own tables (see
+ * `joined` there) and a module the source imports cannot import the source
+ * back. `each` walks every lot held, a row at a time; `named` reads the lots
+ * a query names — an item's, a seller's — as the lots table would show them,
+ * or nothing where it names none. See [provideLots].
+ */
+/*
+ * Nothing here imports the schema or the source: the source registers its
+ * lots below, and a caller hands in the entity it is asking about. Both are
+ * so that the source can import this — a cell imports the source, the
+ * schema imports the cells, and a schema loaded halfway through a cell's own
+ * load is a schema naming a component that is not there yet.
+ */
+export interface LotSource {
+  each(visit: (lot: ShellRow) => void): Promise<number>
+  named(expr: string): Promise<ShellRow[]> | undefined
+}
+
+let lots: LotSource | undefined
+
+/** The source's lots, registered once as the source loads. */
+export function provideLots(source: LotSource): void {
+  lots = source
+}
 
 /**
  * A lot's own vocabulary and nothing else.
@@ -126,6 +150,33 @@ const THROUGH: Record<string, Through> = {
   years: {
     field: 'year',
     of: (_lot, item) => item?.year
+  },
+  /*
+   * And the ones a lot speaks for by way of who sells it and what it is of.
+   * A seller's terms are the seller's, so the sellers with a matching lot are
+   * the terms worth listing; a picture is of a record, as a lot is; and a
+   * line of a set's inventory, or the variant it folds into, is a part —
+   * `P-3001` — which is the record a lot names.
+   */
+  shippingMethods: {
+    field: 'store',
+    of: (lot) => lot.fields.store
+  },
+  shippingCosts: {
+    field: 'store',
+    of: (lot) => lot.fields.store
+  },
+  images: {
+    field: 'record',
+    of: (lot) => lot.fields.record
+  },
+  itemInventories: {
+    field: 'part',
+    of: (lot) => lot.fields.record
+  },
+  itemVariants: {
+    field: 'part',
+    of: (lot) => lot.fields.record
   }
 }
 
@@ -159,13 +210,40 @@ function same(value: unknown): string {
  * address is the term that *fetched* the rows, and nothing here fetches — a
  * card reads what is stored, so every term in the query is a filter over it.
  */
-export function matching(entityKey: string, expr: string): (row: ShellRow) => boolean {
-  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)
+export function matching(
+  entity: EntitySchema | undefined,
+  expr: string
+): (row: ShellRow) => boolean {
   if (!expr.trim() || !entity) {
     return () => true
   }
-  const parsed = parseExpression(expr)
+  const parsed = withoutItemAddress(entity.key, parseExpression(expr))
   return (row) => matchesExpression(parsed, row, entity)
+}
+
+/**
+ * Whether a term names an item by the items table's own scope, `id:` — the
+ * term a press on an item writes, and the one the header reads back as the
+ * item whichever table is up.
+ *
+ * Every other row has an `id` of its own and none of them is the item's, so
+ * on every table but the items table's the term is an address and not a
+ * filter: it says whose lots the query is about (see [LotSource.named]) and
+ * narrows no row by its own id. The same reading the source's tables make of
+ * it — see `itemAddress` there.
+ */
+function namesItem(term: Term): boolean {
+  return term.kind === 'field' && term.field === 'id' && term.comparator === ':' && !term.negated
+}
+
+/** The expression with the item's address lifted out, on every table but the items table's. */
+function withoutItemAddress(entityKey: string, expression: Term[][]): Term[][] {
+  if (entityKey === 'items') {
+    return expression
+  }
+  // A group left empty constrains nothing, and matches every row — which is
+  // right: a query that was only the item's address asks nothing of a colour.
+  return expression.map((group) => group.filter((term) => !namesItem(term)))
 }
 
 /**
@@ -182,7 +260,7 @@ export function matching(entityKey: string, expr: string): (row: ShellRow) => bo
  * with its `scope` and its id added because a type is addressable by those
  * whether or not it draws them.
  */
-function vocabularyOf(entityKey: string, rows: readonly ShellRow[]): Set<string> {
+function vocabularyOf(entity: EntitySchema | undefined, rows: readonly ShellRow[]): Set<string> {
   const carried = new Set<string>()
   for (const row of rows) {
     for (const field of Object.keys(row.fields)) {
@@ -192,7 +270,6 @@ function vocabularyOf(entityKey: string, rows: readonly ShellRow[]): Set<string>
   if (carried.size) {
     return carried
   }
-  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)
   for (const column of entity?.columns ?? []) {
     if (column.key) {
       carried.add(column.key.toLowerCase())
@@ -209,10 +286,16 @@ function vocabularyOf(entityKey: string, rows: readonly ShellRow[]): Set<string>
  * The terms this type cannot answer for itself, which are the ones worth
  * joining through the lots.
  */
-function foreignTerms(entityKey: string, rows: readonly ShellRow[], expr: string): Term[][] {
-  const carried = vocabularyOf(entityKey, rows)
+function foreignTerms(
+  entity: EntitySchema | undefined,
+  rows: readonly ShellRow[],
+  expr: string
+): Term[][] {
+  const carried = vocabularyOf(entity, rows)
   return parseExpression(expr).map((group) =>
-    group.filter((term) => term.kind === 'field' && !carried.has(term.field.toLowerCase()))
+    group.filter(
+      (term) => term.kind === 'field' && !carried.has(term.field.toLowerCase()) && !namesItem(term)
+    )
   )
 }
 
@@ -252,6 +335,14 @@ async function itemsBehind(records: ReadonlySet<string>): Promise<Map<string, It
   return facts
 }
 
+/** How much of the lots one value of a type accounts for. */
+export interface Tally {
+  /** Lots carrying the value. */
+  lots: number
+  /** Every piece inside those lots. */
+  quantity: number
+}
+
 /** What a query reaches of one type. */
 export interface Reach {
   /**
@@ -260,6 +351,12 @@ export interface Reach {
    * empty set, that being "nothing".
    */
   values?: Set<string>
+  /**
+   * The same values, each with how many of the lots it was read off — what
+   * the colours table writes beside a colour, as the conditions table does
+   * beside a condition. Undefined exactly where {@link values} is.
+   */
+  counts?: Map<string, Tally>
   /** The field those values are compared against on this type's own rows. */
   field?: string
   /** How many lots the answer was read from. Nought is "nothing is known yet". */
@@ -297,12 +394,28 @@ const ITEM_DERIVED = JOINED.filter((key) => needsItems(key))
 interface Pass {
   /** How many lots were walked. Nought is "nothing is known yet". */
   lots: number
-  /** The values reached, by type, for the types a lot speaks for directly. */
-  direct: Map<string, Set<string>>
-  /** The records the surviving lots named, for the three types that need them. */
-  records: Set<string>
+  /** The values reached, by type, for the types a lot speaks for directly — each with its tally. */
+  direct: Map<string, Map<string, Tally>>
+  /** The records the surviving lots named, for the three types that need them, each with its tally. */
+  records: Map<string, Tally>
   /** Those three resolved, once, and only if anybody asks. */
-  items?: Promise<Map<string, Set<string>>>
+  items?: Promise<Map<string, Map<string, Tally>>>
+}
+
+/** One more lot against a value. */
+function tally(into: Map<string, Tally>, value: string, lot: ShellRow | Tally): void {
+  const held = into.get(value) ?? {
+    lots: 0,
+    quantity: 0
+  }
+  if ('lots' in lot) {
+    held.lots += lot.lots
+    held.quantity += lot.quantity
+  } else {
+    held.lots += 1
+    held.quantity += Number(lot.fields.quantity ?? 0)
+  }
+  into.set(value, held)
 }
 
 /**
@@ -320,25 +433,50 @@ export function forgetReach(): void {
   passes.clear()
 }
 
+/**
+ * The lots one pass is over: the ones the query names, or every one held.
+ *
+ * A query naming an item or a seller — `id:`, `record:`, `store:` — is a
+ * query about their lots, and those are the lots the lots table shows for
+ * it: an item's page, a seller's stored front. Read from there, the join
+ * agrees with that table — the twenty-one lots it counts are the twenty-one
+ * the colours are read off — and does not walk the whole fact table to
+ * answer a question about one item of it. Nothing named is every lot held,
+ * walked a row at a time.
+ */
+function lotsOver(expr: string, visit: (lot: ShellRow) => void): Promise<number> {
+  if (!lots) {
+    return Promise.resolve(0)
+  }
+  const named = lots.named(expr)
+  if (!named) {
+    return lots.each(visit)
+  }
+  return named.then((rows) => {
+    rows.forEach(visit)
+    return rows.length
+  })
+}
+
 /** One walk, filtered, collecting every dimension it can as it goes. */
-async function runPass(foreign: Term[][]): Promise<Pass> {
-  const direct = new Map(LOT_DIRECT.map((key) => [key, new Set<string>()]))
-  const records = new Set<string>()
-  const lots = await eachLot((lot) => {
+async function runPass(expr: string, foreign: Term[][]): Promise<Pass> {
+  const direct = new Map(LOT_DIRECT.map((key) => [key, new Map<string, Tally>()]))
+  const records = new Map<string, Tally>()
+  const lots = await lotsOver(expr, (lot) => {
     if (!matchesExpression(foreign, lot, LOT_FIELDS)) {
       return
     }
     for (const key of LOT_DIRECT) {
       const value = same(THROUGH[key].of(lot, undefined))
       if (value) {
-        direct.get(key)!.add(value)
+        tally(direct.get(key)!, value, lot)
       }
     }
     // Kept whatever was asked for: which types want it is not known here, and a
     // set of record ids is small beside the lots that named them.
     const record = same(lot.fields.record)
     if (record) {
-      records.add(record)
+      tally(records, record, lot)
     }
   })
   return {
@@ -354,14 +492,21 @@ async function runPass(foreign: Term[][]): Promise<Pass> {
  * Lazy and held on the pass: a wall that draws them pays the lookups once
  * between the three, and one that draws none of them does not pay at all.
  */
-function itemValues(pass: Pass): Promise<Map<string, Set<string>>> {
+function itemValues(pass: Pass): Promise<Map<string, Map<string, Tally>>> {
   pass.items ??= (async () => {
-    const values = new Map(ITEM_DERIVED.map((key) => [key, new Set<string>()]))
-    for (const facts of (await itemsBehind(pass.records)).values()) {
+    const values = new Map(ITEM_DERIVED.map((key) => [key, new Map<string, Tally>()]))
+    const behind = await itemsBehind(new Set(pass.records.keys()))
+    for (const [record, counted] of pass.records) {
+      const facts = behind.get(record)
+      if (!facts) {
+        continue
+      }
       for (const key of ITEM_DERIVED) {
         const value = same(THROUGH[key].of(EMPTY_LOT, facts))
         if (value) {
-          values.get(key)!.add(value)
+          // Summed across records: an item is one line over however many
+          // records, and its lots are the lots of all of them.
+          tally(values.get(key)!, value, counted)
         }
       }
     }
@@ -374,9 +519,10 @@ function itemValues(pass: Pass): Promise<Map<string, Set<string>>> {
  * What the query reaches of one type, read through the lots brickzuke holds.
  *
  * `rows` are that type's own stored records, which say what the type can be
- * asked about — see [vocabularyOf]. The answer is a set of values rather than a
- * filtered list of rows so that the caller can use it for the count as well as
- * for the tiles, those being read at different depths.
+ * asked about — see [vocabularyOf] — and `entity` is what says it where there
+ * are none, the items scan above all. The answer is a set of values rather
+ * than a filtered list of rows so that the caller can use it for the count as
+ * well as for the tiles, those being read at different depths.
  *
  * The walk itself is shared with every other type asking the same question —
  * see [Pass]. One row at a time either way: a region runs to thousands of
@@ -387,29 +533,35 @@ function itemValues(pass: Pass): Promise<Map<string, Set<string>>> {
 export async function reachFor(
   entityKey: string,
   expr: string,
-  rows: readonly ShellRow[]
+  rows: readonly ShellRow[],
+  entity?: EntitySchema
 ): Promise<Reach> {
   const through = THROUGH[entityKey]
   if (!through || !expr.trim()) {
     return UNCONSTRAINED
   }
-  const foreign = foreignTerms(entityKey, rows, expr)
-  if (!foreign.length || foreign.some((group) => !group.length)) {
+  const foreign = foreignTerms(entity, rows, expr)
+  const named = namedIn(expr)
+  // No term to put to the lots and no lots named is a query this type
+  // answers alone. An address on its own is not: `id:"21051"` filters no lot
+  // of the item's, but it is the item's lots the type is then read off.
+  if (!named && (!foreign.length || foreign.some((group) => !group.length))) {
     return UNCONSTRAINED
   }
   /*
    * The filter written back as source, and nothing else — not the query it came
    * out of.
    *
-   * A walk depends on which terms it filters by and on the fact table, and on
-   * nothing about the reader's query beside that. So `region:"Europe"` and
-   * `region:"Europe" name:"brick"` share one walk when the type in hand cannot
-   * answer `name` either: two questions, one thing being asked of the lots.
+   * A walk depends on which terms it filters by, on which lots it is over —
+   * see [namedIn] — and on nothing about the reader's query beside that. So
+   * `region:"Europe"` and `region:"Europe" name:"brick"` share one walk when
+   * the type in hand cannot answer `name` either: two questions, one thing
+   * being asked of the lots.
    */
-  const key = formatExpression(foreign)
+  const key = `${named}|${formatExpression(foreign)}`
   let pass = passes.get(key)
   if (!pass) {
-    pass = runPass(foreign).catch((thrown) => {
+    pass = runPass(expr, foreign).catch((thrown) => {
       // A failed walk must not be the answer forever.
       passes.delete(key)
       throw thrown
@@ -432,14 +584,35 @@ export async function reachFor(
   if (!walked.lots) {
     return UNCONSTRAINED
   }
-  const values = needsItems(entityKey)
-    ? (await itemValues(walked)).get(entityKey)
-    : walked.direct.get(entityKey)
+  const counts =
+    (needsItems(entityKey) ? (await itemValues(walked)).get(entityKey) : walked.direct.get(entityKey)) ??
+    new Map<string, Tally>()
   return {
-    values: values ?? new Set<string>(),
+    values: new Set(counts.keys()),
+    counts,
     field: through.field,
     lots: walked.lots
   }
+}
+
+/**
+ * The lots a query names, as text — the other half of a pass's key. Two
+ * queries filtering by the same terms are one question of the lots only when
+ * they are asking it of the same lots: `condition:N` over one item's page
+ * and over every lot held are different walks with different answers.
+ */
+function namedIn(expr: string): string {
+  return formatExpression(
+    parseExpression(expr).map((group) =>
+      group.filter(
+        (term) =>
+          term.kind === 'field' &&
+          ['id', 'record', 'store'].includes(term.field) &&
+          term.comparator === ':' &&
+          !term.negated
+      )
+    )
+  )
 }
 
 /** A stand-in for the lot, where the value being read is the item's and not its. */
