@@ -145,13 +145,24 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[], expr: string): Shel
  * rather than against a substring check that only ever knew about the name.
  */
 function matcherFor(request: QueryRequest): (row: ShellRow) => boolean {
-  const expr = request.query.expr.trim()
-  if (!expr) {
-    return () => true
-  }
-  const parsed = parseExpression(expr)
-  const entity = request.entity ?? request.schema.entities[0]
-  return (row) => matchesExpression(parsed, row, entity)
+  return matcherBesides(request, ...itemAddress(request))
+}
+
+/**
+ * The term that names an item, on every table where it is an address and not
+ * a filter — which is every table but the items table's own.
+ *
+ * `id:` is the items table's scope: what a press on an item writes, and what
+ * the header reads back as `item: Plate 6 x 6` whichever table is in force.
+ * Every other row has an `id` of its own, and none of them is the item's —
+ * so matched as a filter the term failed on all of them, and the picker read
+ * `Categories · 0` and `Conditions · 0` beside a query naming one category
+ * and one condition. The lots read it as what to fetch (see [namesItem]);
+ * everything else reads it as nothing to narrow by, and the rest of the
+ * expression still does.
+ */
+function itemAddress(request: QueryRequest): string[] {
+  return entityKey(request) === 'items' || entityKey(request) === null ? [] : ['id']
 }
 
 function sortValue(row: ShellRow, key: string): string | number {
@@ -921,10 +932,11 @@ async function eachLotRows(visit: (rows: ShellRow[]) => boolean): Promise<number
  * showing none: a region nobody sells from narrowed the lots and left the
  * summary of them standing.
  *
- * Three fields are not filters here. `record` and `store` are what fetched the
- * lots, and `condition` is what these rows partition by — the table states
- * both conditions whichever one is asked about, each saying how much of it
- * there is. Everything else narrows: a region, a country, a colour.
+ * Four fields are not filters here. `record`, `id` and `store` are what
+ * fetched the lots — `id` being the item, as on the lots table itself, see
+ * [namesItem] — and `condition` is what these rows partition by: the table
+ * states both conditions whichever one is asked about, each saying how much
+ * of it there is. Everything else narrows: a region, a country, a colour.
  *
  * Matched against the lot's own fields and no columns, which is the whole
  * vocabulary a lot has: these are lots being counted, not the rows of the
@@ -943,7 +955,7 @@ const LOT_FIELDS = {
 function lotTerms(request: QueryRequest): Term[][] | undefined {
   const groups = parseExpression(request.query.expr).map((group) =>
     group.filter(
-      (term) => !['record', 'store', 'condition'].some((field) => addresses(term, field))
+      (term) => !['record', 'id', 'store', 'condition'].some((field) => addresses(term, field))
     )
   )
   return !groups.length || groups.some((group) => !group.length) ? undefined : groups
@@ -1252,7 +1264,7 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
    * [conditionCounts] — with the ones an item's page put in memory this
    * session counted live beside them, there being few and already in hand.
    */
-  if (termValue(request, 'record') || termValue(request, 'store') || lotTerms(request)) {
+  if (namesItem(request) || termValue(request, 'store') || lotTerms(request)) {
     const lots = await storeInventoryRows(request, fetching)
     const narrowed = lotsMatching(request, lots)
     return conditionRowsOf(lots.length > 0, (code) => {
@@ -1317,7 +1329,7 @@ function conditionRowsOf(
  * pass, held for whoever asks next.
  */
 function conditionCountsFill(request: QueryRequest): Fill | undefined {
-  if (termValue(request, 'record') || termValue(request, 'store') || lotTerms(request)) {
+  if (namesItem(request) || termValue(request, 'store') || lotTerms(request)) {
     return undefined
   }
   return {
@@ -1699,7 +1711,10 @@ interface Fetched {
 }
 
 function addressesOf(source: Fetched, request: QueryRequest): string[] {
-  return typeof source.addresses === 'function' ? source.addresses(request) : source.addresses
+  const own =
+    typeof source.addresses === 'function' ? source.addresses(request) : source.addresses
+  // And the item's, on every one of these — see [itemAddress].
+  return [...own, ...itemAddress(request)]
 }
 
 const fetched: Record<string, Fetched> = {

@@ -68,6 +68,16 @@ function lot(invId: string, record: string, user: string, country: string, condi
 beforeAll(async () => {
   setActivePinia(createPinia())
   const db = await getDbConnection()
+  await putAll(db, STORES.STORE_REGIONS, [
+    {
+      name: 'Europe',
+      countryCount: 1
+    },
+    {
+      name: 'North America',
+      countryCount: 1
+    }
+  ])
   await putAll(db, STORES.STORE_COUNTRIES, [
     {
       countryCode: 'DE',
@@ -90,6 +100,20 @@ beforeAll(async () => {
       id: 'bricksusa',
       name: 'Bricks USA',
       countryID: 'US'
+    }
+  ])
+  // One item type, so the picker has a row to count against `type:P`.
+  await putAll(db, STORES.ITEM_TYPES, [
+    {
+      id: 1,
+      name: 'Part'
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_ITEM_TYPES, [
+    {
+      itemTypeId: 'P',
+      bzItemTypeId: 1,
+      'Item Type Name': 'Part'
     }
   ])
   await putAll(db, STORES.BRICK_LINK_ITEMS, [
@@ -182,5 +206,57 @@ describe('an item\'s lots, by the item\'s id', () => {
 
   it('answers an id the catalogue has no record of with nothing', async () => {
     expect(await lotsOf('type:P id:"999999"')).toEqual([])
+  })
+})
+
+/**
+ * How many rows of a type the source counts against a query — the number the
+ * type picker says beside the type's name.
+ */
+async function countOf(entityKey: string, expr: string): Promise<number> {
+  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)!
+  const request: QueryRequest = {
+    query: {
+      entity: entityKey,
+      view: 'table',
+      sort: 'name',
+      dir: 'asc',
+      expr,
+      facets: {},
+      page: 1
+    },
+    schema: catalogSchema.value,
+    entity,
+    limit: 0,
+    offset: 0
+  }
+  return (await catalogSource.query(request)).total
+}
+
+/*
+ * The picker counts every type against the same expression, `id:` included —
+ * and `id` on every other table is the row's own, which is never the item's.
+ * Read as a filter it zeroed every count beside `item: Brick 1 x 16`; read as
+ * the item's address, the rest of the query is what narrows each type.
+ */
+describe('the type picker, over a query naming an item', () => {
+  const NARROWED = 'type:P condition:N region:Europe id:"21051"'
+
+  it('counts the one item type the query names', async () => {
+    expect(await countOf('itemTypes', NARROWED)).toBe(1)
+  })
+
+  it('counts the one condition the query names, over the item\'s lots', async () => {
+    expect(await countOf('conditions', NARROWED)).toBe(1)
+    expect(await countOf('conditions', 'type:P id:"21051"')).toBe(2)
+  })
+
+  it('counts the one region the query names', async () => {
+    expect(await countOf('regions', NARROWED)).toBe(1)
+  })
+
+  it('still counts the item itself by its id', async () => {
+    expect(await countOf('items', NARROWED)).toBe(1)
+    expect(await countOf('items', 'type:P id:"999999"')).toBe(0)
   })
 })
