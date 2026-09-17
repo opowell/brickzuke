@@ -445,9 +445,60 @@ function matcherBesides(
 }
 
 function openItemId(request: QueryRequest): number | undefined {
-  const value = termValue(request, 'item')
+  return openItemIdOf(termValue(request, 'item'))
+}
+
+/** An item's id as the index holds it, or nothing where the term is not one. */
+function openItemIdOf(value: string | undefined): number | undefined {
   const id = Number(value)
   return value !== undefined && Number.isFinite(id) ? id : undefined
+}
+
+/**
+ * Whether an inventories query names an item to fetch the lots of — as a
+ * `record:` spelling the BrickLink record, or as the `id:` every other table
+ * calls an item by.
+ *
+ * `id`, on every other table, is the row's own identity, but on inventories
+ * that is `invId` — BrickLink's internal lot id, not a thing anyone typing a
+ * query would know, and not what a press on the items table writes. The
+ * items table's `id:"21051"` is brickzuke's own item id, the one its records
+ * hang off — see [itemRecords] for the records it stands for.
+ */
+function namesItem(request: QueryRequest): boolean {
+  return termValue(request, 'record') !== undefined || termValue(request, 'id') !== undefined
+}
+
+/**
+ * The BrickLink records an inventories query means to fetch: the `record:`
+ * itself where the query spells one, or the records behind the item `id:`
+ * names — narrowed to the `type:` beside it, where there is one.
+ *
+ * The item's id is not its BrickLink number: item 21051 is `Brick 1 x 16`,
+ * whose page is `P=2465`. Composing `P-21051` out of the two terms asked
+ * BrickLink for a part it has no page for, and the lots never landed. The
+ * index by item id is the same one lookup opening the item's records is.
+ */
+async function itemRecords(request: QueryRequest): Promise<string[]> {
+  const record = termValue(request, 'record')
+  if (record) {
+    return [record]
+  }
+  const itemId = openItemIdOf(termValue(request, 'id'))
+  if (itemId === undefined) {
+    return []
+  }
+  const type = termValue(request, 'type')
+  const db = await getDbConnection()
+  try {
+    const records =
+      (await getAllFromIndex<JoinedItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, itemId)) ?? []
+    return records
+      .filter((one) => !type || one.itemType === type)
+      .map((one) => String(one.id))
+  } finally {
+    db.close()
+  }
 }
 
 /**
@@ -622,6 +673,24 @@ function toPrice(value: string | undefined): number | undefined {
  * instead, and the feedback score, which appears on neither, is left blank
  * rather than guessed at.
  */
+/**
+ * Has the directory in hand where a lots query asks after a region.
+ *
+ * A lot states its seller's country and nothing above it; the region is
+ * looked up in the store directory — see [lotDirectory] — and a lot with no
+ * directory to look it up in has no region at all. The matcher reads a field
+ * a row cannot resolve as asking nothing, so `region:Europe` over lots with
+ * no directory behind them kept every lot, sellers in the USA included. The
+ * directory is one page, held for a year, and this is what fetches it the
+ * first time a region is asked of the lots. Not allowed to fail the table:
+ * the lots are what it is drawn from, and they are in hand either way.
+ */
+async function directoryForRegion(request: QueryRequest): Promise<void> {
+  if (termValue(request, 'region') !== undefined) {
+    await countriesFor().catch(() => undefined)
+  }
+}
+
 /**
  * The directory as the two lookups a lot needs.
  *
@@ -1101,9 +1170,9 @@ async function recordRows(request: QueryRequest): Promise<ShellRow[]> {
  * ask BrickLink for.
  */
 async function storeInventoryRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
-  const record = termValue(request, 'record')
+  const named = namesItem(request)
   const store = termValue(request, 'store')
-  if (!record && store) {
+  if (!named && store) {
     const lots = fetching ? await storeLotsFor(store) : await readStoreLots(store)
     if (fetching) {
       // And the seller's terms, behind the lots rather than before them: a
@@ -1115,10 +1184,23 @@ async function storeInventoryRows(request: QueryRequest, fetching = true): Promi
     }
     return await asStoreLotRows(lots)
   }
-  const lots = fetching ? await storeInventoriesFor(record) : readStoreInventories(record)
+  // One item's lots are every record's the query stands for — usually one,
+  // and none at all for an id the catalogue has no record of, which is an
+  // empty table rather than every lot stored.
+  const records = named ? await itemRecords(request) : [undefined]
+  const lots = (
+    await Promise.all(
+      records.map((record) =>
+        fetching ? storeInventoriesFor(record) : readStoreInventories(record)
+      )
+    )
+  ).flat()
+  if (fetching) {
+    await directoryForRegion(request)
+  }
   const directory = await lotDirectory(lots.map((lot) => `${lot.itemType}-${lot.itemNumber}`))
   const rows = lots.map((lot) => toStoreInventoryRow(lot, directory))
-  if (record) {
+  if (named) {
     return rows
   }
   /*
@@ -1646,15 +1728,22 @@ const fetched: Record<string, Fetched> = {
     // A record is what fetched the rows, so it does not filter them again — and
     // a `store:` term written beside one still does, being an ordinary
     // narrowing of an item's sellers. A store on its own is what fetched them
-    // instead, and then it is the address.
-    addresses: (request) => (termValue(request, 'record') ? ['record'] : ['record', 'store']),
+    // instead, and then it is the address. An item named by `id:` is the
+    // address the same way `record:` is — the lots are one row's `record`
+    // and no row's `id` — see [namesItem].
+    addresses: (request) =>
+      termValue(request, 'record')
+        ? ['record']
+        : namesItem(request)
+          ? ['record', 'id']
+          : ['record', 'store'],
     rows: storeInventoryRows,
     fill: (request) => {
       const store = termValue(request, 'store')
       // Only the seller's own front is paged. An item's lots are one request
       // and are whole when they land, and the un-narrowed table is what
       // browsing has gathered rather than an answer with more of it to come.
-      return store && !termValue(request, 'record') ? storeLotsFill(store) : undefined
+      return store && !namesItem(request) ? storeLotsFill(store) : undefined
     }
   },
   images: {
@@ -1894,6 +1983,7 @@ function streamLots(request: QueryRequest, sink: QuerySink): () => void {
   const page = pageOf(request)
   void (async () => {
     try {
+      await directoryForRegion(request)
       await eachLotRows((rows) => {
         if (cancelled || !sink.open) {
           return false
@@ -2018,7 +2108,7 @@ export const catalogSource: DataSource = {
 
     // The lots table naming no item and no seller is every lot stored, and is
     // walked rather than read whole — see [streamLots].
-    if (key === 'inventories' && !termValue(request, 'record') && !termValue(request, 'store')) {
+    if (key === 'inventories' && !namesItem(request) && !termValue(request, 'store')) {
       return streamLots(request, sink)
     }
 

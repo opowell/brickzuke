@@ -1,0 +1,186 @@
+/**
+ * The lots of an item the query names by its id.
+ *
+ * A press on the items table writes `id:"21051"` — brickzuke's own item id —
+ * and a pivot to Store inventories carries that term over. An item's id is
+ * not its BrickLink number: 21051 is `Brick 1 x 16`, whose page is `P=2465`.
+ * These pin that the lots fetched are the ones behind the item's records, and
+ * that everything else the query says still narrows them.
+ */
+import 'fake-indexeddb/auto'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import type { QueryRequest } from 'header-content-layout'
+
+vi.mock('../../../model', async () => {
+  const {
+    ref
+  } = await import('vue')
+  return {
+    filters: ref([]),
+    search: ref(undefined),
+    selectedItemType: ref(null),
+    itemTypes: ref([]),
+    processingCounts: ref(false),
+    selectedCounts: ref(undefined)
+  }
+})
+
+const {
+  catalogSource
+} = await import('../catalogSource')
+const {
+  catalogSchema
+} = await import('../catalogSchema')
+const {
+  getDbConnection
+} = await import('../../../idb/idb')
+const {
+  putAll
+} = await import('../../../idb/db')
+const STORES = (await import('../../../idb/stores')).default
+const {
+  useCatalogItemPageStore
+} = await import('../../stores/bricklink/catalog-item-page')
+
+function lot(invId: string, record: string, user: string, country: string, condition: string) {
+  const [itemType, itemNumber] = record.split('-')
+  return {
+    invId,
+    description: '',
+    price: 'EUR 1.00',
+    nativePrice: 'EUR 1.00',
+    colorName: 'Red',
+    sellerCountryCode: country,
+    sellerCountryName: country,
+    sellerStoreName: user,
+    strSellerUsername: user,
+    condition,
+    quantity: 3,
+    sellerFeedbackScore: 10,
+    image: '',
+    itemType,
+    itemNumber,
+    colorId: '5'
+  }
+}
+
+beforeAll(async () => {
+  setActivePinia(createPinia())
+  const db = await getDbConnection()
+  await putAll(db, STORES.STORE_COUNTRIES, [
+    {
+      countryCode: 'DE',
+      countryName: 'Germany',
+      regionId: 'Europe'
+    },
+    {
+      countryCode: 'US',
+      countryName: 'United States',
+      regionId: 'North America'
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_STORES, [
+    {
+      id: 'brickmeister',
+      name: 'Brickmeister',
+      countryID: 'DE'
+    },
+    {
+      id: 'bricksusa',
+      name: 'Bricks USA',
+      countryID: 'US'
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_ITEMS, [
+    {
+      id: 'P-2465',
+      bzItemId: 21051,
+      itemType: 'P',
+      Name: 'Brick 1 x 16',
+      Number: '2465',
+      'Category ID': '5',
+      'Category Name': 'Brick'
+    },
+    // The same item under a second record of another type, as the items
+    // table collapses them: `type:P` must leave this one out.
+    {
+      id: 'S-2465-1',
+      bzItemId: 21051,
+      itemType: 'S',
+      Name: 'Brick 1 x 16',
+      Number: '2465-1',
+      'Category ID': '5',
+      'Category Name': 'Brick'
+    }
+  ])
+  db.close()
+  // Already fetched, so the source reads rather than asks the extension.
+  const store = useCatalogItemPageStore()
+  store.inventoriesMap.set('P-2465', [
+    lot('1', 'P-2465', 'brickmeister', 'DE', 'N'),
+    lot('2', 'P-2465', 'brickmeister', 'DE', 'U'),
+    lot('3', 'P-2465', 'bricksusa', 'US', 'N')
+  ])
+  store.inventoriesMap.set('S-2465-1', [lot('4', 'S-2465-1', 'brickmeister', 'DE', 'N')])
+  store.imagesMap.set('P-2465', [])
+  store.imagesMap.set('S-2465-1', [])
+})
+
+/** The ids of the lots the source answers an inventories query with. */
+async function lotsOf(expr: string): Promise<string[]> {
+  const entity = catalogSchema.value.entities.find((one) => one.key === 'inventories')!
+  const request: QueryRequest = {
+    query: {
+      entity: 'inventories',
+      view: 'table',
+      sort: 'priceValue',
+      dir: 'asc',
+      expr,
+      facets: {},
+      page: 1
+    },
+    schema: catalogSchema.value,
+    entity,
+    limit: 50,
+    offset: 0
+  }
+  const page = await new Promise<{ rows: { id: string }[] }>((resolve, reject) => {
+    catalogSource.stream!(request, {
+      get open() {
+        return true
+      },
+      insert() {},
+      set(next) {
+        resolve(next as { rows: { id: string }[] })
+      },
+      close() {},
+      fail(thrown) {
+        reject(thrown)
+      }
+    })
+  })
+  return page.rows.map((row) => row.id)
+}
+
+describe('an item\'s lots, by the item\'s id', () => {
+  it('fetches the record behind the id, not a record spelled from it', async () => {
+    expect(await lotsOf('type:P id:"21051"')).toEqual(['1', '2', '3'])
+  })
+
+  it('reads the same lots as the record itself', async () => {
+    expect(await lotsOf('record:"P-2465"')).toEqual(['1', '2', '3'])
+  })
+
+  it('takes every record of the item when no type is named', async () => {
+    expect(await lotsOf('id:"21051"')).toEqual(['1', '2', '3', '4'])
+  })
+
+  it('still narrows by everything else the query says', async () => {
+    expect(await lotsOf('category:5 type:P condition:N region:Europe id:"21051"')).toEqual(['1'])
+  })
+
+  it('answers an id the catalogue has no record of with nothing', async () => {
+    expect(await lotsOf('type:P id:"999999"')).toEqual([])
+  })
+})
