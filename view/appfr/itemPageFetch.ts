@@ -12,11 +12,13 @@
  * item's page; that handler fires the two that actually carry the answers, so
  * three round trips stand behind one call here.
  */
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
-import { lotAskKey, useCatalogItemPageStore } from '../stores/bricklink/catalog-item-page'
+import { LOTS_PER_PAGE, lotAskKey, useCatalogItemPageStore } from '../stores/bricklink/catalog-item-page'
 import type { LotAsk, StoreInventory } from '../stores/bricklink/catalog-item-page'
+import { fillPages } from './pageFill'
+import type { Fill } from './pageFill'
 
 /** The same budget an inventory gets, over a chain of three requests. */
 const DEADLINE_MS = 30_000
@@ -327,4 +329,74 @@ export async function imagesFor(record?: string): Promise<ItemImage[]> {
     await fetchRecord(record, 'imagesMap')
   }
   return readImages(record)
+}
+
+/**
+ * Bumped as each further page of a narrowed ask lands, for the table drawn
+ * from it — see [narrowedLotsFill].
+ */
+export const narrowedLotsVersion = ref(0)
+
+/**
+ * The rest of a narrowed answer, fetched while the table is up.
+ *
+ * The first page is what [narrowedStoreInventoriesFor] draws the table from,
+ * and it is one of twenty-two for a common part's new lots in Europe. The
+ * rest arrive behind it a page at a time, on [pageFill]'s terms — while the
+ * table is up, stopping at a page that brings nothing, with a gap between —
+ * and the table redraws as each lands. A region the list files as two asks
+ * is filled one ask after the other rather than side by side: two fills
+ * draining one queue would each send the other's page.
+ */
+export function narrowedLotsFill(record: string, narrowing: LotNarrowing): Fill | undefined {
+  const asks = lotAsksFor(narrowing)
+  if (!asks.length) {
+    return undefined
+  }
+  const store = useCatalogItemPageStore()
+  const fills = asks.map((ask) => {
+    const key = lotAskKey(record, ask)
+    return fillPages(
+      {
+        async next() {
+          const scope = store.narrowedLotsScope.get(key)
+          // Nothing recorded is an ask whose first page has not landed, and
+          // no page after it can be asked for until it has.
+          if (!scope || scope.pages * LOTS_PER_PAGE >= scope.total) {
+            return undefined
+          }
+          return scope.pages + 1
+        },
+        async fetch(page: number) {
+          const item = store.itemsMap.get(record)
+          if (!item?.itemId) {
+            throw new Error(`no page open for ${record}`)
+          }
+          if (!(await store.fetchInventories(item.itemNumber, item.itemId, item.itemType, ask, page))) {
+            await processQueue(1)
+          }
+        },
+        async reach() {
+          return store.narrowedLotsScope.get(key)?.pages ?? 0
+        }
+      },
+      narrowedLotsVersion
+    )
+  })
+  let stopped = false
+  return {
+    version: narrowedLotsVersion,
+    stop() {
+      stopped = true
+      fills.forEach((fill) => fill.stop())
+    },
+    async run() {
+      for (const fill of fills) {
+        if (stopped) {
+          return
+        }
+        await fill.run()
+      }
+    }
+  }
 }

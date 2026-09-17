@@ -32,6 +32,8 @@ export interface InventoriesResponse extends EventDetail {
     }
   }
   response: {
+    /** How many lots the whole answer has, of which `list` is one page. */
+    total_count?: number
     list: {
       idColor: string
       /**
@@ -72,9 +74,24 @@ export function lotAskKey(record: string, ask: LotAsk): string {
   return `${record}|cond=${ask.cond ?? ''}|reg=${ask.reg ?? ''}`
 }
 
-function getInventoriesUrl(itemId: string, ask: LotAsk = {}) {
+/** How many lots one page of the list holds — the most it will give. */
+export const LOTS_PER_PAGE = 500
+
+/**
+ * How far an ask's answer has been fetched: how many lots BrickLink says
+ * there are, and how many pages of them have landed.
+ */
+export interface LotAskScope {
+  total: number
+  pages: number
+}
+
+function getInventoriesUrl(itemId: string, ask: LotAsk = {}, page = 1) {
   const narrowing = (ask.cond ? `&cond=${ask.cond}` : '') + (ask.reg ? `&reg=${ask.reg}` : '')
-  return `https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=${itemId}${narrowing}&ss=AT&rpp=500&iconly=0`
+  // The first page is spelled the way it always was, so what the call cache
+  // holds under that spelling is still found.
+  const paging = page > 1 ? `&pi=${page}` : ''
+  return `https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=${itemId}${narrowing}&ss=AT&rpp=${LOTS_PER_PAGE}${paging}&iconly=0`
 }
 
 function getImagesUrl(itemId: string) {
@@ -180,6 +197,8 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
      * both, would be two rows of one table.
      */
     narrowedLotsMap: new Map<string, StoreInventory[]>(),
+    /** How far each narrowed ask's answer reaches — see [LotAskScope]. */
+    narrowedLotsScope: new Map<string, LotAskScope>(),
     itemsMap: new Map<string, Item>(),
     itemVariants: new Map<string, Map<string, Color>>(),
   }),
@@ -232,19 +251,26 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         ONE_WEEK,
       )
     },
-    async fetchInventories(itemNumber: string, itemId: string, itemType: string, ask?: LotAsk) {
+    async fetchInventories(
+      itemNumber: string,
+      itemId: string,
+      itemType: string,
+      ask?: LotAsk,
+      page = 1,
+    ) {
       return await makeJsonCall(
         Call.GET_CATALOG_ITEM_INVENTORIES,
-        getInventoriesUrl(itemId, ask),
+        getInventoriesUrl(itemId, ask, page),
         getOptions(itemType, itemNumber),
         {
           itemType,
           itemId,
           itemNumber,
           // Narrowed, the answer is filed under the ask rather than the
-          // record — see `narrowedLotsMap`.
+          // record — see `narrowedLotsMap` — a page at a time.
           ...(ask ? {
-            lots: lotAskKey(itemType + '-' + itemNumber, ask) 
+            lots: lotAskKey(itemType + '-' + itemNumber, ask),
+            page,
           } : {}),
         },
         ONE_DAY,
@@ -302,7 +328,21 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
       })
       const ask = detail.request.extraParams?.lots
       if (ask !== undefined) {
-        this.narrowedLotsMap.set(String(ask), storeInventories)
+        const key = String(ask)
+        const page = Number(detail.request.extraParams?.page ?? 1)
+        // The first page is the answer so far; a later one is added to it,
+        // each lot once — a lot can move between pages as prices change
+        // under it — and the scope moves on to say the page has landed.
+        const held = page > 1 ? (this.narrowedLotsMap.get(key) ?? []) : []
+        const seen = new Map(held.map((lot) => [lot.invId, lot]))
+        for (const lot of storeInventories) {
+          seen.set(lot.invId, lot)
+        }
+        this.narrowedLotsMap.set(key, [...seen.values()])
+        this.narrowedLotsScope.set(key, {
+          total: detail.response.total_count ?? storeInventories.length,
+          pages: Math.max(page, this.narrowedLotsScope.get(key)?.pages ?? 0),
+        })
       } else {
         this.inventoriesMap.set(itemType + '-' + itemNumber, storeInventories)
       }

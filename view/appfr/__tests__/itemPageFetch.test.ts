@@ -28,7 +28,13 @@ vi.mock('../../../model', async () => {
 })
 
 const {
-  imagesFor, lotAsksFor, narrowedStoreInventoriesFor, readStoreInventories, storeInventoriesFor
+  imagesFor,
+  lotAsksFor,
+  narrowedLotsFill,
+  narrowedLotsVersion,
+  narrowedStoreInventoriesFor,
+  readStoreInventories,
+  storeInventoriesFor
 } = await import('../itemPageFetch')
 const {
   useCatalogItemPageStore
@@ -84,7 +90,7 @@ const IMAGES = {
 /** The extension, answering each call after its own delay. */
 function answering(
   delays: { page: number; images: number; lots: number },
-  lots: object[] | ((url: string) => object[])
+  lots: object[] | ((url: string) => object[] | { list: object[]; total_count: number })
 ) {
   const sent: string[] = []
   const urls: string[] = []
@@ -108,9 +114,15 @@ function answering(
       }
       delay = delays.images
     } else if (call.includes('catalogifs')) {
-      response = {
-        list: typeof lots === 'function' ? lots(request.url) : lots
-      }
+      const answer = typeof lots === 'function' ? lots(request.url) : lots
+      // A page states how many lots the whole answer has; a fake that only
+      // says which lots is one page of exactly those.
+      response = Array.isArray(answer)
+        ? {
+          list: answer,
+          total_count: answer.length
+        }
+        : answer
       delay = delays.lots
     } else {
       return
@@ -292,4 +304,84 @@ describe('an item\'s lots under a narrowing', () => {
     await narrowedStoreInventoriesFor('P-3012', narrowing)
     expect((await narrowedStoreInventoriesFor('P-3012', narrowing, false))?.length).toBe(2)
   })
+})
+
+/*
+ * The rest of a narrowed answer: the first page is what the table is drawn
+ * from, and the fill brings the pages after it while the table is up. The
+ * fake's page size is BrickLink's, so a two-page answer is one of more than
+ * five hundred lots — stated by `total_count`, which is what the fill counts
+ * from.
+ */
+describe('the rest of a narrowed answer', () => {
+  const PAGE = 500
+  const pageOf = (first: number, count: number) =>
+    Array.from({
+      length: count
+    }, (_one, at) => lot(first + at, 'N'))
+
+  /** A 700-lot answer: 500 on the first page, 200 on the second. */
+  const paged = (url: string) => {
+    if (!/cond=N/.test(url) || !/reg=6/.test(url)) {
+      return []
+    }
+    const page = Number(/pi=(\d+)/.exec(url)?.[1] ?? 1)
+    return {
+      list: page === 1 ? pageOf(1000, PAGE) : page === 2 ? pageOf(2000, 200) : [],
+      total_count: 700
+    }
+  }
+
+  it('draws the table from the first page and fills the second behind it', async () => {
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, paged)
+    const narrowing = {
+      condition: 'N',
+      region: 'Europe'
+    }
+    const first = await narrowedStoreInventoriesFor('P-3020', narrowing)
+    expect(first).toHaveLength(PAGE)
+    const store = useCatalogItemPageStore()
+    expect(store.narrowedLotsScope.get('P-3020|cond=N|reg=6')).toEqual({
+      total: 700,
+      pages: 1
+    })
+
+    const fill = narrowedLotsFill('P-3020', narrowing)!
+    const before = narrowedLotsVersion.value
+    await fill.run()
+    // One more page, landed and announced — and then no more to ask for.
+    expect(narrowedLotsVersion.value).toBe(before + 1)
+    expect(store.narrowedLotsScope.get('P-3020|cond=N|reg=6')?.pages).toBe(2)
+    expect(await narrowedStoreInventoriesFor('P-3020', narrowing, false)).toHaveLength(700)
+    const pages = extension.urls.filter((url) => url.includes('catalogifs') && url.includes('reg=6'))
+    expect(pages.filter((url) => url.includes('pi=2'))).toHaveLength(1)
+    expect(pages.some((url) => url.includes('pi=3'))).toBe(false)
+  }, 15_000)
+
+  it('has nothing to fill when the first page was the whole answer', async () => {
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, byAskShort)
+    const narrowing = {
+      condition: 'N',
+      region: 'Europe'
+    }
+    await narrowedStoreInventoriesFor('P-3021', narrowing)
+    const before = narrowedLotsVersion.value
+    const sent = extension.urls.length
+    await narrowedLotsFill('P-3021', narrowing)!.run()
+    expect(narrowedLotsVersion.value).toBe(before)
+    expect(extension.urls.length).toBe(sent)
+  })
+
+  /** Two lots, and BrickLink saying two: the first page is the answer. */
+  function byAskShort(url: string) {
+    return /cond=N/.test(url) ? [lot(51, 'N'), lot(52, 'N')] : []
+  }
 })

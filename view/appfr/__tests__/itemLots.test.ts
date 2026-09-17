@@ -42,15 +42,25 @@ const STORES = (await import('../../../idb/stores')).default
 const {
   useCatalogItemPageStore
 } = await import('../../stores/bricklink/catalog-item-page')
+const {
+  matchingRows
+} = await import('../catalogSource')
 
-function lot(invId: string, record: string, user: string, country: string, condition: string) {
+function lot(
+  invId: string,
+  record: string,
+  user: string,
+  country: string,
+  condition: string,
+  colorId = '5'
+) {
   const [itemType, itemNumber] = record.split('-')
   return {
     invId,
     description: '',
     price: 'EUR 1.00',
     nativePrice: 'EUR 1.00',
-    colorName: 'Red',
+    colorName: colorId === '5' ? 'Red' : 'Blue',
     sellerCountryCode: country,
     sellerCountryName: country,
     sellerStoreName: user,
@@ -61,7 +71,7 @@ function lot(invId: string, record: string, user: string, country: string, condi
     image: '',
     itemType,
     itemNumber,
-    colorId: '5'
+    colorId
   }
 }
 
@@ -100,6 +110,30 @@ beforeAll(async () => {
       id: 'bricksusa',
       name: 'Bricks USA',
       countryID: 'US'
+    }
+  ])
+  // Two colours, so the colours table has rows to narrow through the lots:
+  // every lot below is Red but the Used one, which is Blue.
+  await putAll(db, STORES.COLORS, [
+    {
+      id: 1,
+      name: 'Red'
+    },
+    {
+      id: 2,
+      name: 'Blue'
+    }
+  ])
+  await putAll(db, STORES.BRICK_LINK_COLORS, [
+    {
+      colorId: '5',
+      bzColorId: 1,
+      'Color Name': 'Red'
+    },
+    {
+      colorId: '7',
+      bzColorId: 2,
+      'Color Name': 'Blue'
     }
   ])
   // One item type, so the picker has a row to count against `type:P`.
@@ -143,7 +177,7 @@ beforeAll(async () => {
   const store = useCatalogItemPageStore()
   store.inventoriesMap.set('P-2465', [
     lot('1', 'P-2465', 'brickmeister', 'DE', 'N'),
-    lot('2', 'P-2465', 'brickmeister', 'DE', 'U'),
+    lot('2', 'P-2465', 'brickmeister', 'DE', 'U', '7'),
     lot('3', 'P-2465', 'bricksusa', 'US', 'N')
   ])
   store.inventoriesMap.set('S-2465-1', [lot('4', 'S-2465-1', 'brickmeister', 'DE', 'N')])
@@ -259,8 +293,61 @@ describe('the type picker, over a query naming an item', () => {
     expect(await countOf('regions', NARROWED)).toBe(1)
   })
 
+  it('counts the colours the item\'s matching lots come in', async () => {
+    expect(await countOf('colors', NARROWED)).toBe(1)
+    expect(await countOf('colors', 'type:P id:"21051"')).toBe(2)
+  })
+
   it('still counts the item itself by its id', async () => {
     expect(await countOf('items', NARROWED)).toBe(1)
     expect(await countOf('items', 'type:P id:"999999"')).toBe(0)
+  })
+})
+
+/** A type's rows for a query, as the table shows them. */
+async function rowsOf(entityKey: string, expr: string) {
+  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)!
+  return matchingRows({
+    query: {
+      entity: entityKey,
+      view: 'table',
+      sort: 'name',
+      dir: 'asc',
+      expr,
+      facets: {},
+      page: 1
+    },
+    schema: catalogSchema.value,
+    entity,
+    limit: 50,
+    offset: 0
+  })
+}
+
+/*
+ * The colours table over the lots — the conditions table's cross-section, on
+ * the one dimension of a lot it never had.
+ */
+describe('the colours table, over the lots a query reaches', () => {
+  it('is the colours of the item\'s lots, each counted', async () => {
+    const rows = await rowsOf('colors', 'type:P id:"21051"')
+    expect(rows.map((row) => [row.fields.name, row.fields.lots, row.fields.quantity])).toEqual([
+      ['Blue', 1, 3],
+      ['Red', 2, 6]
+    ])
+  })
+
+  it('puts a condition and a region to the lots, not to the colours', async () => {
+    const rows = await rowsOf('colors', 'type:P condition:N region:Europe id:"21051"')
+    expect(rows.map((row) => [row.fields.name, row.fields.lots])).toEqual([['Red', 1]])
+  })
+
+  it('leaves a term a colour can answer to the colour, and counts nothing', async () => {
+    const rows = await rowsOf('colors', 'name:Red')
+    expect(rows.map((row) => [row.fields.name, row.fields.lots])).toEqual([['Red', undefined]])
+  })
+
+  it('is every colour when nothing asks about lots', async () => {
+    expect((await rowsOf('colors', '')).map((row) => row.fields.name)).toEqual(['Blue', 'Red'])
   })
 })

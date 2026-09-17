@@ -909,6 +909,11 @@ function narrowToCategoryItems(row: ShellRow) {
  *
  * `Wanted` and `For sale` do not, and should not: they count other people's
  * lots rather than catalogue items, and lead somewhere else entirely.
+ *
+ * `Lots` and `Quantity` are the conditions table's pair, and blank for the
+ * same reason its are: they count the lots a query reached through — an
+ * item's, a seller's, a region's — and an un-narrowed list of colours has
+ * reached none. See [colorRows].
  */
 export const colorColumns: ColumnDef[] = [
   {
@@ -931,7 +936,13 @@ export const colorColumns: ColumnDef[] = [
     label: 'Name',
     width: '200px',
     sort: 'name',
-    click: (row, options) => narrowBy('id', String(row.fields.id ?? ''), options)
+    // The colour's own scope term, `colorid:`, which is what the lots and the
+    // colour items are addressed by and what the header names a colour from.
+    // It wrote `id:` once, which is brickzuke's own key for the colour and,
+    // on every table but the colours', the items table's name for an item.
+    // Nothing at all for a colour BrickLink has no id for: no term can name
+    // it, and `narrowBy` writes none for an empty value.
+    click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
   {
     // `Parts` rather than `Items`, because that is the number: the colour
@@ -973,6 +984,23 @@ export const colorColumns: ColumnDef[] = [
     hint: 'Lots of this colour sellers have on offer — stock, not catalogue items',
     width: '120px',
     sort: 'forSale',
+    format: counted
+  },
+  {
+    key: 'lots',
+    label: 'Lots',
+    hint: 'Listings in this colour among the lots the query reached, not BrickLink’s own total',
+    width: '90px',
+    sort: 'lots',
+    format: counted,
+    click: (row) => narrowTo('inventories', 'colorid', String(row.fields.colorid ?? ''))
+  },
+  {
+    key: 'quantity',
+    label: 'Quantity',
+    hint: 'Every piece inside those lots, counted one by one',
+    width: '125px',
+    sort: 'quantity',
     format: counted
   },
   {
@@ -2384,6 +2412,14 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'forSale',
           label: 'For sale'
+        },
+        {
+          key: 'lots',
+          label: 'Lots'
+        },
+        {
+          key: 'quantity',
+          label: 'Quantity'
         },
         {
           key: 'yearFrom',

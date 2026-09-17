@@ -45,6 +45,9 @@ import {countriesFor,
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
 import {imagesFor,
   readImages,
+  lotAsksFor,
+  narrowedLotsFill,
+  narrowedLotsVersion,
   narrowedStoreInventoriesFor,
   readStoreInventories,
   storeInventoriesFor} from './itemPageFetch'
@@ -967,6 +970,35 @@ function lotsMatching(request: QueryRequest, lots: ShellRow[]): ShellRow[] {
   return groups ? lots.filter((lot) => matchesExpression(groups, lot, LOT_FIELDS)) : lots
 }
 
+/**
+ * The terms of a query that only the lots can answer for a type: the ones no
+ * row of it carries a field for, less the addresses. Nothing where there are
+ * none — as [lotTerms], a group left empty constrains nothing.
+ *
+ * The vocabulary is read off the rows themselves, the way the home screen's
+ * join reads it (see [reach]): a field some row carries is one the type
+ * answers for itself, and a term on it stays a filter over the rows, where
+ * `present` reads it. A colour's name is the colour's to answer; a condition
+ * or a region is a question only a lot in that colour can.
+ */
+function lotTermsBeyond(request: QueryRequest, rows: readonly ShellRow[]): Term[][] | undefined {
+  const carried = new Set<string>()
+  for (const row of rows) {
+    for (const field of Object.keys(row.fields)) {
+      carried.add(field.toLowerCase())
+    }
+  }
+  const groups = parseExpression(request.query.expr).map((group) =>
+    group.filter(
+      (term) =>
+        term.kind === 'field' &&
+        !carried.has(term.field) &&
+        !['record', 'id', 'store'].some((field) => addresses(term, field))
+    )
+  )
+  return !groups.length || groups.some((group) => !group.length) ? undefined : groups
+}
+
 /** The two conditions BrickLink sells in, under the codes a lot carries. */
 const CONDITIONS: Record<string, string> = {
   N: 'New',
@@ -1179,6 +1211,41 @@ function lotNarrowingOf(request: QueryRequest): LotNarrowing {
   return {
     condition: termValue(request, 'condition'),
     region: termValue(request, 'region')
+  }
+}
+
+/**
+ * The rest of an item's narrowed lots, fetched while the table is up.
+ *
+ * One [narrowedLotsFill] per record the query stands for, run one after the
+ * other. The records are looked up in the run rather than before it — a
+ * fill is made in the same breath as the query, and the lookup is a read of
+ * the catalogue — so the fill for an id with nothing behind it is a run
+ * that ends at once. Nothing to fill where the query narrows by nothing the
+ * list takes: then there is only the un-narrowed page.
+ */
+function itemLotsFill(request: QueryRequest): Fill | undefined {
+  const narrowing = lotNarrowingOf(request)
+  if (!lotAsksFor(narrowing).length) {
+    return undefined
+  }
+  let stopped = false
+  let running: Fill | undefined
+  return {
+    version: narrowedLotsVersion,
+    stop() {
+      stopped = true
+      running?.stop()
+    },
+    async run() {
+      for (const record of await itemRecords(request)) {
+        if (stopped) {
+          return
+        }
+        running = narrowedLotsFill(record, narrowing)
+        await running?.run()
+      }
+    }
   }
 }
 
@@ -1400,6 +1467,62 @@ function countryRegions(): Promise<Map<string, string>> {
       throw thrown
     })
   return regionByCountry
+}
+
+/**
+ * The colours on offer, each with how many lots are in it — or every colour
+ * the catalogue has, where nothing in the query is a question for the lots.
+ *
+ * The colours table is the catalogue's own list of them, read whole and
+ * held. A query naming an item, a seller, a condition or a region is asking
+ * about lots, and no colour row carries a field for any of those — so by the
+ * language's rule they matched every row, and the picker read `Colors · 213`
+ * beside `item: Plate 6 x 6`. Those terms go to the lots instead, as the
+ * conditions table puts them, and the colours are the ones the surviving
+ * lots come in, each counted the way a condition is. Only a colour some lot
+ * is in is a row: two hundred colours with a nought against all but three
+ * would be the whole table again with a worse column on it.
+ */
+async function colorRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
+  const held = (await rowsFor('colors', getDbConnection)) ?? []
+  const beyond = lotTermsBeyond(request, held)
+  if (!namesItem(request) && !termValue(request, 'store') && !beyond) {
+    return held
+  }
+  const lots = await storeInventoryRows(request, fetching)
+  const matching = beyond ? lots.filter((lot) => matchesExpression(beyond, lot, LOT_FIELDS)) : lots
+  const tally = new Map<string, { lots: number; quantity: number }>()
+  for (const lot of matching) {
+    // Stringified on both sides, as the join does: a number on the lot and on
+    // the colour today, and nothing here should depend on that holding.
+    const colour = String(lot.fields.colorid ?? '')
+    if (!colour) {
+      continue
+    }
+    const mine = tally.get(colour) ?? {
+      lots: 0,
+      quantity: 0
+    }
+    mine.lots += 1
+    mine.quantity += Number(lot.fields.quantity ?? 0)
+    tally.set(colour, mine)
+  }
+  return held.flatMap((row) => {
+    const mine = tally.get(String(row.fields.colorid ?? ''))
+    if (!mine) {
+      return []
+    }
+    return [
+      {
+        ...row,
+        fields: {
+          ...row.fields,
+          lots: mine.lots,
+          quantity: mine.quantity
+        }
+      }
+    ]
+  })
 }
 
 /** Every region BrickLink groups its sellers into. */
@@ -1739,6 +1862,15 @@ interface Fetched {
    * counting a type being no reason to fetch sixty pages of BrickLink.
    */
   fill?: (request: QueryRequest) => Fill | undefined
+  /**
+   * Read whole for the home screen whatever the query says, the card joining
+   * the rows through the lots itself — one lot at a time, and with the `~`
+   * that says the answer is a floor: see [reach]. The table reads the same
+   * rows narrowed here instead (see [colorRows]), over the lots it has in
+   * hand. Left off a type whose rows are *derived* under the query, the
+   * conditions above all — see [storedRows].
+   */
+  whole?: true
 }
 
 function addressesOf(source: Fetched, request: QueryRequest): string[] {
@@ -1786,10 +1918,14 @@ const fetched: Record<string, Fetched> = {
     rows: storeInventoryRows,
     fill: (request) => {
       const store = termValue(request, 'store')
-      // Only the seller's own front is paged. An item's lots are one request
-      // and are whole when they land, and the un-narrowed table is what
-      // browsing has gathered rather than an answer with more of it to come.
-      return store && !namesItem(request) ? storeLotsFill(store) : undefined
+      // The seller's own front is paged, and so is an item's narrowed answer
+      // — see [itemLotsFill]. The un-narrowed page of an item is one request
+      // and whole when it lands, and the un-narrowed table is what browsing
+      // has gathered rather than an answer with more of it to come.
+      if (store && !namesItem(request)) {
+        return storeLotsFill(store)
+      }
+      return namesItem(request) ? itemLotsFill(request) : undefined
     }
   },
   images: {
@@ -1800,6 +1936,16 @@ const fetched: Record<string, Fetched> = {
     addresses: ['record'],
     rows: conditionRows,
     fill: conditionCountsFill
+  },
+  /*
+   * The colours, read whole off the catalogue and narrowed through the lots
+   * where the query asks about lots — see [colorRows]. Nothing addresses it
+   * but the item, which every fetched type takes: see [addressesOf].
+   */
+  colors: {
+    addresses: [],
+    rows: colorRows,
+    whole: true
   },
   regions: {
     addresses: [],
@@ -1912,8 +2058,9 @@ export function storedRows(entityKey: string, expr = ''): Promise<ShellRow[]> | 
     // The expression goes in so a type whose rows are *derived* is derived
     // under it: the conditions are a count over the lots, and filtering the
     // two rows that come back cannot narrow the numbers written on them.
-    // Every other type here is filtered by the caller either way.
-    return source.rows(expr ? {
+    // Every other type here is filtered by the caller either way — and one
+    // the caller joins through the lots itself is read whole: see `whole`.
+    return source.rows(expr && !source.whole ? {
       query: {
         expr
       }
