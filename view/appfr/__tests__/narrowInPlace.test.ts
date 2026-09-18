@@ -3,9 +3,9 @@
  * category's Type, a country's or province's Region — should narrow the
  * table it is on rather than pivot to that entity's own table. Categories'
  * Type used to leave for the items table on a press, and Countries' and
- * Provinces' Region used to leave for the regions table; these pin the fix,
- * staying on the table pressed from with the field added to whatever query
- * was already there.
+ * Provinces' Region used to leave for the regions table, and Store inventories'
+ * Store for the stores table; these pin the fix, staying on the table pressed
+ * from with the field added to whatever query was already there.
  *
  * A count column is not this: Item types' Items and Categories columns, and
  * Regions' own Countries column, count a different population and rightly
@@ -34,7 +34,8 @@ vi.mock('../../../model', async () => {
 const {
   categoryColumns,
   countryColumns,
-  provinceColumns
+  provinceColumns,
+  storeInventoryColumns
 } = await import('../catalogSchema')
 
 function columnOf(columns: ColumnDef[], key: string): ColumnDef {
@@ -100,6 +101,21 @@ describe('pressing a related-entity cell a row already carries the field for', (
     expect(await press('provinces', provinceColumns, 'region', row, 'country:"CA"')).toEqual({
       entity: 'provinces',
       expr: 'country:"CA" region:"North America"'
+    })
+  })
+
+  it('narrows Store inventories by Store without leaving for the stores table', async () => {
+    // The question a press on a seller asks is what else of this they have —
+    // answered on the lots, with everything already narrowed to kept.
+    const row: ShellRow = {
+      id: '1',
+      entityKey: 'inventories',
+      entityLabel: 'Store inventories',
+      fields: { store: 'A brick per day', storeName: 'A brick per day...', priceValue: 23 }
+    }
+    expect(await press('inventories', storeInventoryColumns, 'storeName', row, 'type:P id:21674 region:Europe')).toEqual({
+      entity: 'inventories',
+      expr: 'type:P id:21674 region:Europe store:"A brick per day"'
     })
   })
 })

@@ -1333,8 +1333,10 @@ const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXP
  * where the seller is, who they are, the condition, how many and their
  * feedback.
  *
- * Country narrows this same table — a lot carries its own country — and store
- * leads out to that seller's own front, which this table cannot otherwise show.
+ * Country, store, colour and condition all narrow this same table — a lot
+ * carries each of them — so a press keeps the reader where they are, on the
+ * lots, with one more constraint over them. The column pressed then goes, the
+ * query having settled it: see [SETTLED_BY].
  */
 export const storeInventoryColumns: ColumnDef[] = [
   {
@@ -1435,7 +1437,12 @@ export const storeInventoryColumns: ColumnDef[] = [
     label: 'Store',
     width: '200px',
     sort: 'storeName',
-    click: (row) => narrowTo('stores', 'store', String(row.fields.store ?? ''))
+    // This seller's lots among the ones on screen, not the seller's row on the
+    // stores table: the question a press asks is "what else of this do they
+    // have", and the answer is on this table with `store:` pinned. The seller
+    // and everything the seller settles — country, feedback — then stand
+    // down, see [SETTLED_BY].
+    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
   {
     key: 'conditionName',
