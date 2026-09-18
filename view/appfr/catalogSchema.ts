@@ -1225,7 +1225,10 @@ export const itemVariantColumns: ColumnDef[] = [
  * column rather than a field per column.
  */
 const SETTLED_BY: Record<string, string[]> = {
-  item: ['record'],
+  // One item, whichever way the query names it: a `record:` spelling the
+  // BrickLink record, or the `id:` a press on the items table writes — the
+  // same two the lots read as what to fetch, see [namesItem].
+  item: ['record', 'id'],
   color: ['colorid'],
   // A record's category never varies row to row, whether it is pinned
   // directly or through the one record it names.

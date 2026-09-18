@@ -73,6 +73,17 @@ describe('a seller\'s own lots', () => {
     expect(columns).toContain('feedback')
   })
 
+  it('drops the item column when the items table\'s own press named it', async () => {
+    // A press on the items table writes `id:`, not `record:` — the same lots
+    // and the same one repeated name down the column.
+    const columns = await columnsOf('inventories', 'type:P category:26 id:21674 region:Europe condition:"N"')
+    expect(columns).not.toContain('item')
+    expect(columns).not.toContain('categoryName')
+    expect(columns).not.toContain('conditionName')
+    expect(columns).toContain('storeName')
+    expect(columns).toContain('countryName')
+  })
+
   it('names a row by the remark once the item is settled', async () => {
     await router.replace({
       path: '/',
