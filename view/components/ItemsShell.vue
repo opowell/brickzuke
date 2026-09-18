@@ -245,8 +245,17 @@ onMounted(() => {
   void fillCategoryTypes()
 })
 
+/*
+ * `mono-size` paints every role in ink, the ok and danger colours among them.
+ * Those two are given back a hue, for the mark a row wears where the query
+ * names it — a green `+` on a record narrowed to, a red `−` on one left out —
+ * which is nothing without the colour; the same tokens the shell's coloured
+ * themes use, following `color-scheme` the way the rest of the page does.
+ */
 const plainTokens = {
-  '--dc-accent': 'currentColor' 
+  '--dc-accent': 'currentColor',
+  '--dc-ok': 'light-dark(oklch(0.48 0.13 150), oklch(0.74 0.13 150))',
+  '--dc-danger': 'light-dark(oklch(0.5 0.18 25), oklch(0.68 0.17 25))',
 }
 </script>
 
