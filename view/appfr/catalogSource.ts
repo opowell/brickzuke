@@ -63,7 +63,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
-import { provideLots, reachFor, reaches } from './reach'
+import { provideLots, reachFor, reaches, type Tally } from './reach'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -456,8 +456,43 @@ function matcherBesides(
   request: QueryRequest,
   ...addressed: string[]
 ): (row: ShellRow) => boolean {
+  return matcherWithout(request, (term) => addressed.some((field) => addresses(term, field)))
+}
+
+/**
+ * The same, on a type read through the lots, with the terms the lots have
+ * already answered taken out as well.
+ *
+ * `answered` are the figures the join writes beside a row that a lot also
+ * carries of its own — `quantity`, on a colour or a condition. A term on one
+ * of those, `quantity>10`, was put to the lots (see [foreignTerms] in reach,
+ * and [lotTerms]), and the number then summed beside a colour is the pieces
+ * in the lots that passed. Compared against the same term a second time, the
+ * sum would drop a colour whose small lots add up past a `quantity<5`, and
+ * take a condition no lot is in off the table under any bound at all — the
+ * nought [joined] is at pains to keep. `lots` is the join's alone, no lot
+ * carrying one, so `lots>3` stays a question about the row.
+ */
+function matcherOverLots(
+  request: QueryRequest,
+  addressed: readonly string[],
+  answered: readonly string[]
+): (row: ShellRow) => boolean {
+  return matcherWithout(
+    request,
+    (term) =>
+      addressed.some((field) => addresses(term, field)) ||
+      (term.kind === 'field' && answered.includes(term.field))
+  )
+}
+
+/** The query's expression, with the terms `dropped` picks out left to whoever answers them. */
+function matcherWithout(
+  request: QueryRequest,
+  dropped: (term: Term) => boolean
+): (row: ShellRow) => boolean {
   const groups = parseExpression(request.query.expr).map((group) =>
-    group.filter((term) => !addressed.some((field) => addresses(term, field)))
+    group.filter((term) => !dropped(term))
   )
   if (!groups.length || groups.some((group) => !group.length)) {
     return () => true
@@ -2068,20 +2103,29 @@ function present(
  * it states both conditions whichever the query names, each with its count
  * over the same lots (see [conditionRows]), and a join that dropped the
  * condition no lot is in would take the nought off the table.
+ *
+ * `addressed` are the fields whose terms fetched these rows rather than
+ * filter them — see [matcherBesides]; the item's, on every table but its own.
  */
 async function joined(
   rows: readonly ShellRow[],
   request: QueryRequest,
-  matches: (row: ShellRow) => boolean = matcherFor(request)
+  addressed: readonly string[] = itemAddress(request)
 ): Promise<ShellRow[]> {
   const key = entityKey(request)
-  if (!key || key === 'conditions') {
-    return present(rows, request, matches)
+  if (!key) {
+    return present(rows, request, matcherBesides(request, ...addressed))
+  }
+  if (key === 'conditions') {
+    // Counted before it got here, over the lots the query's terms reach —
+    // so the lots have answered what a lot can, as they have below.
+    return present(rows, request, matcherOverLots(request, addressed, LOT_TALLIES))
   }
   const reach = await reachFor(key, request.query.expr, rows, request.entity ?? undefined)
   if (!reach.values) {
-    return present(rows, request, matches)
+    return present(rows, request, matcherBesides(request, ...addressed))
   }
+  const tallied = talliedOn(rows)
   const counted = rows.flatMap((row) => {
     if (!reaches(reach, row)) {
       return []
@@ -2092,13 +2136,43 @@ async function joined(
         ...row,
         fields: {
           ...row.fields,
-          lots: mine.lots,
-          quantity: mine.quantity
+          ...Object.fromEntries(tallied.map((field) => [field, mine[field]]))
         }
       } : row
     ]
   })
-  return present(counted, request, matches)
+  return present(
+    counted,
+    request,
+    matcherOverLots(request, addressed, tallied.filter((field) => LOT_TALLIES.includes(field)))
+  )
+}
+
+/** The two figures the join writes beside a row it reaches — see [joined]. */
+const TALLIES: readonly (keyof Tally)[] = ['lots', 'quantity']
+
+/**
+ * The one of them a lot carries of its own, and so the one a term about it
+ * is put to the lots by — see [matcherOverLots].
+ */
+const LOT_TALLIES: readonly (keyof Tally)[] = ['quantity']
+
+/**
+ * Which of the join's figures these rows have none of their own, and so take
+ * from it. A colour has no quantity until the lots give it one; a line of a
+ * set's inventory has its own — how many of the part the set holds — and
+ * keeps it, as the term `quantity>10` on that table keeps meaning the line
+ * and not the lots: the rows carry the field, so it is never foreign, see
+ * [foreignTerms] in reach.
+ */
+function talliedOn(rows: readonly ShellRow[]): (keyof Tally)[] {
+  const carried = new Set<string>()
+  for (const row of rows) {
+    for (const field of Object.keys(row.fields)) {
+      carried.add(field)
+    }
+  }
+  return TALLIES.filter((field) => !carried.has(field))
 }
 
 /**
@@ -2116,11 +2190,7 @@ export async function matchingRows(request: QueryRequest): Promise<ShellRow[]> {
   const key = entityKey(request)
   const source = key ? fetched[key] : undefined
   if (source) {
-    return joined(
-      await source.rows(request, false),
-      request,
-      matcherBesides(request, ...addressesOf(source, request))
-    )
+    return joined(await source.rows(request, false), request, addressesOf(source, request))
   }
   const held = key ? rowsFor(key, getDbConnection) : undefined
   return held ? joined(await held, request) : []
@@ -2209,11 +2279,7 @@ export const catalogSource: DataSource = {
       // Reads only: the home screen runs one of these per type every time it
       // is drawn, and a summary card is no reason to scrape twenty pages of
       // BrickLink or to walk the whole catalogue.
-      const rows = await joined(
-        await source.rows(request, false),
-        request,
-        matcherBesides(request, ...addressesOf(source, request))
-      )
+      const rows = await joined(await source.rows(request, false), request, addressesOf(source, request))
       return {
         rows: rows.slice(request.offset, request.offset + request.limit),
         total: rows.length,
@@ -2286,11 +2352,7 @@ export const catalogSource: DataSource = {
         // The address terms are this table's address rather than a filter
         // over it, so the rows they fetched are not filtered by them again —
         // but whatever else the query carries does narrow them.
-        const rows = await joined(
-          all,
-          request,
-          matcherBesides(request, ...addressesOf(source, request))
-        )
+        const rows = await joined(all, request, addressesOf(source, request))
         if (cancelled || !sink.open) return
         sink.set({
           rows: rows.slice(request.offset, request.offset + request.limit),

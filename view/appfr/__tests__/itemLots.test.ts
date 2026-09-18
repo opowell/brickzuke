@@ -407,6 +407,37 @@ describe('the colours table, over the lots a query reaches', () => {
   it('is every colour when nothing asks about lots', async () => {
     expect((await rowsOf('colors', '')).map((row) => row.fields.name)).toEqual(['Blue', 'Red'])
   })
+
+  /*
+   * A bound on quantity is a bound on the lots, and the pieces then summed
+   * beside a colour are the pieces of the lots that passed — not a second
+   * bound on the sum, which would drop Red under `quantity<5` for its two
+   * lots of three adding up to six.
+   */
+  it('puts a bound on quantity to the lots, and not again to their sum', async () => {
+    const rows = await rowsOf('colors', 'type:P id:"21051" quantity<5')
+    expect(rows.map((row) => [row.fields.name, row.fields.lots, row.fields.quantity])).toEqual([
+      ['Blue', 1, 3],
+      ['Red', 2, 6]
+    ])
+    expect((await rowsOf('colors', 'type:P id:"21051" quantity>3')).map((row) => row.fields.name)).toEqual([])
+  })
+
+  it('leaves a bound on lots to the colour, no lot carrying one', async () => {
+    const rows = await rowsOf('colors', 'type:P id:"21051" lots>1')
+    expect(rows.map((row) => [row.fields.name, row.fields.lots])).toEqual([['Red', 2]])
+  })
+
+  it('leaves a quantity of the row\'s own alone', async () => {
+    // A set's inventory line has its own quantity — how many of the part the
+    // set holds — which a lot's bound is not about, and the join's sum must
+    // not write over.
+    const rows = await rowsOf('itemInventories', 'condition:N')
+    expect(rows.map((row) => [row.fields.part, row.fields.quantity, row.fields.lots])).toEqual([
+      ['P-2465', 2, 2]
+    ])
+    expect(await rowsOf('itemInventories', 'condition:N quantity>3')).toEqual([])
+  })
 })
 
 /** The rows of a type as the source streams them, settled: the last page set before it closed. */
@@ -460,6 +491,14 @@ describe('the conditions table, over an item\'s lots in a region', () => {
     const byCode = new Map(rows.map((row) => [row.condition, row.lots]))
     expect(byCode.get('N')).toBe(0)
     expect(byCode.get('U')).toBe(1)
+  })
+
+  it('keeps both conditions under a bound on quantity no lot meets', async () => {
+    const rows = await settledRowsOf('conditions', 'type:P id:"21051" quantity>10')
+    expect(rows.map((row) => [row.condition, row.lots, row.quantity])).toEqual([
+      ['N', 0, 0],
+      ['U', 0, 0]
+    ])
   })
 })
 
