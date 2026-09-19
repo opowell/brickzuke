@@ -26,6 +26,7 @@ import { itemTypes, processingCounts, selectedCounts } from '../../model'
 import { browsedCounts } from './catalogCounts'
 import { LOADING, fills } from './homeFill'
 import { priceCurrency } from './priceCurrency'
+import { priceText, priceUnitsPhrase } from './priceText'
 import CellCount from './CellCount.vue'
 import CellPrice from './CellPrice.vue'
 import CellImage from './CellImage.vue'
@@ -1303,12 +1304,14 @@ function informative(columns: ColumnDef[], expr: string): ColumnDef[] {
  * this app knows until a converted price has been read off a lot — see
  * [priceCurrency]. Before then the header says what the column is without
  * naming it, which is true at every moment rather than true once the lots
- * land.
+ * land. The units are the reader's own setting, said with the currency —
+ * `EUR cents` — see [priceText].
  */
 function pricedIn(columns: ColumnDef[], currency: string): ColumnDef[] {
   if (!currency) {
     return columns
   }
+  currency = priceUnitsPhrase(currency)
   return columns.map((column) =>
     column.key === 'priceValue'
       ? {
@@ -1971,8 +1974,10 @@ export const shippingCostColumns: ColumnDef[] = [
     kind: 'component',
     component: CellPrice,
     // The figure with its currency, where the cell is text rather than the
-    // component — the home screen's pill says `49.99 EUR`, not `49.99 cost`.
-    format: (value, row) => [value, row.fields.currency].filter(Boolean).join(' '),
+    // component — the home screen's pill says `49.99 EUR`, not `49.99 cost` —
+    // in the units the reader chose, as the cell itself says it.
+    format: (value, row) =>
+      [priceText(Number(value)), priceUnitsPhrase(String(row.fields.currency ?? ''))].filter(Boolean).join(' '),
     width: '90px',
     sort: 'cost'
   },

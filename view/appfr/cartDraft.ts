@@ -88,6 +88,10 @@ export async function targetLots(): Promise<ShellRow[]> {
   return ticked.size ? rows.filter((row) => ticked.has(row.id)) : rows
 }
 
+function proposedEntry(row: ShellRow, mode: 'max' | 'none'): DraftEntry {
+  return { fields: row.fields, quantity: mode === 'max' ? availableOf(row.fields) : 0 }
+}
+
 /**
  * Max, or 0: every target lot proposed at what the seller has, or at none.
  *
@@ -97,10 +101,14 @@ export async function targetLots(): Promise<ShellRow[]> {
 export async function proposeAll(mode: 'max' | 'none'): Promise<void> {
   const next = new Map(cartDraft.value)
   for (const row of await targetLots()) {
-    next.set(row.id, {
-      fields: row.fields,
-      quantity: mode === 'max' ? availableOf(row.fields) : 0
-    })
+    next.set(row.id, proposedEntry(row, mode))
   }
+  cartDraft.value = next
+}
+
+/** The row-level Max or 0, over the header's: one lot proposed, not every lot. */
+export function proposeOne(row: ShellRow, mode: 'max' | 'none'): void {
+  const next = new Map(cartDraft.value)
+  next.set(row.id, proposedEntry(row, mode))
   cartDraft.value = next
 }

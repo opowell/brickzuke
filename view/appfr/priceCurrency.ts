@@ -33,8 +33,13 @@ export function notePriceCurrency(printed: unknown): void {
   if (priceCurrency.value) {
     return
   }
-  const sign = (/^[^\d]+/.exec(String(printed ?? ''))?.[0] ?? '').trim()
+  const sign = priceSign(printed)
   if (sign) {
     priceCurrency.value = sign
   }
+}
+
+/** The sign in front of a printed price — `EUR`, `US $` — or `''` where there is none. */
+export function priceSign(printed: unknown): string {
+  return (/^[^\d]+/.exec(String(printed ?? ''))?.[0] ?? '').trim()
 }

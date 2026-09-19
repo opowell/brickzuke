@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SETTINGS, setSetting, settingFor, shipTo } from '../settings'
+import { SETTINGS, priceUnits, priceUnitsChosen, setSetting, settingFor, shipTo } from '../settings'
 
 describe('the ship-to country', () => {
   it('is a knob of its own kind, listed with the numbers', () => {
@@ -13,7 +13,8 @@ describe('the ship-to country', () => {
       'reachGapMs',
       'shipTo',
       'activeCart',
-      'activeProfile'
+      'activeProfile',
+      'priceUnits'
     ])
   })
 
@@ -66,6 +67,60 @@ describe('the active price modifier profile', () => {
     setSetting('activeProfile', '')
     expect(activeProfile.value).toBe('')
     expect(activeProfileId()).toBeUndefined()
+  })
+})
+
+describe('the price units', () => {
+  it('is a choice between cents and euros, cents from the start', () => {
+    const declared = settingFor('priceUnits')
+    expect(declared?.kind).toBe('choice')
+    expect(declared?.kind === 'choice' && declared.choices.map((choice) => choice.label)).toEqual([
+      'EUR cents',
+      'EUROs'
+    ])
+    expect(priceUnits.value).toBe('cents')
+    expect(priceUnitsChosen()).toBe('cents')
+    setSetting('priceUnits', 'euros')
+    expect(priceUnits.value).toBe('euros')
+    expect(priceUnitsChosen()).toBe('euros')
+    // No blank, and nothing outside the two: a price is always shown in some
+    // units, so a write that names none leaves the ones that are set.
+    setSetting('priceUnits', '')
+    setSetting('priceUnits', 'pounds')
+    setSetting('priceUnits', 7)
+    expect(priceUnits.value).toBe('euros')
+    setSetting('priceUnits', 'cents')
+    expect(priceUnits.value).toBe('cents')
+  })
+
+  it('is drawn as a picker of its own choices, with no blank', async () => {
+    const {
+      mount
+    } = await import('@vue/test-utils')
+    const {
+      default: CellSetting
+    } = await import('../CellSetting.vue')
+    setSetting('priceUnits', 'cents')
+    const wrapper = mount(CellSetting, {
+      props: {
+        row: {
+          id: 'priceUnits',
+          entityKey: 'settings',
+          entityLabel: 'Settings',
+          fields: {
+            setting: 'priceUnits'
+          }
+        }
+      }
+    })
+    expect(wrapper.findAll('option').map((option) => option.text())).toEqual([
+      'EUR cents',
+      'EUROs'
+    ])
+    expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('cents')
+    await wrapper.find('select').setValue('euros')
+    expect(priceUnits.value).toBe('euros')
+    wrapper.unmount()
   })
 })
 

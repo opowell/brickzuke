@@ -31,7 +31,7 @@ import { ensurePartCounts, partsOf } from './partCounts'
 import { ensureStoreInventories, storeInventoryOf } from './storeInventoryCounts'
 import { conditionCounts, conditionCountsVersion, ensureConditionCounts } from './conditionCounts'
 import { colorItemsFill, colorItemsFor, readColorItems } from './colorItemsFetch'
-import { notePriceCurrency } from './priceCurrency'
+import { notePriceCurrency, priceSign } from './priceCurrency'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
@@ -652,7 +652,7 @@ function toStoreInventoryRow(lot: StoreInventory, directory: LotDirectory): Shel
       // The price as a number, because that is the one question a column of
       // prices is asked and sorting it as text answers a different one:
       // `US $10.00` sorts before `US $9.00` on every character that matters.
-      priceValue: toPrice(lot.price),
+      priceValue: lotPrice(lot.price, lot.nativePrice),
       // What the seller charges, in their own currency. `price` above is that
       // converted for the viewer, which is the figure worth comparing across
       // sellers and the one the column shows.
@@ -719,6 +719,25 @@ function toPrice(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ''))
   return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/**
+ * The number a lot is drawn and sorted by.
+ *
+ * BrickLink prints the converted price to two places, so a seller in the
+ * viewer's own currency asking `EUR 0.002` is printed as `EUR 0.00` — a
+ * rounding rather than a price, and a lot at a fifth of a cent drawn and
+ * sorted as though it were free. Where the seller's own figure is in the same
+ * currency there was nothing to convert, and theirs is the exact one; it is
+ * taken over the printed figure, and over the raw number a store's page
+ * carries beside it — which, if it was not rounded, is the same figure.
+ */
+function lotPrice(converted: string | undefined, native: string | undefined, raw?: number): number | undefined {
+  const sign = priceSign(converted)
+  if (sign && sign === priceSign(native)) {
+    return toPrice(native) ?? raw ?? toPrice(converted)
+  }
+  return raw ?? toPrice(converted)
 }
 
 /**
@@ -860,7 +879,7 @@ function toStoreLotRow(lot: StoredStoreLot, directory: LotDirectory): ShellRow {
         // The converted figure BrickLink printed, kept for the hover; the
         // number beside it is what the column draws and sorts by.
         price: lot.displayPrice,
-        priceValue: lot.price,
+        priceValue: lotPrice(lot.displayPrice, lot.nativePrice, lot.price),
         nativePrice: lot.nativePrice,
         itemName: lot.itemName,
         colorName: lot.colorName,

@@ -3,8 +3,8 @@
  * A setting's value, as the control that changes it.
  *
  * The one cell in the catalogue that writes rather than reads. A number field
- * for a number with a stated range, and a `<select>` for a country, a cart or
- * a price modifier profile —
+ * for a number with a stated range, and a `<select>` for a country, a cart, a
+ * price modifier profile or a choice the setting declares for itself —
  * in each case the control the browser already has for exactly this, so it
  * arrives with its own steppers or its own list, its own keyboard handling and
  * its own validation, and brickzuke paints none of it.
@@ -23,6 +23,9 @@
  * The carts and the profiles are somebody's own, read by [userCounts] after
  * every write — so a cart made a moment ago is already in the list when the
  * picker next drops, and one deleted is out of it.
+ *
+ * A choice's are the setting's own, and there is no blank among them: the
+ * first declared is the default, and the picker shows it from the start.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
@@ -70,7 +73,7 @@ onMounted(async () => {
     .sort((a, b) => a.label.localeCompare(b.label))
 })
 
-/** Whether this setting is drawn as a picker — a country, a cart or a profile. */
+/** Whether this setting is drawn as a picker — a country, a cart, a profile or a choice. */
 const picked = computed(() => pickedSetting(setting.value))
 
 /**
@@ -79,9 +82,13 @@ const picked = computed(() => pickedSetting(setting.value))
  * A cart or a profile that has been deleted is the one case the set value is
  * not among the choices, and it is kept as a choice named by its id rather
  * than dropped, for the reason a country's code is: the picker shows what is
- * set.
+ * set. A choice setting is the exception to the blank: its choices are all
+ * there are, and [setSetting] holds it to them.
  */
 const choices = computed(() => {
+  if (setting.value?.kind === 'choice') {
+    return setting.value.choices
+  }
   const kind = setting.value?.kind
   const offered =
     kind === 'cart' ? cartChoices.value : kind === 'profile' ? profileChoices.value : countries.value

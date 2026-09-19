@@ -22,11 +22,16 @@
  * figure with the factors on the lot applied — see [priceModifiers] — and a
  * hover that shows the working, which is the one thing a scaled number
  * needs beside it.
+ *
+ * The figure is in the units the price units setting names — cents or whole
+ * euros — through [priceText]. The hovers are not: they quote what BrickLink
+ * printed, sign and all, and a quote is not restated.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 import { modifiersApplying } from './priceModifiers'
+import { priceText } from './priceText'
 
 const props = defineProps({
   row: {
@@ -47,26 +52,8 @@ const props = defineProps({
   }
 })
 
-/**
- * Enough places to keep two figures, and never more than four.
- *
- * Most of a bulk seller's inventory is worth a fraction of a cent a piece, and
- * two decimals round all of that to a handful of values — `0.02` for anything
- * from 0.015 to 0.025, `0.00` for everything under half a cent. A column of
- * those sorts perfectly and says nothing, because the figure that separates
- * one lot from the next has been rounded off. Each tenth of the way down, one
- * more place goes on, so the second figure of the price survives however small
- * it is: `0.016`, not `0.02`.
- */
-const text = computed(() => {
-  const amount = Number(props.value)
-  if (!Number.isFinite(amount)) {
-    return ''
-  }
-  const size = Math.abs(amount)
-  const places = size === 0 || size >= 0.1 ? 2 : size >= 0.01 ? 3 : 4
-  return amount.toFixed(places)
-})
+/** The figure in the units the reader chose — see [priceText]. */
+const text = computed(() => priceText(Number(props.value)))
 
 /** Which column this is, the two being drawn by the one cell. */
 const modified = computed(() => props.column.key === 'modPrice')

@@ -528,6 +528,48 @@ describe('a seller\'s own lots', () => {
     expect(lot.fields.nativePrice).toBe('US $0.12')
   })
 
+  it('takes the seller\'s own figure where it is in the viewer\'s currency, since the printed one is rounded', async () => {
+    // Seeded and removed here rather than with the two above, whose count
+    // the tests around them pin.
+    const db = await getDbConnection()
+    await putAll(db, STORES.STORE_LOTS, [
+      {
+        id: '903',
+        store: 'steinehaus',
+        record: 'P-3005',
+        itemType: 'P',
+        itemNumber: '3005',
+        itemName: 'Brick 1 x 1',
+        description: '',
+        condition: 'N',
+        colorId: '11',
+        colorName: 'Black',
+        quantity: 500,
+        // What BrickLink printed, to two places — and what the seller wrote,
+        // in the viewer's own currency, to three.
+        price: 0,
+        displayPrice: 'EUR 0.00',
+        nativePrice: 'EUR 0.002'
+      }
+    ])
+    db.close()
+    try {
+      const rows = await rowsOf({
+        entity: 'inventories',
+        expr: 'store:"steinehaus"'
+      })
+      const lot = rows.find((row) => row.fields.id === '903')!
+      // `EUR 0.00` is a fifth of a cent rounded off, not a free lot.
+      expect(lot.fields.priceValue).toBe(0.002)
+      expect(lot.fields.price).toBe('EUR 0.00')
+    } finally {
+      const cleanup = await getDbConnection()
+      const tx = cleanup.transaction(STORES.STORE_LOTS.name, 'readwrite')
+      await Promise.all([tx.store.delete('903'), tx.done])
+      cleanup.close()
+    }
+  })
+
   it('carries the colour name, which the lot states and the item never did', async () => {
     const rows = await rowsOf({
       entity: 'inventories',

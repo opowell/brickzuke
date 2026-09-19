@@ -1,1 +1,19 @@
-- price modifier profiles: several named sets of modifiers, switched between in Settings. The modifiers themselves are in (see PRICE_MODIFIERS).
+- header: replace browser select with custom select that does not lose focus when counts change.
+- allow sorting by multiple fields.
+- move "select all" checkbox to table header.
+- shopping lists (see PLAN.md).
+- move active cart to BrickLink cart.
+- Item card view: use larger images?
+- when querying an item, hide anything not related to that Item.
+  - only stores that have the item
+  - only regions that have a store that has the item
+  - only shopping lists that have the item
+  - etc.
+- Images entity is not working.
+- Item view: Category overflows to next column.
+- Include/exclude: hover state should use green/red to indicate potential action.
+- + / - hover state: use reduced opacity to indicate potential action.
+- Item view: weight column should be numeric, measured in grams. Use same formatting as other numeric amounts.
+- Include/exclude: adding one state should automatically remove the other from the query.
+- appfr: remove sort elements from the header, they are already in the table headers.
+- add option (default=true), when viewing a set of entities in table mode, to only show enough rows to fill the viewport, so no vertical scrolling.

@@ -19,11 +19,14 @@
  * box shows that instead, marked as proposed, until Apply writes it or Reset
  * drops it. Typing into the box is the word for this lot either way: it
  * writes at once, and the proposal for it goes.
+ *
+ * The row carries its own Max, 0, Apply, Reset too — what the header's do to
+ * the whole table, done to this one lot, through the same draft.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
-import { draftQuantityOf } from './cartDraft'
+import { draftQuantityOf, dropDraft, proposeOne } from './cartDraft'
 import { activeCart } from './settings'
 import { setCartQuantity } from './userWrites'
 
@@ -121,12 +124,50 @@ function write() {
       :aria-label="column?.label ?? 'Cart'"
       @change="write"
     />
+    <button
+      type="button"
+      class="cart-quantity__button"
+      :disabled="!active"
+      title="Propose the most the seller has of this lot — Apply writes it"
+      @click="proposeOne(row, 'max')"
+    >
+      Max
+    </button>
+    <button
+      type="button"
+      class="cart-quantity__button"
+      :disabled="!active"
+      title="Propose none of this lot — Apply takes it out of the cart"
+      @click="proposeOne(row, 'none')"
+    >
+      0
+    </button>
+    <button
+      type="button"
+      class="cart-quantity__button"
+      :disabled="!active || proposed === undefined"
+      title="Write the proposed figure to the cart"
+      @click="write"
+    >
+      Apply
+    </button>
+    <button
+      type="button"
+      class="cart-quantity__button"
+      :disabled="proposed === undefined"
+      title="Drop what is proposed, so the box reads what the cart holds"
+      @click="dropDraft(row.fields.id)"
+    >
+      Reset
+    </button>
   </span>
 </template>
 
 <style scoped>
 .cart-quantity {
   display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* The width [CellUserNumber] gives a quantity, so the two read alike. */
@@ -145,5 +186,13 @@ function write() {
 .cart-quantity__value--proposed {
   outline: 1px dashed currentColor;
   outline-offset: 1px;
+}
+
+/* Tighter than the table's other buttons, there being four of them beside a
+   box: the shell's padding is for a cell on its own. */
+.cart-quantity__button {
+  padding: 1px 5px;
+  font: inherit;
+  color: inherit;
 }
 </style>

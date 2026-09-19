@@ -8,11 +8,12 @@
  * and published as records so the shell can draw them as a table like any
  * other type.
  *
- * Three kinds: numbers, which have one obvious control and one obvious
+ * Four kinds: numbers, which have one obvious control and one obvious
  * validation; a country, which is one of the directory's own and so is picked
- * rather than typed; and a record of somebody's own — a cart, a price modifier
- * profile — picked the same way. Which kind a setting is decides which control
- * the value cell draws — see [CellSetting].
+ * rather than typed; a record of somebody's own — a cart, a price modifier
+ * profile — picked the same way; and a choice among a few values declared
+ * here, which has a default rather than a blank. Which kind a setting is
+ * decides which control the value cell draws — see [CellSetting].
  */
 import { useStorage } from '@vueuse/core'
 import type { Ref } from 'vue'
@@ -91,6 +92,27 @@ export function activeProfileId(): number | undefined {
   return idIn(activeProfile)
 }
 
+/**
+ * The units a price is shown in: EUR cents, or whole euros.
+ *
+ * A lot's price arrives in the viewer's currency — `0.05` — and most of a bulk
+ * seller's inventory is a few cents a piece, so cents is the default: `5` is
+ * read at a glance where `0.05` is counted. Euros for a reader who thinks in
+ * them, or whose lots are dear enough that the cents are noise.
+ */
+export const priceUnits = useStorage('brickzuke-price-units', 'cents')
+
+/** The values [priceUnits] takes. */
+export type PriceUnits = 'cents' | 'euros'
+
+/**
+ * The units chosen, as the type rather than the string the picker holds —
+ * cents wherever the stored value is not one of the two.
+ */
+export function priceUnitsChosen(): PriceUnits {
+  return priceUnits.value === 'euros' ? 'euros' : 'cents'
+}
+
 /** The key a picker setting holds, or nothing where it is blank or nonsense. */
 function idIn(setting: Ref<string>): number | undefined {
   const id = Number(setting.value)
@@ -145,12 +167,28 @@ export interface ProfileSetting extends SettingBase {
   value: Ref<string>
 }
 
+/**
+ * A knob that is one of a few values declared here, never blank.
+ *
+ * Unlike the pickers above, the choices are the setting's own to state, and
+ * the first of them is the default: there is no "not set" for a price's
+ * units, since a price is always shown in some.
+ */
+export interface ChoiceSetting extends SettingBase {
+  kind: 'choice'
+  value: Ref<string>
+  choices: {
+    value: string
+    label: string
+  }[]
+}
+
 /** One knob, as the table draws it. */
-export type Setting = NumberSetting | CountrySetting | CartSetting | ProfileSetting
+export type Setting = NumberSetting | CountrySetting | CartSetting | ProfileSetting | ChoiceSetting
 
 /** The kinds drawn as a picker rather than a number field. */
-export function pickedSetting(setting: Setting | undefined): setting is CountrySetting | CartSetting | ProfileSetting {
-  return setting?.kind === 'country' || setting?.kind === 'cart' || setting?.kind === 'profile'
+export function pickedSetting(setting: Setting | undefined): setting is CountrySetting | CartSetting | ProfileSetting | ChoiceSetting {
+  return setting?.kind === 'country' || setting?.kind === 'cart' || setting?.kind === 'profile' || setting?.kind === 'choice'
 }
 
 /**
@@ -205,6 +243,23 @@ export const SETTINGS: Setting[] = [
     detail:
       'The set of price modifiers applied to every lot, and the one the factor boxes write into. Not set means no modifier applies.',
     value: activeProfile
+  },
+  {
+    kind: 'choice',
+    key: 'priceUnits',
+    name: 'Price units',
+    detail: 'Whether every price — lots, carts, postage — is shown in EUR cents or in whole euros.',
+    value: priceUnits,
+    choices: [
+      {
+        value: 'cents',
+        label: 'EUR cents'
+      },
+      {
+        value: 'euros',
+        label: 'EUROs'
+      }
+    ]
   }
 ]
 
@@ -221,7 +276,9 @@ export function settingFor(key: string): Setting | undefined {
  * answer than either a silent nought or a dialog. A country is taken as the
  * code it is and a cart or a profile as the id it is — the control is a
  * picker either way, so what arrives is one of the choices or blank — and a
- * value of the wrong kind changes nothing.
+ * value of the wrong kind changes nothing. A choice is held to the choices it
+ * declares: there is no blank to fall back on, so a value that is none of
+ * them leaves the one that is set.
  */
 export function setSetting(key: string, value: number | string): void {
   const setting = settingFor(key)
@@ -229,8 +286,12 @@ export function setSetting(key: string, value: number | string): void {
     return
   }
   if (pickedSetting(setting)) {
-    if (typeof value === 'string') {
-      setting.value.value = value.trim()
+    if (typeof value !== 'string') {
+      return
+    }
+    const picked = value.trim()
+    if (setting.kind !== 'choice' || setting.choices.some((choice) => choice.value === picked)) {
+      setting.value.value = picked
     }
     return
   }

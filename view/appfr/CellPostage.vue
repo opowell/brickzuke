@@ -12,10 +12,14 @@
  * under — the reading is a guess, and this is what to check it against. A
  * seller with no figure says why in the secondary ink, and a seller nobody
  * has asked yet says nothing.
+ *
+ * The figure is in the units the price units setting names, and the currency
+ * after it says so — `499 EUR cents`, `4.99 EUR` — see [priceText].
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
+import { priceText, priceUnitsPhrase } from './priceText'
 
 const props = defineProps({
   row: {
@@ -36,13 +40,12 @@ const props = defineProps({
   }
 })
 
-/** Two places: postage is counted in whole cents, unlike a bulk lot's price. */
-const figure = computed(() => {
-  const amount = Number(props.value)
-  return Number.isFinite(amount) && props.value !== undefined && props.value !== '' ? amount.toFixed(2) : ''
-})
+/** Whole cents: postage is counted in them, unlike a bulk lot's price — see [priceText]. */
+const figure = computed(() =>
+  props.value === undefined || props.value === '' ? '' : priceText(Number(props.value), true)
+)
 
-const currency = computed(() => String(props.row.fields.postageCurrency ?? ''))
+const currency = computed(() => priceUnitsPhrase(String(props.row.fields.postageCurrency ?? '')))
 const source = computed(() => String(props.row.fields.postageSource ?? ''))
 const note = computed(() => String(props.row.fields.postageNote ?? ''))
 </script>
