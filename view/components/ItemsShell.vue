@@ -445,8 +445,15 @@ const plainTokens = {
  *
  * `filter` for the same reason, the shell brightening that one button by 8%
  * on top of the colour — a lift on a lift, and only there.
+ *
+ * The two marks beside a row's name are not buttons of this kind: the `→`
+ * says with its colour which way the press would go — green to narrow to the
+ * record, red with ⌘ held to leave it out — and the `+` or `−` fades to say
+ * the press lifts it. A face and a reverted ink would say neither. `:where`
+ * so the exemption weighs nothing, and the tie with the active rule below is
+ * kept as it stands.
  */
-.items-shell :deep(button:hover:not(:disabled)) {
+.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing))) {
   background: color-mix(in oklab, ButtonFace 88%, ButtonText);
   border: revert;
   border-radius: revert;
