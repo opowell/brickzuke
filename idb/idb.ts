@@ -53,7 +53,10 @@ const DB_NAME = 'brickzuke'
 // 31 adds an index on STORE_LOTS by record, so the lots stored of one item can
 // be read without a walk over every seller's. Made by the loop below like any
 // other index; nothing is cleared.
-const DB_VERSION = 31
+// 32 adds ITEM_IMAGES — the pictures of each item opened, which until now
+// lived only in memory and were fetched again on every reload. Made by the
+// loop below like any other and, being a copy of BrickLink's, safe to clear.
+const DB_VERSION = 32
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

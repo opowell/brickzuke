@@ -7,6 +7,9 @@ import {Call,
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { useModelsStore } from '../models'
 import { ONE_DAY, ONE_WEEK } from '@/assets/js/timesToMs'
+import { put } from '~/../idb/db'
+import { getDbConnection } from '~/../idb/idb'
+import STORES from '~/../idb/stores'
 
 export interface ImagesResponse extends EventDetail {
   request: EventDetail['request'] & {
@@ -22,6 +25,15 @@ export interface ImagesResponse extends EventDetail {
       }[]
     }
   }
+}
+
+/** The pictures of one record, as ITEM_IMAGES holds them. */
+export interface StoredItemImages {
+  record: string
+  images: {
+    id: string
+    image: string
+  }[]
 }
 
 export interface InventoriesResponse extends EventDetail {
@@ -371,12 +383,26 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         }
       })
       if (
+        images.length > 1 &&
         images[0].image.includes('/' + itemType + 'N/') &&
         images[1].image.includes('/' + itemType + 'L/')
       ) {
         images.splice(1, 1)
       }
-      this.imagesMap.set(itemType + '-' + itemNumber, images)
+      const record = itemType + '-' + itemNumber
+      // Stored before the map is set: the map is what a caller waiting on
+      // this record watches (see [landed] in itemPageFetch), and what it
+      // reads once woken is the store.
+      const db = await getDbConnection()
+      try {
+        await put<StoredItemImages>(db, STORES.ITEM_IMAGES, {
+          record,
+          images,
+        })
+      } finally {
+        db.close()
+      }
+      this.imagesMap.set(record, images)
     },
     async handlePageResponse(detail: EventDetail) {
       console.log('handlePageResponse', detail)

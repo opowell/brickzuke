@@ -34,6 +34,7 @@ const stores: {
   CART_LINES: StoreDefinition
   PRICE_MODIFIER_PROFILES: StoreDefinition
   PRICE_MODIFIERS: StoreDefinition
+  ITEM_IMAGES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -300,6 +301,21 @@ const stores: {
   PRICE_MODIFIERS: {
     name: 'priceModifiers',
     keyPath: ['profileId', 'entity', 'key']
+  },
+  /**
+   * The pictures of an item: one record per BrickLink record, holding every
+   * picture its image list states — `P-3001` and its nineteen photographs.
+   *
+   * Filled the way inventories are, one item's page at a time, and kept for
+   * the same reason: a picture is on the item's page and nowhere else, so
+   * what was fetched is worth more than a session. One row per record rather
+   * than one per picture so that a record BrickLink lists no picture for is
+   * stored as answered — an empty list — and not asked for again on every
+   * read. A copy of BrickLink's, and safe to clear.
+   */
+  ITEM_IMAGES: {
+    name: 'itemImages',
+    keyPath: 'record'
   }
 }
 

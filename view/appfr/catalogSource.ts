@@ -45,7 +45,9 @@ import {countriesFor,
   storesFor} from './storesFetch'
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
 import {hasPage,
+  imagedRecords,
   imagesFor,
+  readAllImages,
   readImages,
   narrowedLotsFill,
   narrowedLotsVersion,
@@ -1406,32 +1408,30 @@ async function storeInventoryRows(
 }
 
 /**
- * The pictures of the item a query names, or of every item loaded so far.
+ * The pictures of the item a query names, or of every item stored so far.
  *
  * Named — `record:` or `id:` — the item's records are fetched, and the
- * table is their pictures. Un-narrowed, the rows are what this session has
- * loaded, and the query narrows them as it narrows any table: a picture
- * carries its item's name, category and year (see [toImageRow]) and the
- * join answers for the sellers. What is *not* loaded yet is [imagesFill]'s
- * to fetch — the items the query matches, one page at a time while the
- * table is up — and each one landing is read here again.
+ * table is their pictures. Un-narrowed, the rows are every picture stored,
+ * and the query narrows them as it narrows any table: a picture carries its
+ * item's name, category and year (see [toImageRow]) and the join answers
+ * for the sellers. What is *not* stored yet is [imagesFill]'s to fetch —
+ * the items the query matches, one page at a time while the table is up —
+ * and each one landing is read here again.
  */
 async function imageRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
-  const store = useCatalogItemPageStore()
-  let records: string[]
+  let pictures: Map<string, ItemImage[]>
   if (namesItem(request)) {
-    records = await itemRecords(request)
-    if (fetching) {
-      for (const record of records) {
-        await imagesFor(record)
-      }
+    pictures = new Map()
+    for (const record of await itemRecords(request)) {
+      pictures.set(record, fetching ? await imagesFor(record) : await readImages(record))
     }
   } else {
-    records = Array.from(store.imagesMap.keys())
+    pictures = await readAllImages()
   }
+  const records = Array.from(pictures.keys())
   const items = await recordsBehind(records)
   return records.flatMap((record) =>
-    readImages(record).map((image) => toImageRow(record, image, items.get(record)))
+    pictures.get(record)!.map((image) => toImageRow(record, image, items.get(record)))
   )
 }
 
@@ -1517,9 +1517,10 @@ async function matchedRecords(request: QueryRequest, stopped: () => boolean): Pr
  * pages, and this is what asks for them: one at a time, at the pace every
  * fill shares, stopping when the table is left (see [pageFill]). The list
  * worked down is [matchedRecords], read once when the first page is asked
- * for; the "page" is a position in it, and what moves as one lands is the
- * number of records held. A record no page can be read for is passed over
- * rather than waited on — see [hasPage].
+ * for, against the records whose pictures are stored already, read once
+ * beside it; the "page" is a position in the list, and what moves as one
+ * lands is the number of records stored. A record no page can be read for
+ * is passed over rather than waited on — see [hasPage].
  *
  * Nothing where the query names an item: its records are fetched before the
  * first push, there being one or two of them — see [imageRows].
@@ -1528,21 +1529,25 @@ function imagesFill(request: QueryRequest): Fill | undefined {
   if (namesItem(request)) {
     return undefined
   }
-  const store = useCatalogItemPageStore()
   let stopped = false
   let records: string[] | undefined
+  let held: Set<string> | undefined
   const fill = fillPages(
     {
       async next() {
         records ??= await matchedRecords(request, () => stopped)
-        const at = records.findIndex((record) => hasPage(record) && !store.imagesMap.has(record))
+        held ??= await imagedRecords()
+        const at = records.findIndex((record) => hasPage(record) && !held!.has(record))
         return at === -1 ? undefined : at
       },
       async fetch(at: number) {
+        // Resolves once the pictures are stored, or fails when nothing
+        // answers — and a failure ends the run, as on every fill.
         await imagesFor(records![at])
+        held!.add(records![at])
       },
       async reach() {
-        return store.imagesMap.size
+        return held?.size ?? 0
       }
     },
     imagesVersion

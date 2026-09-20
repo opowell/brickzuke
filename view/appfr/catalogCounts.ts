@@ -15,11 +15,12 @@
  */
 import { ref } from 'vue'
 import type { IDBPDatabase } from 'idb'
-import { count } from '../../idb/db'
+import { count, getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import stores from '../../idb/stores'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
-import { readImages, readStoreInventories } from './itemPageFetch'
+import { readStoreInventories } from './itemPageFetch'
+import type { StoredItemImages } from '../stores/bricklink/catalog-item-page'
 import { provincesOf, yearCount } from './catalogSource'
 import { readStores } from './storesFetch'
 import { readStorePolicies } from './storePolicyFetch'
@@ -101,7 +102,12 @@ const quick: Record<string, (db: IDBPDatabase) => Promise<number>> = {
   // per hundred and so are kept, and they count from where they are kept.
   // Together that is what the table shows.
   inventories: async (db) => readStoreInventories().length + (await count(db, stores.STORE_LOTS)),
-  images: async () => readImages().length
+  // Pictures rather than records: the table is one row per picture.
+  images: async (db) =>
+    ((await getAll<StoredItemImages>(db, stores.ITEM_IMAGES)) ?? []).reduce(
+      (sum, one) => sum + one.images.length,
+      0
+    )
 }
 
 /**

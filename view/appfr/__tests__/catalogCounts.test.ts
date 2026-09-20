@@ -138,6 +138,18 @@ beforeAll(async () => {
       'Year Released': '2013'
     }
   ])
+  // One item's pictures, kept — the count is of pictures, not of records.
+  await putAll(db, STORES.ITEM_IMAGES, [
+    {
+      record: 'P-3001',
+      images: [
+        {
+          id: 'img-1',
+          image: 'https://img.example/a.png'
+        }
+      ]
+    }
+  ])
   db.close()
 
   const store = useCatalogItemPageStore()
@@ -147,12 +159,6 @@ beforeAll(async () => {
     },
     {
       invId: 'lot-2'
-    }
-  ] as never)
-  store.imagesMap.set('P-3001', [
-    {
-      id: 'img-1',
-      image: 'https://img.example/a.png'
     }
   ] as never)
 
@@ -177,8 +183,13 @@ describe('the two inventory tables', () => {
 })
 
 describe('what is only ever in memory', () => {
-  it('counts the lots and the pictures read this session', () => {
+  it('counts the lots read this session', () => {
     expect(cardCount('inventories')).toBe('2')
+  })
+})
+
+describe('pictures', () => {
+  it('counts the pictures stored, not the records they are of', () => {
     expect(cardCount('images')).toBe('1')
   })
 })

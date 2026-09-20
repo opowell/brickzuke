@@ -7,7 +7,8 @@
  * pin the two halves of the answer — that a picture carries its item's own
  * facts, so a term about the item narrows the pictures the way it narrows
  * the items; and that what is not loaded yet is fetched behind the table,
- * for exactly the items the items table would list, one page at a time.
+ * for exactly the items the items table would list, one page at a time —
+ * and kept, so a reload does not ask for them again.
  */
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
@@ -49,23 +50,32 @@ const PICTURES: Record<string, { id: string; image: string }[]> = {
 
 /*
  * The page fetch, standing in for the extension: asking for a record's
- * pictures files them the way the response handler would. Everything else
+ * pictures stores them the way the response handler would. Everything else
  * of the module is the real thing, `readImages` and `hasPage` included.
  */
 vi.mock('../itemPageFetch', async (importOriginal) => {
   const original = await importOriginal<typeof import('../itemPageFetch')>()
   return {
     ...original,
-    imagesFor: async (record?: string) => {
-      if (record) {
-        asked.push(record)
-        const {
-          useCatalogItemPageStore
-        } = await import('../../stores/bricklink/catalog-item-page')
-        const store = useCatalogItemPageStore()
-        if (!store.imagesMap.has(record)) {
-          store.imagesMap.set(record, PICTURES[record] ?? [])
+    imagesFor: async (record: string) => {
+      asked.push(record)
+      const {
+        getDbConnection
+      } = await import('../../../idb/idb')
+      const {
+        put
+      } = await import('../../../idb/db')
+      const STORES = (await import('../../../idb/stores')).default
+      const db = await getDbConnection()
+      try {
+        if ((await db.getKey(STORES.ITEM_IMAGES.name, record)) === undefined) {
+          await put(db, STORES.ITEM_IMAGES, {
+            record,
+            images: PICTURES[record] ?? []
+          })
         }
+      } finally {
+        db.close()
       }
       return original.readImages(record)
     }
@@ -194,13 +204,18 @@ beforeAll(async () => {
       'Year Released': '2010'
     }
   ])
-  db.close()
   // The long brick sells in Germany and the short one in the States; only
-  // the long one's page has been opened this session.
+  // the long one's pictures are stored.
+  await putAll(db, STORES.ITEM_IMAGES, [
+    {
+      record: 'P-2465',
+      images: PICTURES['P-2465']
+    }
+  ])
+  db.close()
   const store = useCatalogItemPageStore()
   store.inventoriesMap.set('P-2465', [lot('1', 'P-2465', 'brickmeister', 'DE')])
   store.inventoriesMap.set('P-3001', [lot('2', 'P-3001', 'bricksusa', 'US')])
-  store.imagesMap.set('P-2465', PICTURES['P-2465'])
 })
 
 beforeEach(() => {

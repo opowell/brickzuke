@@ -3,16 +3,22 @@
  *
  * The sibling of [inventoryFetch]: an inventory is what a set is made of, and
  * this is the other half of an item's page — the lots on offer for it, and its
- * image list. Neither is in any bulk download and neither is in IndexedDB,
- * because both go stale in a way a catalogue entry does not: a price is only
- * true while the lot is still there.
+ * image list. Neither is in any bulk download. The lots are not in IndexedDB
+ * either, because they go stale in a way a catalogue entry does not: a price
+ * is only true while the lot is still there. So they live where the original
+ * keeps them, in `catalogItemPageStore`'s maps. The pictures do not go stale,
+ * and are kept — ITEM_IMAGES, one row per record — with the map beside them
+ * saying which records landed this session.
  *
- * So they live where the original keeps them, in `catalogItemPageStore`'s
- * maps, and this is what fills those maps on demand. One request opens the
- * item's page; that handler fires the two that actually carry the answers, so
- * three round trips stand behind one call here.
+ * This is what fills both on demand. One request opens the item's page; that
+ * handler fires the two that actually carry the answers, so three round trips
+ * stand behind one call here.
  */
 import { ref, watch } from 'vue'
+import { get, getAll } from '../../idb/db'
+import { getDbConnection } from '../../idb/idb'
+import STORES from '../../idb/stores'
+import type { StoredItemImages } from '../stores/bricklink/catalog-item-page'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
 import { LOTS_PER_PAGE, lotAskKey, useCatalogItemPageStore } from '../stores/bricklink/catalog-item-page'
@@ -244,13 +250,52 @@ export function hasPage(record: string): boolean {
   return parts !== undefined && READABLE.has(parts.type)
 }
 
-/** The pictures loaded for one record, or for every record loaded so far. */
-export function readImages(record?: string): ItemImage[] {
-  const store = useCatalogItemPageStore()
-  if (record) {
-    return (store.imagesMap.get(record) as ItemImage[] | undefined) ?? []
+/**
+ * The pictures stored for one record — nothing where the record has not been
+ * asked for, which reads the same as a record BrickLink lists none for; see
+ * [hasImages] for the difference.
+ */
+export async function readImages(record: string): Promise<ItemImage[]> {
+  const db = await getDbConnection()
+  try {
+    return (await get<StoredItemImages>(db, STORES.ITEM_IMAGES, record))?.images ?? []
+  } finally {
+    db.close()
   }
-  return Array.from(store.imagesMap.values()).flat() as ItemImage[]
+}
+
+/** Every record's pictures stored, by record. */
+export async function readAllImages(): Promise<Map<string, ItemImage[]>> {
+  const db = await getDbConnection()
+  try {
+    const stored = (await getAll<StoredItemImages>(db, STORES.ITEM_IMAGES)) ?? []
+    return new Map(stored.map((one) => [one.record, one.images]))
+  } finally {
+    db.close()
+  }
+}
+
+/** The records whose pictures are stored — a record with none listed included. */
+export async function imagedRecords(): Promise<Set<string>> {
+  const db = await getDbConnection()
+  try {
+    return new Set((await db.getAllKeys(STORES.ITEM_IMAGES.name)) as string[])
+  } finally {
+    db.close()
+  }
+}
+
+/** Whether the record's pictures are stored, this session or an earlier one. */
+async function hasImages(record: string): Promise<boolean> {
+  if (useCatalogItemPageStore().imagesMap.has(record)) {
+    return true
+  }
+  const db = await getDbConnection()
+  try {
+    return (await db.getKey(STORES.ITEM_IMAGES.name, record)) !== undefined
+  } finally {
+    db.close()
+  }
 }
 
 /** One fetch per record at a time: lots and pictures are one page between them. */
@@ -339,11 +384,8 @@ export async function storeInventoriesFor(record?: string): Promise<StoreInvento
 }
 
 /** The pictures of one record, on the same terms. */
-export async function imagesFor(record?: string): Promise<ItemImage[]> {
-  if (!record) {
-    return readImages()
-  }
-  if (!useCatalogItemPageStore().imagesMap.has(record)) {
+export async function imagesFor(record: string): Promise<ItemImage[]> {
+  if (!(await hasImages(record))) {
     await fetchRecord(record, 'imagesMap')
   }
   return readImages(record)

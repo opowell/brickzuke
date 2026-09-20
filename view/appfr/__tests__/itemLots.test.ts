@@ -231,8 +231,19 @@ beforeAll(async () => {
     total: 1,
     pages: 1
   })
-  store.imagesMap.set('P-2465', [])
-  store.imagesMap.set('S-2465-1', [])
+  // Both records' pictures stored — as none — so nothing asks for a page.
+  const stored = await getDbConnection()
+  await putAll(stored, STORES.ITEM_IMAGES, [
+    {
+      record: 'P-2465',
+      images: []
+    },
+    {
+      record: 'S-2465-1',
+      images: []
+    }
+  ])
+  stored.close()
 })
 
 /** The ids of the lots the source answers an inventories query with. */
