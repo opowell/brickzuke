@@ -1,4 +1,3 @@
-- header: replace browser select with custom select that does not lose focus when counts change.
 - allow sorting by multiple fields.
 - move "select all" checkbox to table header.
 - shopping lists (see PLAN.md).

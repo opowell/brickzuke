@@ -194,7 +194,9 @@ describe('items schema', () => {
       }
     })
     await nextTick()
-    expect(shell.find('option[value="items"]').text()).toBe('Items · 199k')
+    // The type picker is the shell's own button now, and says the chosen
+    // type on its face — its list only goes up when it is pressed.
+    expect(shell.find('.dc-header__scope-select .dc-pick__button').text()).toBe('Items · 199k')
   })
 
   it('draws the eight columns the table has today, the parts count, and two more', () => {

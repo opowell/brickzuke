@@ -359,8 +359,7 @@ const plainTokens = {
  * however alike the rest of them is, and the whole point here is that a press
  * looks the same wherever it is.
  */
-.items-shell :deep(button),
-.items-shell :deep(select) {
+.items-shell :deep(button) {
   appearance: revert;
   background: revert;
   border: revert;
@@ -429,8 +428,7 @@ const plainTokens = {
  * `filter` for the same reason, the shell brightening that one button by 8%
  * on top of the colour — a lift on a lift, and only there.
  */
-.items-shell :deep(button:hover:not(:disabled)),
-.items-shell :deep(select:hover:not(:disabled)) {
+.items-shell :deep(button:hover:not(:disabled)) {
   background: color-mix(in oklab, ButtonFace 88%, ButtonText);
   border: revert;
   border-radius: revert;
@@ -454,15 +452,14 @@ const plainTokens = {
 }
 
 /*
- * The two pickers on the bar are `<select>`s that the shell paints as its own
- * control — `appearance: none` and a border of its own — so they were the one
- * thing on the bar the rule above could not reach by asking for a button. They
- * are pressed like everything else here and now look it, which leaves the
- * chevron the shell drew for them doing a job the system's own arrow has
- * taken back.
+ * The pickers on the bar are buttons of the shell's own with a list behind
+ * them, so the rule above reaches them like everything else — and takes the
+ * room the shell had left at their right edge for the chevron that says a
+ * list is there. Given back here: a button has no arrow of the system's to
+ * take that job over, as the `<select>` these replaced had.
  */
-.items-shell :deep(.dc-header__pick-mark) {
-  display: none;
+.items-shell :deep(.dc-pick__button) {
+  padding-right: 20px;
 }
 
 /*
