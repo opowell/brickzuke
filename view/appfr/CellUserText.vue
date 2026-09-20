@@ -122,9 +122,20 @@ function press(event: MouseEvent) {
   display: inline-flex;
 }
 
-/* The shell's own text cell, near enough: one line, the rest on hover. */
+/*
+ * The shell's own text cell, near enough: one line, the rest on hover.
+ *
+ * `max-width` is what makes the cut happen at all. A button is shrink-to-fit
+ * whatever its `display`, and with the text on one line its fitted width is
+ * the whole of the text — so on its own it grows past the column and the
+ * label runs under the next one. The identity column never showed it because
+ * the shell wraps that cell in a flex row, and a flex item that hides its
+ * overflow may shrink below its content; a cell with no such wrapper needs
+ * the cap said outright.
+ */
 .user-text__plain {
   display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
