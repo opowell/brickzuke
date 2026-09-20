@@ -2056,9 +2056,10 @@ export const shippingCostColumns: ColumnDef[] = [
 /**
  * The pictures of an item, which is the one table here that is only pictures.
  *
- * The original draws the image and nothing else. The record is here as well
- * because this is every picture loaded rather than one item's, and a wall of
- * photographs with nothing saying what they are of is not a table.
+ * The original draws the image and nothing else. The item's name and its
+ * record are here as well because this is every picture of every item the
+ * query matches rather than one item's, and a wall of photographs with
+ * nothing saying what they are of is not a table.
  */
 export const imageColumns: ColumnDef[] = [
   {
@@ -2080,9 +2081,16 @@ export const imageColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Item',
+    width: '300px',
+    sort: 'name',
+    click: narrowToItem
+  },
+  {
+    key: 'record',
+    label: 'Record',
     width: '160px',
     mono: true,
-    sort: 'name',
+    sort: 'record',
     click: narrowToItem
   }
 ]
@@ -3047,6 +3055,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'name',
           label: 'Item'
+        },
+        {
+          key: 'record',
+          label: 'Record'
         }
       ]
     },

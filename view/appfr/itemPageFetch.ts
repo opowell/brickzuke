@@ -233,6 +233,17 @@ async function askLots(
   return true
 }
 
+/**
+ * Whether the record has a page this can read at all — see [READABLE]. A
+ * fill working down a list of records asks before it asks for the page, a
+ * minifigure's being one that would never land and so a twenty-second wait
+ * for nothing.
+ */
+export function hasPage(record: string): boolean {
+  const parts = splitRecord(record)
+  return parts !== undefined && READABLE.has(parts.type)
+}
+
 /** The pictures loaded for one record, or for every record loaded so far. */
 export function readImages(record?: string): ItemImage[] {
   const store = useCatalogItemPageStore()

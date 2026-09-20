@@ -6,7 +6,7 @@
  * The difference is that the sink closes when the query changes, so a slow scan
  * cannot write the query someone just left over the one they are looking at.
  */
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
   EntitySchema,
@@ -18,6 +18,7 @@ import type {DataSource,
   ShellRow,
   Term} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
+import { fillPages } from './pageFill'
 import type { Fill } from './pageFill'
 import { count, get, getAll, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
@@ -43,7 +44,8 @@ import {countriesFor,
   provinceId,
   storesFor} from './storesFetch'
 import type { Country, Region, Store } from '../stores/bricklink/stores-page'
-import {imagesFor,
+import {hasPage,
+  imagesFor,
   readImages,
   narrowedLotsFill,
   narrowedLotsVersion,
@@ -125,6 +127,9 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[], expr: string): Shel
       // other single-record fields above already read, so it is the one a
       // Parts cell counts and opens.
       record: first.id,
+      // And every one of them, for a table read off the items the query
+      // matches — the pictures, which are of a record and not of an item.
+      records: brickLinkItems.map((bi) => bi.id),
       // The count for that record as the scan found it, which is what sorting
       // by Parts compares. The cell reads the live map instead, so a set
       // opened after the scan shows its number without another scan — see
@@ -1045,8 +1050,20 @@ function conditionName(code: string | undefined): string | undefined {
   return code === undefined ? undefined : (CONDITIONS[code] ?? code)
 }
 
-/** One picture of an item, as a row. */
-function toImageRow(record: string, image: ItemImage): ShellRow {
+/**
+ * One picture of an item, as a row — carrying what the catalogue says of the
+ * item, where it has a record of it.
+ *
+ * The name, category and year are the item's, under the field names the
+ * items table carries them in, so a term about the item narrows its
+ * pictures the way it narrows the item: `name:brick year:2010` reads the
+ * same on both tables. Without them a picture was a record code and a URL,
+ * and `name:brick` matched no picture of any brick. What a picture cannot
+ * say — who sells the item, where — the join answers, as on every other
+ * table; see [joined].
+ */
+function toImageRow(record: string, image: ItemImage, item?: BrickLinkItem): ShellRow {
+  const raw = item as unknown as Record<string, string> | undefined
   return {
     id: image.id,
     entityKey: 'images',
@@ -1059,7 +1076,15 @@ function toImageRow(record: string, image: ItemImage): ShellRow {
       // picture leads back to the catalogue entry it is of.
       type: record.slice(0, record.indexOf('-')),
       itemId: record.slice(record.indexOf('-') + 1),
-      name: record
+      // The record where the catalogue has no name for it — one of theirs,
+      // or a record the update run has not reached — so the column is never
+      // blank and the picture still says what it is of.
+      name: item?.Name ?? record,
+      // A number, as on the items table: `:` compares a number exactly and
+      // only substring-matches a string.
+      category: item ? Number(item['Category ID']) : undefined,
+      categoryName: item?.['Category Name'],
+      year: raw?.['Year Released']
     }
   }
 }
@@ -1380,21 +1405,156 @@ async function storeInventoryRows(
   return [...rows, ...(await asStoreLotRows(await readAllStoreLots()))]
 }
 
-/** The pictures of the item a query names, or every one loaded so far. */
+/**
+ * The pictures of the item a query names, or of every item loaded so far.
+ *
+ * Named — `record:` or `id:` — the item's records are fetched, and the
+ * table is their pictures. Un-narrowed, the rows are what this session has
+ * loaded, and the query narrows them as it narrows any table: a picture
+ * carries its item's name, category and year (see [toImageRow]) and the
+ * join answers for the sellers. What is *not* loaded yet is [imagesFill]'s
+ * to fetch — the items the query matches, one page at a time while the
+ * table is up — and each one landing is read here again.
+ */
 async function imageRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
-  const record = termValue(request, 'record')
-  if (record) {
-    const images = fetching ? await imagesFor(record) : readImages(record)
-    return images.map((image) => toImageRow(record, image))
+  const store = useCatalogItemPageStore()
+  let records: string[]
+  if (namesItem(request)) {
+    records = await itemRecords(request)
+    if (fetching) {
+      for (const record of records) {
+        await imagesFor(record)
+      }
+    }
+  } else {
+    records = Array.from(store.imagesMap.keys())
+  }
+  const items = await recordsBehind(records)
+  return records.flatMap((record) =>
+    readImages(record).map((image) => toImageRow(record, image, items.get(record)))
+  )
+}
+
+/**
+ * The catalogue's record of each of these, where it has one — one point
+ * lookup per record in one transaction, as [categoriesBehind] reads the
+ * same store.
+ */
+async function recordsBehind(records: readonly string[]): Promise<Map<string, BrickLinkItem>> {
+  const behind = new Map<string, BrickLinkItem>()
+  if (!records.length) {
+    return behind
+  }
+  const db = await getDbConnection()
+  try {
+    const store = db.transaction(dbStores.BRICK_LINK_ITEMS.name).store
+    const items = await Promise.all(
+      records.map((record) => store.get(record) as Promise<BrickLinkItem | undefined>)
+    )
+    items.forEach((item, at) => {
+      if (item) {
+        behind.set(records[at], item)
+      }
+    })
+  } finally {
+    db.close()
+  }
+  return behind
+}
+
+/** Bumped as each item's pictures land, for the table drawn from them — see [imagesFill]. */
+const imagesVersion = ref(0)
+
+/**
+ * The records of every item the query matches — the items table's own
+ * answer to it, read for its records rather than its rows.
+ *
+ * The same scan the items table makes, under the same expression and the
+ * same join, so the pictures fetched are of exactly the items that table
+ * would list: `type:P region:Europe` is the parts a European seller has a
+ * lot of, and `name:brick` the bricks. A `type:` term narrows an item's
+ * records the way [itemRecords] narrows them, an item of several types
+ * being one row of the scan and one record of each type. `stopped` ends
+ * the scan early — it is two hundred thousand items, and a table that has
+ * been left is no reason to finish reading them.
+ */
+async function matchedRecords(request: QueryRequest, stopped: () => boolean): Promise<string[]> {
+  const items = request.schema?.entities.find((entity) => entity.key === 'items')
+  if (!items) {
+    return []
+  }
+  const type = termValue(request, 'type')
+  const records: string[] = []
+  const db = await getDbConnection()
+  try {
+    await scan(
+      db,
+      {
+        ...request,
+        entity: items
+      },
+      (row) => {
+        const own = row.fields.records
+        for (const record of Array.isArray(own) ? own : [row.fields.record]) {
+          if (typeof record === 'string' && (!type || record.startsWith(type + '-'))) {
+            records.push(record)
+          }
+        }
+        return !stopped()
+      }
+    )
+  } finally {
+    db.close()
+  }
+  return records
+}
+
+/**
+ * The pictures of the items the query matches, fetched while the table is up.
+ *
+ * An item's pictures are on its page, and nothing lists them for more than
+ * one item at a time — so a query matching a thousand parts is a thousand
+ * pages, and this is what asks for them: one at a time, at the pace every
+ * fill shares, stopping when the table is left (see [pageFill]). The list
+ * worked down is [matchedRecords], read once when the first page is asked
+ * for; the "page" is a position in it, and what moves as one lands is the
+ * number of records held. A record no page can be read for is passed over
+ * rather than waited on — see [hasPage].
+ *
+ * Nothing where the query names an item: its records are fetched before the
+ * first push, there being one or two of them — see [imageRows].
+ */
+function imagesFill(request: QueryRequest): Fill | undefined {
+  if (namesItem(request)) {
+    return undefined
   }
   const store = useCatalogItemPageStore()
-  const rows: ShellRow[] = []
-  for (const [key, images] of store.imagesMap) {
-    for (const image of images as ItemImage[]) {
-      rows.push(toImageRow(key, image))
-    }
+  let stopped = false
+  let records: string[] | undefined
+  const fill = fillPages(
+    {
+      async next() {
+        records ??= await matchedRecords(request, () => stopped)
+        const at = records.findIndex((record) => hasPage(record) && !store.imagesMap.has(record))
+        return at === -1 ? undefined : at
+      },
+      async fetch(at: number) {
+        await imagesFor(records![at])
+      },
+      async reach() {
+        return store.imagesMap.size
+      }
+    },
+    imagesVersion
+  )
+  return {
+    version: imagesVersion,
+    stop() {
+      stopped = true
+      fill.stop()
+    },
+    run: () => fill.run()
   }
-  return rows
 }
 
 /**
@@ -1937,7 +2097,8 @@ const fetched: Record<string, Fetched> = {
   },
   images: {
     addresses: ['record'],
-    rows: imageRows
+    rows: imageRows,
+    fill: imagesFill
   },
   conditions: {
     addresses: ['record'],
