@@ -1,5 +1,4 @@
 - allow sorting by multiple fields.
-- move "select all" checkbox to table header.
 - shopping lists (see PLAN.md).
 - move active cart to BrickLink cart.
 - Item card view: use larger images?
