@@ -160,6 +160,30 @@ export function narrowTo(entity: string | null, field: string, value: string) {
 }
 
 /**
+ * The same press, leaving for a record that is an address of its own.
+ *
+ * `narrowTo` carries the record terms across because a store or a country
+ * names the same thing on either side. A shopping list has no far side:
+ * `shoplist:"6"` is the whole of what its three tables read, and the
+ * `record:"S-10116-1"` the set's inventory was open on — the set the list was
+ * just made *from* — would be matched against the parts on the plan, none of
+ * which is the set, and find nothing. So nothing carries: the type, the one
+ * term, and no more. The sort and the page go for the reason `openWith` drops
+ * them.
+ */
+export function openOn(entity: string, field: string, value: string) {
+  if (!value) {
+    return
+  }
+  const params = new URLSearchParams(window.location.search)
+  params.set(PARAM_ENTITY, entity)
+  params.set(PARAM_EXPR, `${field}:"${value}"`)
+  params.delete(PARAM_SORT)
+  params.delete(PARAM_PAGE)
+  router.push('/?' + params.toString())
+}
+
+/**
  * Every term of `expr` added to `base`, each superseding whatever `base`
  * already says on that field rather than ANDing with it.
  *

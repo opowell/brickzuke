@@ -513,3 +513,81 @@ describe('what the shell is told it may do', () => {
     expect(after.some((row) => row.fields.name === 'Brick (1)')).toBe(true)
   })
 })
+
+/*
+ * What a write leaves for the shell: the table re-read, and the ticks gone
+ * with the rows they were on. The shell re-runs a query for a new source and
+ * not for a new schema, so a write on a table of theirs has to say so — see
+ * [userRevision] — and a write from a cell on a catalogue table must not, that
+ * table being the lots stream a re-run would restart.
+ */
+describe('what a write leaves for the shell', () => {
+  it('moves the revision for a record made, typed into and unmade', async () => {
+    const {
+      createRecordFor, deleteRecordsFor, userRevision, writeField
+    } = await import('../userWrites')
+    const entity = standingUserEntities().find((e) => e.key === 'shopLists')!
+    const start = userRevision.value
+
+    await createRecordFor(entity, '')
+    expect(userRevision.value).toBe(start + 1)
+
+    const db = await connection()
+    const [list] = await shopListRows(db)
+    db.close()
+    await writeField('shopLists', Number(list.fields.id), 'name', 'Weekend order')
+    expect(userRevision.value).toBe(start + 2)
+
+    await deleteRecordsFor({
+      ids: [String(list.fields.id)],
+      rows: [],
+      entity
+    })
+    expect(userRevision.value).toBe(start + 3)
+  })
+
+  it('leaves the revision alone for the quantity box on the lots table', async () => {
+    const {
+      setCartQuantity, userRevision
+    } = await import('../userWrites')
+    const {
+      activeCart
+    } = await import('../settings')
+    const db = await connection()
+    const cart = await (await import('../../../idb/cart')).createCart(db)
+    db.close()
+    activeCart.value = String(cart.id)
+    const start = userRevision.value
+    await setCartQuantity({
+      id: '123456',
+      store: 'Bricks R Us',
+      quantity: 10,
+      priceValue: 0.1 
+    }, 3)
+    // The lot's row reads its quantity off the active cart's lines, which the
+    // write refreshed — a re-run of the walk over every lot would buy nothing.
+    expect(userRevision.value).toBe(start)
+    activeCart.value = ''
+  })
+
+  it('takes the ticks off the rows it deleted, and no others', async () => {
+    const {
+      deleteRecordsFor
+    } = await import('../userWrites')
+    const {
+      cartSelection
+    } = await import('../cartDraft')
+    const db = await connection()
+    const mine = await createUserCategory(db, 'Oddments')
+    db.close()
+    const entity = catalogSchema.value.entities.find((e) => e.key === 'categories')!
+    // Both ticked: BrickLink's row, which stays, and theirs, which goes.
+    cartSelection.value = ['5', String(userCategoryRef(mine.id))]
+    await deleteRecordsFor({
+      ids: cartSelection.value,
+      rows: [],
+      entity
+    })
+    expect(cartSelection.value).toEqual(['5'])
+  })
+})

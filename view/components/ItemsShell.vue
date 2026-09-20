@@ -36,7 +36,7 @@ import {DataShell,
   isTypeCardsQuery,
   parseQuery,
   serializeQuery} from 'header-content-layout'
-import type { EntitySchema, Selection, ShellQuery } from 'header-content-layout'
+import type { DataSource, EntitySchema, Selection, ShellQuery } from 'header-content-layout'
 import 'header-content-layout/style.css'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -49,10 +49,10 @@ import { storeLotsNotice } from '../appfr/storeLotsNotice'
 import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 import { rememberType } from '../appfr/recentTypes'
 import { refreshUserCounts } from '../appfr/userCounts'
-import { createRecordFor, deleteRecordsFor, shopPartsOf } from '../appfr/userWrites'
+import { createRecordFor, deleteRecordsFor, shopPartsOf, userRevision } from '../appfr/userWrites'
 import { cartSelection } from '../appfr/cartDraft'
 import { activeCart } from '../appfr/settings'
-import { narrowTo } from '../appfr/catalogSchema'
+import { openOn } from '../appfr/catalogSchema'
 import HomeCards from '../appfr/HomeCards.vue'
 import { fillCategoryTypes } from '../appfr/categoryTypesFetch'
 
@@ -174,6 +174,24 @@ function onDelete(selection: Selection) {
 }
 
 /**
+ * The source, made anew whenever a table of theirs is written.
+ *
+ * The shell re-runs its query when the source it is handed changes and not
+ * when the schema does — see [userRevision] for why the count a write puts on
+ * the bar no longer brings the row with it. So the source is a computed over
+ * that revision, and a write hands the shell a new object with the same
+ * functions on it: the same rows read again, which is what a table with a
+ * record just made, unmade or typed into needs. Every other reader gets the
+ * one `catalogSource`; the copy is a shell-facing wrapper and holds nothing.
+ */
+const liveSource = computed<DataSource>(() => {
+  void userRevision.value
+  return {
+    ...catalogSource
+  }
+})
+
+/**
  * The set whose parts are on screen, if one is — which is the whole condition
  * for offering to buy them.
  *
@@ -214,7 +232,7 @@ async function shopOpenSet() {
   try {
     const listId = await shopPartsOf(openSet.value)
     if (listId) {
-      narrowTo('shopPlan', 'shoplist', String(listId))
+      openOn('shopPlan', 'shoplist', String(listId))
     }
   } finally {
     shopping.value = false
@@ -278,7 +296,7 @@ const plainTokens = {
     -->
     <DataShell
       :schema="catalogSchema"
-      :source="catalogSource"
+      :source="liveSource"
       :route="route"
       theme="mono-size"
       :tokens="plainTokens"

@@ -8,11 +8,13 @@
  * which is where an edit comes from. This is the other side of all three, and
  * the one place brickzuke writes anything somebody typed.
  *
- * Every write ends in [refreshUserCounts], which is what makes the new row
- * appear — see the note there.
+ * Every write ends in [refreshUserCounts], which is what puts the new row's
+ * count on the bar, and most end in a tick of [userRevision], which is what
+ * makes the row itself appear — see the note there.
  */
 import type { EntitySchema, Selection, ShellRow } from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
+import { ref } from 'vue'
 import { getDbConnection } from '../../idb/idb'
 import { refreshUserCounts } from './userCounts'
 import {createUserCategory,
@@ -41,7 +43,7 @@ import {createCart,
   updateCart,
   updateCartLine} from '../../idb/cart'
 import type { CartLot } from '../../idb/cart'
-import { cartDraft, dropDraft, resetDraft } from './cartDraft'
+import { cartDraft, cartSelection, dropDraft, resetDraft } from './cartDraft'
 import { setPriceModifier } from '../../idb/priceModifier'
 import {createPriceModifierProfile,
   deletePriceModifierProfile,
@@ -53,6 +55,26 @@ import { forgetPartCounts } from './partCounts'
 import { activeCart, activeCartId, activeProfile, activeProfileId } from './settings'
 
 /**
+ * How many times a table of theirs has been written under the shell.
+ *
+ * The table is re-read when this moves: [ItemsShell] hands the shell a fresh
+ * source for every tick of it, and a new source is one of the three things
+ * the shell re-runs a query for. The schema is not one of them — appfr 0.27.4
+ * stopped a schema rebuild from restarting a stream in flight, brickzuke's
+ * being rebuilt on every count anywhere on the page — so the count a write
+ * puts on the bar through [refreshUserCounts] no longer brings the row with
+ * it, and a `+ New…` that moved the count from 7 to 8 over a table still
+ * showing 7 rows is what this was added for.
+ *
+ * Ticked by every write made *on* a table of theirs — a record made, unmade or
+ * typed into — and not by the two made from a cell on a catalogue table: the
+ * cart's quantity box on the lots and a factor on the eight tables that carry
+ * one. There the cell holds what was typed, the rest of the row is unchanged,
+ * and the table under it is the very stream a re-run would restart.
+ */
+export const userRevision = ref(0)
+
+/**
  * One connection per write, opened and closed — as every reader here does.
  *
  * `touches` says which type the write is to, for the one held answer a user
@@ -61,10 +83,14 @@ import { activeCart, activeCartId, activeProfile, activeProfileId } from './sett
  * of it, and an item's category is counted on it. So a write to either drops
  * that answer; a write to anything else leaves it, the join being worth not
  * paying for a renamed shopping list.
+ *
+ * `rereads` is whether the table on screen is re-read afterwards — see
+ * [userRevision] for which writes say no.
  */
 async function writing<T>(
   touches: string,
-  write: (db: IDBPDatabase) => Promise<T>
+  write: (db: IDBPDatabase) => Promise<T>,
+  rereads = true
 ): Promise<T> {
   const db = await getDbConnection()
   try {
@@ -90,6 +116,10 @@ async function writing<T>(
     // list is a plan that no longer describes it.
     forgetPlan()
     await refreshUserCounts()
+    // After the counts, so the re-read finds them already in hand.
+    if (rereads) {
+      userRevision.value++
+    }
   }
 }
 
@@ -267,6 +297,12 @@ export async function deleteRecordsFor(selection: Selection): Promise<void> {
       }
     }
   })
+  // The ticks on what went go with it. The shell reports the selection and
+  // leaves it standing — it is the host's, bound on [ItemsShell] — and a bar
+  // still reading `1 selected · Delete 1` over an empty table would be a
+  // delete that looked as if it had not taken. A tick on a row that stayed,
+  // BrickLink's own among theirs, stays: nothing happened to that row.
+  cartSelection.value = cartSelection.value.filter((id) => !ownIds(key, [id]).length)
 }
 
 /**
@@ -362,7 +398,7 @@ export async function setCartQuantity(
   // What was typed is the word for this lot: a proposal the header made for it
   // is dropped, and the box shows what it wrote.
   dropDraft(lotId)
-  await writing('cartLines', (db) => setCartLine(db, cartId, cartLotOf(lot), held))
+  await writing('cartLines', (db) => setCartLine(db, cartId, cartLotOf(lot), held), false)
 }
 
 /**
@@ -387,7 +423,7 @@ export async function applyCartDraft(): Promise<void> {
       quantity: Number.isFinite(available) && available > 0 ? Math.min(quantity, available) : quantity
     }
   })
-  await writing('cartLines', (db) => setCartLines(db, cartId, changes))
+  await writing('cartLines', (db) => setCartLines(db, cartId, changes), false)
   resetDraft()
 }
 
@@ -452,7 +488,7 @@ export async function setPriceModifierFor(
     if (held === undefined && written) {
       activeProfile.value = String(profileId)
     }
-  })
+  }, false)
 }
 
 /**
@@ -464,5 +500,7 @@ export async function setPriceModifierFor(
  * nothing in it. See [shopListFromRecord].
  */
 export async function shopPartsOf(record: string, setName?: string): Promise<number | undefined> {
-  return writing('shopLists', async (db) => (await shopListFromRecord(db, record, setName))?.id)
+  // No re-read: the press is made on the set's inventory, which the list
+  // changes nothing on, and leaves it for the plan the moment this returns.
+  return writing('shopLists', async (db) => (await shopListFromRecord(db, record, setName))?.id, false)
 }

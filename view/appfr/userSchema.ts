@@ -27,7 +27,7 @@
  */
 import type { ColumnDef, EntitySchema } from 'header-content-layout'
 import type { ShellRow } from 'header-content-layout'
-import { narrowBy, narrowTo } from './catalogSchema'
+import { narrowBy, narrowTo, openOn } from './catalogSchema'
 import { userPopulation } from './userCounts'
 import { setSetting } from './settings'
 import CellPrice from './CellPrice.vue'
@@ -84,7 +84,7 @@ export const shopListColumns: ColumnDef[] = [
     hint: 'How many different pieces are wanted — press to see them',
     width: '90px',
     sort: 'parts',
-    click: (row) => narrowTo('shopListItems', 'shoplist', idOf(row))
+    click: (row) => openOn('shopListItems', 'shoplist', idOf(row))
   },
   {
     key: 'pieces',
@@ -100,7 +100,7 @@ export const shopListColumns: ColumnDef[] = [
     hint: 'The cheapest seller for each part on the list',
     width: '110px',
     value: () => 'Shop parts',
-    click: (row) => narrowTo('shopPlan', 'shoplist', idOf(row))
+    click: (row) => openOn('shopPlan', 'shoplist', idOf(row))
   },
   {
     key: 'sellers',
@@ -108,7 +108,7 @@ export const shopListColumns: ColumnDef[] = [
     hint: 'What the whole list would cost from each seller, one order at a time',
     width: '110px',
     value: () => 'Compare',
-    click: (row) => narrowTo('shopStores', 'shoplist', idOf(row))
+    click: (row) => openOn('shopStores', 'shoplist', idOf(row))
   },
   {
     key: 'record',
