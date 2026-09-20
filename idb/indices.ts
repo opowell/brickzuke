@@ -16,6 +16,7 @@ const indices: {
   COLOR_ITEMS_BY_SCOPE: IndexDefinition
   BRICK_LINK_STORES_BY_COUNTRY: IndexDefinition
   STORE_LOTS_BY_STORE: IndexDefinition
+  STORE_LOTS_BY_RECORD: IndexDefinition
   USER_INVENTORY_LINES_BY_RECORD: IndexDefinition
   SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
   CART_LINES_BY_CART: IndexDefinition
@@ -89,6 +90,18 @@ const indices: {
     store: stores.STORE_LOTS,
     name: 'store',
     keyPath: 'store'
+  },
+  /**
+   * Every stored lot of one item — `P-3001`, whoever is selling it. The same
+   * store the other way round: a seller's front is fetched a seller at a time,
+   * but what a query naming an item asks of those lots is "who has this", and
+   * without this that was a walk over every lot held to find the few dozen
+   * that are of it.
+   */
+  STORE_LOTS_BY_RECORD: {
+    store: stores.STORE_LOTS,
+    name: 'record',
+    keyPath: 'record'
   },
   /**
    * Every part of one set of somebody's own, by the set's record — `U-3`. The

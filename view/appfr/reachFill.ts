@@ -43,14 +43,15 @@
  * `reachPatience`, which the reader sets and which the Settings table draws.
  * That is a bound on the actual goal instead of a guess at it.
  */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { ShellRow } from 'header-content-layout'
 import { forgetPreview } from './catalogPreviews'
 import { catalogSchema } from './catalogSchema'
-import { storedRows } from './catalogSource'
+import { fetchNamedLots, storedRows } from './catalogSource'
 import { filled } from './homeFill'
 import { JOINED, forgetReach, matching, reachFor, reaches } from './reach'
 import { reachGapMs, reachPatience } from './settings'
+import type { Fill } from './pageFill'
 import { readAllStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
 
 /** Three silences in a row is nobody answering — [homeFill]'s number. */
@@ -225,8 +226,14 @@ export function stopReachFill(): void {
   reaching.value = undefined
 }
 
-/** One page from every seller in scope, then the rest of each. */
+/**
+ * One page from every seller in scope, then the rest of each — or, under a
+ * query naming an item, the item's own lots and nothing else.
+ */
 async function deepen(mine: number, expr: string): Promise<void> {
+  if (await deepenItem(mine, expr)) {
+    return
+  }
   let scope: ShellRow[]
   try {
     scope = biggestFirst(await sellersInScope(expr))
@@ -255,6 +262,57 @@ async function deepen(mine: number, expr: string): Promise<void> {
     // and the count behind it is still only over the lots that were fetched.
     reaching.value = undefined
   }
+}
+
+/**
+ * The wall under `id:` or `record:`, deepened through the item rather than
+ * through its sellers.
+ *
+ * Every card there is a question about one item — who sells it, where, in
+ * what colours — and BrickLink states the answer on the item's own page: one
+ * request for the cheapest five hundred lots, then the rest a page at a time.
+ * The sellers' fronts are the wrong way round for it: a seller's front is a
+ * hundred lots of a hundred items to find the one that is of this, and
+ * opening every European seller to say who stocks one part is the fill that
+ * would never end. So this asks what the lots table asks when it opens on the
+ * item — see [fetchNamedLots] — and re-reads the wall as each page lands.
+ *
+ * False where the query names no item, which is the caller's signal to go
+ * through the sellers. What the cards then show is the whole of what the page
+ * says, so there is no progress to report: `reaching` stays clear.
+ */
+async function deepenItem(mine: number, expr: string): Promise<boolean> {
+  let fill: Fill | undefined
+  try {
+    fill = await fetchNamedLots(expr)
+  } catch {
+    // The page never came. The cards say what the stored lots of the item
+    // say, which is the floor they said before this was asked.
+    return true
+  }
+  if (!fill) {
+    return false
+  }
+  if (mine !== current) {
+    return true
+  }
+  landed()
+  // The rest of the pages, each re-reading the wall as it lands: the fill
+  // says so through its version, which is what the table redraws on too.
+  const stop = watch(fill.version, () => {
+    if (mine === current) {
+      landed()
+    }
+  })
+  const watching = watchRun(mine, fill)
+  try {
+    await fill.run()
+  } finally {
+    clearInterval(watching)
+    fill.stop()
+    stop()
+  }
+  return true
 }
 
 /**

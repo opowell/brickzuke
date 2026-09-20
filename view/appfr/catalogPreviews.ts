@@ -238,7 +238,10 @@ async function opening(
     // read.
     count: expr.trim() && all.length ? matched.length : undefined,
     matched: matched.length,
-    floor: Boolean(reach.values) && matched.length < own.length
+    // And not where the join read the item the query names rather than the
+    // lots held of it: that answer is whole, and a `~` on it would promise a
+    // rise that cannot come. See {@link Reach.exact}.
+    floor: Boolean(reach.values) && !reach.exact && matched.length < own.length
   }
 }
 
@@ -362,8 +365,12 @@ async function reachedItems(shown: number, expr: string): Promise<Preview | unde
     return {
       kind: 'pictures',
       count: reach.values.size,
-      // A floor like every other joined card: more lots reach more items.
-      estimated: true,
+      // A floor like every other joined card: more lots reach more items —
+      // unless the item was named, and the answer is the item.
+      estimated: !reach.exact || undefined,
+      // Named, it is the one item the query already says: the card would be
+      // the header's own term drawn again, so it is left off — see [pinnedBy].
+      pinned: pinnedBy(expr, rows, reach.values.size),
       tiles: rows.map(itemTile)
     }
   } finally {

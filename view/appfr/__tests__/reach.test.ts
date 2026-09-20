@@ -53,7 +53,8 @@ provideLots({
     counter.walks++
     return eachLot(visit)
   },
-  named: () => undefined
+  named: () => undefined,
+  records: () => undefined
 })
 
 // The lots are read through the item page's store as well as the seller's, so

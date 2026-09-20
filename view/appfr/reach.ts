@@ -56,6 +56,11 @@ import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 export interface LotSource {
   each(visit: (lot: ShellRow) => void): Promise<number>
   named(expr: string): Promise<ShellRow[]> | undefined
+  /**
+   * The records the query's item stands for — `P-3001` — or nothing where it
+   * names no item. See [OF_ITEM] for what is read off them.
+   */
+  records(expr: string): Promise<string[]> | undefined
 }
 
 let lots: LotSource | undefined
@@ -185,6 +190,74 @@ const THROUGH: Record<string, Through> = {
  * has to re-read when a page of lots lands.
  */
 export const JOINED: readonly string[] = Object.keys(THROUGH)
+
+/**
+ * The types that are about the item itself, and what the item says of them.
+ *
+ * A query naming an item — `id:37194` — is answered two ways. Who sells it,
+ * where, in what colour and condition is a question of its lots, and goes
+ * through {@link THROUGH}. What it is — its category, its year, its type, the
+ * sets it is a line of, the pictures of it, the lists that want it and the
+ * carts holding a lot of it — is a question of the item and its records, and
+ * needs no lot at all: an item nobody is selling is still in a category, and
+ * still wanted by a list. So these are read off the records the query stands
+ * for, and the answer is exact rather than a floor, there being no fact table
+ * it could be a fraction of.
+ *
+ * `field` is where the type's own rows carry the value, as in [Through], and
+ * `of` reads the same value off one record of the item. A row may carry
+ * several — a shopping list wants several parts — and it is reached if any of
+ * them is: see [reaches].
+ */
+interface OfItem {
+  field: string
+  of(record: string, facts: ItemFacts | undefined): unknown
+}
+
+const OF_ITEM: Record<string, OfItem> = {
+  items: {
+    field: 'id',
+    of: (_record, facts) => facts?.id
+  },
+  categories: {
+    field: 'category',
+    of: (_record, facts) => facts?.category
+  },
+  years: {
+    field: 'year',
+    of: (_record, facts) => facts?.year
+  },
+  itemTypes: {
+    field: 'type',
+    // `P-3001` is a part: the type is the front of the record.
+    of: (record) => record.split('-')[0]
+  },
+  images: {
+    field: 'record',
+    of: (record) => record
+  },
+  itemInventories: {
+    field: 'part',
+    of: (record) => record
+  },
+  itemVariants: {
+    field: 'part',
+    of: (record) => record
+  },
+  /*
+   * And theirs. A list's row carries the records its lines want and a cart's
+   * the records its lots are of — see [userRows] — so both are reached by
+   * the item the way a set's line is.
+   */
+  shopLists: {
+    field: 'records',
+    of: (record) => record
+  },
+  carts: {
+    field: 'records',
+    of: (record) => record
+  }
+}
 
 /** Whether reading this type needs the item behind each lot as well as the lot. */
 function needsItems(entityKey: string): boolean {
@@ -361,6 +434,12 @@ export interface Reach {
   field?: string
   /** How many lots the answer was read from. Nought is "nothing is known yet". */
   lots: number
+  /**
+   * Whether the answer is the whole of it rather than a floor — read off the
+   * item the query names and not off the lots held of it, see [OF_ITEM]. A
+   * card over an exact answer says its number plainly, with no `~`.
+   */
+  exact?: boolean
 }
 
 /** Nothing to join: the type answers the query on its own terms. */
@@ -536,8 +615,16 @@ export async function reachFor(
   rows: readonly ShellRow[],
   entity?: EntitySchema
 ): Promise<Reach> {
+  if (!expr.trim()) {
+    return UNCONSTRAINED
+  }
+  const ofItem = OF_ITEM[entityKey]
+  const records = ofItem && lots?.records(expr)
+  if (ofItem && records) {
+    return await ofItemNamed(ofItem, records)
+  }
   const through = THROUGH[entityKey]
-  if (!through || !expr.trim()) {
+  if (!through) {
     return UNCONSTRAINED
   }
   const foreign = foreignTerms(entity, rows, expr)
@@ -596,6 +683,41 @@ export async function reachFor(
 }
 
 /**
+ * A type about the item, read off the item's records — see [OF_ITEM].
+ *
+ * The facts are looked up only where the type needs them: a picture is of a
+ * record, and the record is in hand already. An id the catalogue has no
+ * record of reaches nothing, which is an empty set and not no constraint —
+ * a list wanting a part of an item that does not exist is not every list.
+ * Nothing is tallied: these are not lots, and a card over them writes no
+ * count of lots beside its rows.
+ */
+async function ofItemNamed(ofItem: OfItem, records: Promise<string[]>): Promise<Reach> {
+  let named: string[]
+  try {
+    named = await records
+  } catch {
+    return UNCONSTRAINED
+  }
+  const needsFacts = ['id', 'category', 'year'].includes(ofItem.field)
+  const facts = needsFacts ? await itemsBehind(new Set(named)) : new Map<string, ItemFacts>()
+  const values = new Set<string>()
+  for (const record of named) {
+    const value = same(ofItem.of(record, facts.get(record)))
+    if (value) {
+      values.add(value)
+    }
+  }
+  return {
+    values,
+    counts: new Map(),
+    field: ofItem.field,
+    lots: 0,
+    exact: true
+  }
+}
+
+/**
  * The lots a query names, as text — the other half of a pass's key. Two
  * queries filtering by the same terms are one question of the lots only when
  * they are asking it of the same lots: `condition:N` over one item's page
@@ -623,10 +745,19 @@ const EMPTY_LOT = {
   fields: {}
 } as ShellRow
 
-/** Whether a record of the type is one the query reaches. */
+/**
+ * Whether a record of the type is one the query reaches.
+ *
+ * A row carrying several values in the field — the records a list wants — is
+ * reached if any one of them is.
+ */
 export function reaches(reach: Reach, row: ShellRow): boolean {
   if (!reach.values || !reach.field) {
     return true
   }
-  return reach.values.has(same(row.fields[reach.field]))
+  const held = row.fields[reach.field]
+  if (Array.isArray(held)) {
+    return held.some((value) => reach.values!.has(same(value)))
+  }
+  return reach.values.has(same(held))
 }

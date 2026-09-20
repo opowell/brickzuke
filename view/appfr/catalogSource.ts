@@ -50,7 +50,11 @@ import {imagesFor,
   narrowedStoreInventoriesFor,
   readStoreInventories,
   storeInventoriesFor} from './itemPageFetch'
-import { readAllStoreLots, readStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
+import {readAllStoreLots,
+  readStoreLots,
+  readStoreLotsOf,
+  storeLotsFill,
+  storeLotsFor} from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePolicyFetch'
 import type { StoredShippingMethod, StoredStorePolicy } from '../stores/bricklink/store-policy-page'
@@ -1339,7 +1343,28 @@ async function storeInventoryRows(
   const directory = await lotDirectory(lots.map((lot) => `${lot.itemType}-${lot.itemNumber}`))
   const rows = lots.map((lot) => toStoreInventoryRow(lot, directory))
   if (named) {
-    return rows
+    /*
+     * And the item's lots off the sellers' own fronts, behind the page's.
+     *
+     * An item's page is the cheapest five hundred of its lots, read this
+     * session or not at all; a seller's front is every lot they have, kept.
+     * Between them the fronts opened so far hold lots of this item the page
+     * does not — the dearer ones, and every one of them after a reload, when
+     * the page has not been asked for yet. Both are lots on offer for the
+     * item, so both are the table, and both are what a card is joined
+     * through: without the second half the home screen under `id:` had no
+     * lot to read a seller off, and every card stood at its population.
+     *
+     * The page's copy wins where the two name the same lot, being the
+     * fresher price.
+     */
+    const held = new Set(rows.map((row) => row.id))
+    const stored = (
+      await Promise.all(records.map((record) => (record ? readStoreLotsOf(record) : [])))
+    )
+      .flat()
+      .filter((lot) => !held.has(lot.id))
+    return [...rows, ...(await asStoreLotRows(stored))]
   }
   /*
    * Un-narrowed, which is both pages at once.
@@ -2542,21 +2567,54 @@ export const catalogSource: DataSource = {
   }
 }
 
-/**
- * The lots a query names, as the lots table shows them: an item's page lots
- * by `id:` or `record:`, a seller's stored front by `store:` — or nothing,
- * where it names neither and the lots are every one held. Read and never
- * fetched: a count in the picker is no reason to ask BrickLink.
- */
-function namedLots(expr: string): Promise<ShellRow[]> | undefined {
-  const request = {
+/** An expression as the request the readers here take, naming no type. */
+function requestOf(expr: string): QueryRequest {
+  return {
     query: {
       expr
     }
   } as unknown as QueryRequest
+}
+
+/**
+ * The lots a query names, as the lots table shows them: an item's lots by
+ * `id:` or `record:`, a seller's stored front by `store:` — or nothing,
+ * where it names neither and the lots are every one held. Read and never
+ * fetched: a count in the picker is no reason to ask BrickLink.
+ */
+function namedLots(expr: string): Promise<ShellRow[]> | undefined {
+  const request = requestOf(expr)
   return namesItem(request) || termValue(request, 'store')
     ? storeInventoryRows(request, false)
     : undefined
+}
+
+/**
+ * The records the query's item stands for — see [itemRecords] — or nothing
+ * where it names no item. What the join reads a type off when the type is
+ * about the item itself rather than about who sells it.
+ */
+function namedRecords(expr: string): Promise<string[]> | undefined {
+  const request = requestOf(expr)
+  return namesItem(request) ? itemRecords(request) : undefined
+}
+
+/**
+ * The item's lots, fetched — for the home screen under a query naming one.
+ *
+ * What the lots table does when it opens on the item, done for the wall
+ * instead: the page's own lots first, which is what the cards are joined
+ * through, and then the rest of them a page at a time through the fill this
+ * hands back — see [itemLotsFill]. Nothing where the query names no item;
+ * the wall under any other query deepens through the sellers instead.
+ */
+export async function fetchNamedLots(expr: string): Promise<Fill | undefined> {
+  const request = requestOf(expr)
+  if (!namesItem(request)) {
+    return undefined
+  }
+  await storeInventoryRows(request, true)
+  return itemLotsFill(request)
 }
 
 /*
@@ -2565,5 +2623,6 @@ function namedLots(expr: string): Promise<ShellRow[]> | undefined {
  */
 provideLots({
   each: eachLot,
-  named: namedLots
+  named: namedLots,
+  records: namedRecords
 })

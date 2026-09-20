@@ -50,7 +50,10 @@ const DB_NAME = 'brickzuke'
 // key path cannot be changed on a store that exists, so the store is read out,
 // dropped, made again and written back under a profile made for the purpose —
 // every row carried, none cleared. See the last block of `upgrade`.
-const DB_VERSION = 30
+// 31 adds an index on STORE_LOTS by record, so the lots stored of one item can
+// be read without a walk over every seller's. Made by the loop below like any
+// other index; nothing is cleared.
+const DB_VERSION = 31
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

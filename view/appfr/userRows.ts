@@ -217,6 +217,11 @@ export async function allUserInventoryLineRows(db: IDBPDatabase): Promise<ShellR
   }))
 }
 
+/** The records some lines name, each once — a list wants a part in two colours as two lines. */
+function distinctRecords(lines: readonly { record?: string }[]): string[] {
+  return [...new Set(lines.flatMap((line) => (line.record ? [line.record] : [])))]
+}
+
 export async function shopListRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const lists = await held<ShopList>(db, stores.SHOP_LISTS)
   const items = (await getAll<ShopListItem>(db, stores.SHOP_LIST_ITEMS)) ?? []
@@ -232,6 +237,10 @@ export async function shopListRows(db: IDBPDatabase): Promise<ShellRow[]> {
         shoplist: list.id,
         name: list.name,
         record: list.sourceRecord,
+        // Every part the list wants, by record — what a query naming an item
+        // reaches the list through: see the join in [reach]. Not a column;
+        // the row carries it for the join alone.
+        records: distinctRecords(own),
         parts: own.length,
         pieces: own.reduce((sum, item) => sum + (item.minQuantity ?? 0), 0),
         created: made(list.createdAt)
@@ -371,6 +380,9 @@ export async function cartRows(db: IDBPDatabase): Promise<ShellRow[]> {
         cart: cart.id,
         name: cart.name,
         active: cart.id === active,
+        // The items its lots are of, as the list above carries the parts it
+        // wants, and for the same reader.
+        records: distinctRecords(own),
         lots: own.length,
         pieces: own.reduce((sum, line) => sum + (line.quantity ?? 0), 0),
         // How many sellers the cart would be orders to, which is what a cart

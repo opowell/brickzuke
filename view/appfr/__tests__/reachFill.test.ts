@@ -66,6 +66,32 @@ vi.mock('../storeLotsFetch', async (importOriginal) => {
   }
 })
 
+/** Every item record whose page was asked for, in order. */
+const asked: string[] = []
+
+vi.mock('../itemPageFetch', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../itemPageFetch')>()
+  return {
+    ...original,
+    // The page: its lots, asked for once, and the narrowed asks behind it,
+    // which the test has no page to answer.
+    storeInventoriesFor: async (record?: string) => {
+      if (record) {
+        asked.push(record)
+      }
+      return []
+    },
+    narrowedStoreInventoriesFor: async () => undefined,
+    narrowedLotsFill: (record: string) => ({
+      version: ref(0),
+      async run() {
+        paged.push(record)
+      },
+      stop() {}
+    })
+  }
+})
+
 const {
   startReachFill,
   stopReachFill
@@ -156,12 +182,43 @@ beforeAll(async () => {
       items: 1_000 - at
     }))
   ])
+  // One item, with the German shops' lots of it stored: the sellers a query
+  // naming it is in scope of, and the ones a run through the sellers would
+  // open.
+  await putAll(db, STORES.BRICK_LINK_ITEMS, [
+    {
+      id: 'P-3001',
+      bzItemId: 30001,
+      itemType: 'P',
+      Name: 'Brick 2 x 4',
+      Number: '3001',
+      'Category ID': '5'
+    }
+  ])
+  await putAll(db, STORES.STORE_LOTS, [
+    {
+      id: 'held-1',
+      store: 'aaa-kleine-steine',
+      record: 'P-3001',
+      itemType: 'P',
+      itemNumber: '3001',
+      itemName: 'Brick 2 x 4',
+      description: '',
+      condition: 'N',
+      colorId: '2',
+      quantity: 1,
+      price: 0.1,
+      displayPrice: 'EUR 0.10',
+      nativePrice: 'EUR 0.10'
+    }
+  ])
   db.close()
 })
 
 beforeEach(() => {
   opened.length = 0
   paged.length = 0
+  asked.length = 0
   reachGapMs.value = 1_500
   reachPatience.value = 15
   vi.useFakeTimers()
@@ -211,6 +268,27 @@ describe('deepening a narrowed wall', () => {
     stopReachFill()
     await settle()
     expect(opened).toEqual([])
+  })
+})
+
+describe('a wall about one item', () => {
+  it('asks for the item\'s own page, and opens no seller', async () => {
+    startReachFill('type:P region:"Europe" id:"30001"')
+    await settle()
+    // Who sells the brick is on the brick's page — one request — and not in
+    // the fronts of every European seller, one by one.
+    expect(asked).toEqual(['P-3001'])
+    expect(opened).toEqual([])
+    // Then the rest of the page's lots, through the same fill the lots table
+    // runs.
+    expect(paged).toEqual(['P-3001'])
+  })
+
+  it('goes through the sellers when the query names no item', async () => {
+    startReachFill('country:"US"')
+    await settle()
+    expect(asked).toEqual([])
+    expect(opened).toEqual(['texas-bricks'])
   })
 })
 

@@ -69,6 +69,25 @@ export async function readStoreLots(username: string): Promise<StoredStoreLot[]>
 }
 
 /**
+ * The lots stored of one item, whoever is selling them.
+ *
+ * The other way into the same store: a seller's front lands a hundred lots of
+ * a hundred items, and what a query naming an item wants of those is the few
+ * that are of it — from every seller opened so far. One indexed read; see
+ * STORE_LOTS_BY_RECORD.
+ */
+export async function readStoreLotsOf(record: string): Promise<StoredStoreLot[]> {
+  const db = await getDbConnection()
+  try {
+    return (
+      (await getAllFromIndex<StoredStoreLot>(db, indices.STORE_LOTS_BY_RECORD, record)) ?? []
+    )
+  } finally {
+    db.close()
+  }
+}
+
+/**
  * How much of a seller is stored, for a view that has to say so.
  *
  * Read back rather than remembered: a store fetched in some earlier session is
