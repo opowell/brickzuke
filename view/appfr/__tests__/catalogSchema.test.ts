@@ -149,11 +149,13 @@ describe('a query that names a record', () => {
     const shell = mountNarrowed()
     await nextTick()
     // What appfr 0.13 added: the header runs the term back against the type
-    // the field points at and states what came back. The id stays — it is what
-    // the expression field holds and what a pasted URL carries — but it is no
-    // longer the whole of what the header says.
-    expect(shell.text()).toContain('Brick (1)')
-    expect(shell.text()).toContain('5')
+    // the field points at and states what came back, under the field it was
+    // written with. The id the name carries in brackets goes: the header says
+    // which record by naming it at all, so a second id trailing the name is
+    // noise (appfr 0.27.2). The id stays in the expression field and in a
+    // pasted URL, but it is no longer what the header says.
+    expect(shell.text()).toContain('category: Brick')
+    expect(shell.text()).not.toContain('Brick (1)')
   })
 })
 
@@ -205,7 +207,9 @@ describe('items schema', () => {
     expect(headers).toEqual([
       // The ticks, because the table lists items of somebody's own beside
       // the catalogue's and names `delete` for them — see [userItemRows].
-      'Select',
+      // Headed by the tick that takes the page (header-content-layout
+      // 0.30.0), which says nothing in text.
+      '',
       '#',
       '',
       'Type',

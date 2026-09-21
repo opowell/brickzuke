@@ -138,9 +138,13 @@ describe('a record named in the query', () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
       await nextTick()
     }
-    // The whole term, not just the name in it: the shell states the id after
-    // whatever it is handed, so a name that carries its own id reads doubled.
-    expect(shell.text()).toContain(`record:${NAME} (${RECORD})`)
-    expect(shell.text()).not.toContain(`(${RECORD}) (${RECORD})`)
+    // The name under the field it was written with, and no id after it: the
+    // header says which record by naming it at all (header-content-layout
+    // 0.27.2 drops a trailing id from a resolved part). The id stays in the
+    // expression field, which the shell still writes out under the empty
+    // result.
+    expect(shell.text()).toContain(`record: ${NAME}`)
+    expect(shell.text()).not.toContain(`${NAME} (${RECORD})`)
+    expect(shell.text()).toContain(`record:"${RECORD}"`)
   })
 })

@@ -939,15 +939,20 @@ describe('conditions', () => {
   })
 
   it('keeps its own count whole when the query names the condition itself', async () => {
-    // `condition:` picks which of the two rows is listed. It is not a second
-    // filter over the lots underneath — each row already counts its own code,
-    // so a New row under `condition:"N"` still states every New lot there is.
+    // A term on the type's own scope field is the one part of the query the
+    // shell does not put to that type: read against the conditions
+    // themselves, `condition:"N"` would list the one and leave nothing to
+    // swap it for, so the shell lifts it before the source sees it
+    // (header-content-layout 0.27.6, `withoutOwnScope`) and both rows are
+    // listed. Nor is it a second filter over the lots underneath — each row
+    // already counts its own code, so the New row still states every New lot
+    // there is.
     const rows = await rowsOf({
       entity: 'conditions',
       expr: 'condition:"N"'
     })
-    expect(rows.map((row) => row.fields.name)).toEqual(['New'])
-    expect(rows[0].fields.lots).toBe(3)
+    expect(rows.map((row) => row.fields.name).sort()).toEqual(['New', 'Used'])
+    expect(rows.find((row) => row.fields.condition === 'N')!.fields.lots).toBe(3)
   })
 })
 
