@@ -1,4 +1,4 @@
-import { callKey, CallType, handleEvent, processQueue } from './make-call'
+import { callKey, CallType, handleEvent, isWriteCall, processQueue } from './make-call'
 import BrickLinkWorker from '@/assets/workers/brickLink?worker'
 import { put } from '../../../idb/db'
 import { getDbConnection } from '../../../idb/idb'
@@ -52,6 +52,11 @@ export function installResponseListener() {
   // @ts-expect-error addEventListener
   document.addEventListener('bzServerToClient', async function (e: CustomEvent) {
     console.log('got response', e)
+    // A write's answer is for the press that made it — see `sendOnce` — and
+    // is not a page: kept here, it would be replayed as one.
+    if (isWriteCall(e.detail.request?.call)) {
+      return
+    }
     if (!e.detail.response) {
       console.log('no response, skipping', e)
       return

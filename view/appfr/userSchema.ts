@@ -30,6 +30,7 @@ import type { ShellRow } from 'header-content-layout'
 import { narrowBy, narrowTo, openOn } from './catalogSchema'
 import { userPopulation } from './userCounts'
 import { setSetting } from './settings'
+import CellCartActions from './CellCartActions.vue'
 import CellPrice from './CellPrice.vue'
 import CellPostage from './CellPostage.vue'
 import CellUserNumber from './CellUserNumber.vue'
@@ -245,6 +246,19 @@ export const cartColumns: ColumnDef[] = [
     component: CellPrice,
     width: '110px',
     sort: 'cost'
+  },
+  /*
+   * What can be done with the cart as a whole, which is one thing: hand it to
+   * BrickLink. A cart here is the purchase written down; the purchase is made
+   * over there, and this is the walk between the two — see [cartToBrickLink].
+   */
+  {
+    key: 'actions',
+    label: 'Actions',
+    hint: 'Add to BrickLink puts every lot in the cart into your BrickLink cart, one seller at a time — you need to be signed in to BrickLink in this browser',
+    kind: 'component',
+    component: CellCartActions,
+    width: '400px'
   },
   created
 ]

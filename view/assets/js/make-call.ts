@@ -52,6 +52,82 @@ export enum Call {
   GET_STORE_FRONT_PAGE = 'https://store.bricklink.com',
   GET_STORE_ITEMS = 'https://www.bricklink.com/ajax/clone/store/searchitems.ajax',
   GET_STORE_POLICY = 'https://store.bricklink.com/ajax/clone/store/policy.ajax',
+  // The one call here that changes something on BrickLink rather than reading
+  // it — see `sendOnce`, and [cart-add] for the request.
+  ADD_TO_CART = 'https://store.bricklink.com/ajax/clone/cart/add.ajax',
+}
+
+/**
+ * The calls that write.
+ *
+ * Everything else in `Call` is a page or a list, and the point of the machinery
+ * below is that a page read once is not read again: it is cached, queued, and
+ * replayed. A write is the opposite case on every count. Adding a lot to a
+ * cart twice is two lots in the cart, so its answer must never be replayed;
+ * and it is made when somebody presses, so it must not wait in a queue behind
+ * sixty pages of a seller's inventory. `sendOnce` is the path for these, and
+ * the response listener leaves their answers alone.
+ */
+const WRITE_CALLS: ReadonlySet<Call> = new Set([Call.ADD_TO_CART])
+
+export function isWriteCall(call: Call): boolean {
+  return WRITE_CALLS.has(call)
+}
+
+let sent = 0
+
+/**
+ * One request to BrickLink, made now and answered once — past the cache and
+ * the queue, which are for reads.
+ *
+ * The extension answers every request with the request it was given, so a
+ * serial in the extra params is what tells this call's answer from every
+ * other on the same document. Resolves with whatever came back, or rejects
+ * when nothing does: an answer arrives through the extension or not at all,
+ * and `undefined` is what the content script hands over when the service
+ * worker's fetch failed or the body was not JSON — a sign-in page, say.
+ */
+export function sendOnce(
+  call: Call,
+  url: string,
+  options: object,
+  deadlineMs: number,
+  missing: string,
+): Promise<unknown> {
+  const serial = ++sent
+  return new Promise((resolve, reject) => {
+    const listener = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.request?.extraParams?.serial !== serial) {
+        return
+      }
+      document.removeEventListener('bzServerToClient', listener)
+      clearTimeout(timer)
+      if (detail.response === undefined || detail.response === null) {
+        reject(new Error(missing))
+        return
+      }
+      resolve(detail.response)
+    }
+    const timer = setTimeout(() => {
+      document.removeEventListener('bzServerToClient', listener)
+      reject(new Error(missing))
+    }, deadlineMs)
+    document.addEventListener('bzServerToClient', listener)
+    document.dispatchEvent(
+      new CustomEvent('bzClientToServer', {
+        detail: {
+          type: CallType.JSON,
+          call,
+          url,
+          options,
+          extraParams: {
+            serial,
+          },
+        },
+      }),
+    )
+  })
 }
 export enum CallType {
   JSON = 'json',
