@@ -49,35 +49,6 @@ import {cartLinesEntity,
   shopStoresEntity,
   standingUserEntities} from './userSchema'
 
-/** Verbatim from the `weight` column in model.ts. */
-const weightBreakpoints = [
-  {
-    start: 0,
-    end: 100,
-    suffix: 'cg'
-  },
-  {
-    start: 100,
-    end: 10000,
-    modifier: 0.01,
-    decimalPlaces: 1,
-    suffix: 'g'
-  },
-  {
-    start: 10000,
-    end: 100000,
-    modifier: 0.01,
-    decimalPlaces: 0,
-    suffix: 'g'
-  },
-  {
-    start: 100000,
-    modifier: 0.00001,
-    decimalPlaces: 1,
-    suffix: 'kg'
-  }
-]
-
 /**
  * What `clickValue` + `clickSelection` did in TableCell, in the shell's terms.
  *
@@ -370,7 +341,7 @@ export function narrowToColor(catType: string, row: ShellRow) {
 /*
  * A width has to hold the heading as well as the value, and three of these are
  * headed by a longer word than anything under them: `S` under Type, a dash or
- * three digits under Weight, `2 x 4` under Dimensions. Those three are sized
+ * `2.52` under Weight (g), `2 x 4` under Dimensions. Those three are sized
  * for the label rather than for the column, because a table whose headings are
  * cut short cannot say what it is showing — and the headings are set in
  * brickzuke's own type size now that the shell takes it, which is wider than
@@ -498,21 +469,16 @@ export const itemColumns: ColumnDef[] = [
     sort: 'storeInventory',
     click: (row) => narrowTo('inventories', 'record', String(row.fields.record ?? ''))
   },
+  // In grams, as the shipping table's own weight columns are, and a number
+  // like the counts beside it: right-aligned, and abbreviated past a thousand.
   {
     key: 'weight',
-    label: 'Weight',
-    hint: 'What the whole item weighs, read in whatever unit the figure lands in — cg, g or kg',
+    kind: 'number',
+    label: 'Weight (g)',
+    hint: 'What the whole item weighs, in grams',
     width: '110px',
     sort: 'weight',
-    // Held in grams, read in whatever unit the number is actually in.
-    value: (row) => Number(row.fields.weight) * 100,
-    // `formatInteger` hands NaN straight back for an item that carries no
-    // weight, so a missing weight would read `NaN`. It gets the same mark for
-    // an absent value the shell puts in every other column.
-    format: (value) =>
-      Number.isFinite(Number(value))
-        ? String(formatInteger(Number(value), weightBreakpoints) ?? '—')
-        : '—'
+    format: grams
   },
   {
     key: 'dimensions',
@@ -634,15 +600,12 @@ export const itemRecordColumns: ColumnDef[] = [
   },
   {
     key: 'weight',
-    label: 'Weight',
-    hint: 'What the whole item weighs, read in whatever unit the figure lands in — cg, g or kg',
+    kind: 'number',
+    label: 'Weight (g)',
+    hint: 'What the whole item weighs, in grams',
     width: '110px',
     sort: 'weight',
-    value: (row) => Number.parseFloat(String(row.fields.weight)) * 100,
-    format: (value) =>
-      Number.isFinite(Number(value))
-        ? String(formatInteger(Number(value), weightBreakpoints) ?? '—')
-        : '—'
+    format: grams
   },
   {
     key: 'dimensions',
@@ -781,6 +744,27 @@ export function counted(value: unknown): string {
     return ''
   }
   return String(formatInteger(Number(value)) ?? '')
+}
+
+/**
+ * A weight in grams, written the way the counts are — `252`, `1.7k` — with
+ * the shell's mark for an item that has none.
+ *
+ * Under a thousand the figure keeps the two places BrickLink stores, less any
+ * trailing noughts: most of the catalogue is parts, and a plate at `0.2` or a
+ * brick at `2.52` rounded to a whole gram is a column of noughts and ones
+ * that sorts but says nothing — the same reason [priceText] keeps its places.
+ * From a kilogram up the abbreviation takes over, as it does for a count.
+ */
+export function grams(value: unknown): string {
+  if (value === null || value === undefined || value === '') {
+    return '—'
+  }
+  const weight = Number(value)
+  if (!Number.isFinite(weight)) {
+    return '—'
+  }
+  return Math.abs(weight) < 1000 ? String(Number(weight.toFixed(2))) : counted(weight)
 }
 
 /**

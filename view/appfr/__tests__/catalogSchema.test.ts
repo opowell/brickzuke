@@ -10,6 +10,7 @@ import {catalogSchema,
   colorItemColumns,
   conditionColumns,
   countryColumns,
+  grams,
   imageColumns,
   inventoryColumns,
   itemColumns,
@@ -213,7 +214,7 @@ describe('items schema', () => {
       'Year',
       'Parts',
       'Store inventories',
-      'Weight',
+      'Weight (g)',
       'Dimensions',
       // And their note, blank on every row of BrickLink's.
       'Note'
@@ -224,10 +225,11 @@ describe('items schema', () => {
     expect(mountShell().find('td img').attributes('src')).toBe('https://img.example/3001.png')
   })
 
-  it('formats the weight through brickzuke formatInteger', () => {
-    // 2.52 grams is 252 centigrams, which the breakpoints read back as 2.5g —
-    // the same string TableComponent puts in that cell today.
-    expect(mountShell().text()).toContain('2.5g')
+  it('writes the weight in grams, as a number', () => {
+    // BrickLink's own `2.52`, in the grams column the header names — not
+    // `2.5g`, and not `3`.
+    const cell = mountShell().findAll('td').find((td) => td.text() === '2.52')
+    expect(cell?.classes()).toContain('dc-table__number')
   })
 
   it('shows a year as a year rather than a quantity', () => {
@@ -269,6 +271,26 @@ const everyTable = [
   shippingCostColumns,
   imageColumns,
 ]
+
+describe('a weight in grams', () => {
+  it('keeps the places BrickLink stores under a kilogram, less trailing noughts', () => {
+    expect(grams(2.52)).toBe('2.52')
+    expect(grams(0.2)).toBe('0.2')
+    expect(grams(115)).toBe('115')
+    expect(grams(999.5)).toBe('999.5')
+  })
+
+  it('abbreviates from a kilogram up, as a count does', () => {
+    expect(grams(1234)).toBe('1.2k')
+    expect(grams(12345)).toBe('12k')
+  })
+
+  it('marks an item that has none', () => {
+    expect(grams(undefined)).toBe('—')
+    expect(grams('')).toBe('—')
+    expect(grams(Number.NaN)).toBe('—')
+  })
+})
 
 describe('sortable columns', () => {
   it('names a sort on every labelled column of every table', () => {
