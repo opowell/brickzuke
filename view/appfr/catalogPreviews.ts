@@ -33,7 +33,8 @@ import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 import { catalogSchema, counted, narrowTo, narrowToColor, narrowingTo } from './catalogSchema'
 import { catalogSource, sorted, storedRows } from './catalogSource'
 import { ensureConditionCounts } from './conditionCounts'
-import { forgetReach, matching, reachFor, reaches } from './reach'
+import { forgetReach, matching, reachFor, reaches, tallied } from './reach'
+import type { Reach, Tally } from './reach'
 import { awaitedStores } from './homeFill'
 import { openingOrderFor } from './openingOrder'
 
@@ -154,6 +155,12 @@ interface Read {
    * so the number is said plainly.
    */
   floor: boolean
+  /**
+   * What the join reached of the type, and with what count against each
+   * record — the number a card writes beside a record under a query the
+   * type could not answer alone. See [underJoin].
+   */
+  reach: Reach
 }
 
 /**
@@ -202,7 +209,10 @@ async function opening(
     return {
       rows: [],
       matched: 0,
-      floor: false
+      floor: false,
+      reach: {
+        lots: 0
+      }
     }
   }
   const all = await held
@@ -241,8 +251,56 @@ async function opening(
     // And not where the join read the item the query names rather than the
     // lots held of it: that answer is whole, and a `~` on it would promise a
     // rise that cannot come. See {@link Reach.exact}.
-    floor: Boolean(reach.values) && !reach.exact && matched.length < own.length
+    floor: Boolean(reach.values) && !reach.exact && matched.length < own.length,
+    reach
   }
+}
+
+/**
+ * What a card's number is under a join, where the type's own figure has
+ * stopped being the answer.
+ *
+ * A seller's row says how many pieces they have for sale and a country's how
+ * many sellers are in it: the directory's numbers, true of the type and not
+ * of the query. Under `type:S id:979` the sellers card is the sellers with
+ * the set — the join sees to that — but `723k items` beside one of them is
+ * everything else in the shop, and `1.7k stores` beside Germany is every
+ * German seller whether or not they have it. What the reader asked was how
+ * many of the set, and how many sellers have one. So where the join has
+ * counted a record, the record's number is the join's: for a seller the
+ * pieces in the lots that reached them, for a country, a province or a part
+ * of the world the sellers those lots are from. The noun is the one the
+ * type's own column uses, so the pill reads as it did with the number
+ * meaning what the query means.
+ *
+ * A floor like the count over it — read off the lots held — and written
+ * without the `~`, the card's heading having made that admission once for
+ * all of them.
+ */
+const UNDER_JOIN: Record<string, { of(tally: Tally): number; what: string }> = {
+  stores: {
+    of: (tally) => tally.quantity,
+    what: 'Items'
+  },
+  countries: {
+    of: (tally) => tally.sellers.size,
+    what: 'Stores'
+  },
+  provinces: {
+    of: (tally) => tally.sellers.size,
+    what: 'Stores'
+  },
+  regions: {
+    of: (tally) => tally.sellers.size,
+    what: 'Stores'
+  }
+}
+
+/** The record's number under the join, or nothing where the join did not count it. */
+function underJoin(entityKey: string, reach: Reach, row: ShellRow): string | undefined {
+  const under = UNDER_JOIN[entityKey]
+  const tally = under && tallied(reach, row)
+  return tally ? saying(counted(under.of(tally)), under.what) : undefined
 }
 
 /**
@@ -284,12 +342,16 @@ async function colorTiles(shown: number, expr: string): Promise<Preview> {
       if (!Number.isFinite(colorId)) {
         return []
       }
+      // Under a set, the parts of it in this colour — the lines the join
+      // read the colour off, see `madeOf` in [reach] — rather than every
+      // part the catalogue has in it. The same noun: both are parts.
+      const made = read.reach.exact ? tallied(read.reach, row) : undefined
       return [
         {
           key: row.id,
           label: String(row.fields.name ?? ''),
           // What the colours table heads that count with.
-          detail: saying(counted(row.fields.items), 'Parts'),
+          detail: saying(counted(made ? made.lots : row.fields.items), 'Parts'),
           image: brickIn(colorId),
           press: narrowingTo(row) ?? (() => narrowToColor('P', row))
         }
@@ -564,7 +626,7 @@ function singular(plural: string): string {
  * A record: what it is called, the first number said about it and what that
  * number counts, and the picture it carries where it has one.
  */
-function tileFor(row: ShellRow, columns: ColumnDef[]): PreviewTile {
+function tileFor(row: ShellRow, columns: ColumnDef[], detail?: string): PreviewTile {
   const identity = roleColumn(columns, 'identity') ?? columns[0]
   const number = columns.find(
     (column) => column !== identity && typeof cellValue(column, row) === 'number'
@@ -572,7 +634,7 @@ function tileFor(row: ShellRow, columns: ColumnDef[]): PreviewTile {
   return {
     key: row.id,
     label: identity ? cellText(identity, row) : row.id,
-    detail: number ? saying(cellText(number, row), number.label) : '',
+    detail: detail ?? (number ? saying(cellText(number, row), number.label) : ''),
     image: String(row.fields.image ?? '') || undefined,
     press: pressFor(columns, row)
   }
@@ -630,7 +692,7 @@ function asPreview(entityKey: string, read: Read, expr: string): Preview {
     // terms match, at which point there is no more to reach and it is a tally.
     estimated: read.floor || undefined,
     pinned: pinnedBy(expr, read.rows, read.count),
-    tiles: shown.map((row) => tileFor(row, columns))
+    tiles: shown.map((row) => tileFor(row, columns, underJoin(entityKey, read.reach, row)))
   }
 }
 

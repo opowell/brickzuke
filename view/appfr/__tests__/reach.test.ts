@@ -54,7 +54,8 @@ provideLots({
     return eachLot(visit)
   },
   named: () => undefined,
-  records: () => undefined
+  records: () => undefined,
+  lines: () => undefined
 })
 
 // The lots are read through the item page's store as well as the seller's, so

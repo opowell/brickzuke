@@ -61,6 +61,13 @@ export interface LotSource {
    * names no item. See [OF_ITEM] for what is read off them.
    */
   records(expr: string): Promise<string[]> | undefined
+  /**
+   * What the query's item is made of — the stored lines of a set's inventory,
+   * as its table shows them — or nothing where it names no item. Empty for
+   * an item made of nothing, a part, and for a set nobody has opened yet.
+   * See [madeOf].
+   */
+  lines(expr: string): Promise<ShellRow[]> | undefined
 }
 
 let lots: LotSource | undefined
@@ -438,6 +445,12 @@ export interface Tally {
   lots: number
   /** Every piece inside those lots. */
   quantity: number
+  /**
+   * Who is selling them — the distinct sellers among those lots, which is
+   * what a country or a province under the query counts: not the sellers in
+   * it, but the ones in it with something the query asked for.
+   */
+  sellers: Set<string>
 }
 
 /** What a query reaches of one type. */
@@ -509,14 +522,22 @@ interface Pass {
 function tally(into: Map<string, Tally>, value: string, lot: ShellRow | Tally): void {
   const held = into.get(value) ?? {
     lots: 0,
-    quantity: 0
+    quantity: 0,
+    sellers: new Set<string>()
   }
   if ('lots' in lot) {
     held.lots += lot.lots
     held.quantity += lot.quantity
+    for (const seller of lot.sellers) {
+      held.sellers.add(seller)
+    }
   } else {
     held.lots += 1
     held.quantity += Number(lot.fields.quantity ?? 0)
+    const seller = same(lot.fields.store)
+    if (seller) {
+      held.sellers.add(seller)
+    }
   }
   into.set(value, held)
 }
@@ -647,6 +668,13 @@ export async function reachFor(
   if (ofItem && records) {
     return await ofItemNamed(ofItem, records)
   }
+  const lines = entityKey === 'colors' ? lots?.lines(expr) : undefined
+  if (lines) {
+    const made = await madeOf(lines)
+    if (made) {
+      return made
+    }
+  }
   const through = THROUGH[entityKey]
   if (!through) {
     return UNCONSTRAINED
@@ -742,6 +770,52 @@ async function ofItemNamed(ofItem: OfItem, records: Promise<string[]>): Promise<
 }
 
 /**
+ * The colours of what the item is made of — see [LotSource.lines].
+ *
+ * A set's lots say nothing of colour: a set is sold as the box it comes in,
+ * and its lot carries the colour the catalogue gives an item that has none.
+ * So under `type:S id:979` the colours card, read through the lots, was the
+ * one colour that is not a colour. What the set *is* in colour is its parts,
+ * and those are on the lines of its inventory — so where the query's item is
+ * made of anything, the colours are read off the lines instead, as its
+ * category and its year are read off the item rather than its lots. Exact,
+ * for the same reason: an inventory is stored whole or not at all.
+ *
+ * Tallied as the lines are: `lots` is how many of the set's lines are in the
+ * colour — that many distinct parts, which is what the card writes beside
+ * the colour — and `quantity` how many pieces. Nobody sells a line, so the
+ * sellers stay empty.
+ *
+ * Undefined where the item is made of nothing, or nobody has opened it yet:
+ * a part's colours are the colours it is sold in, and those are its lots'.
+ */
+async function madeOf(lines: Promise<ShellRow[]>): Promise<Reach | undefined> {
+  let made: ShellRow[]
+  try {
+    made = await lines
+  } catch {
+    return undefined
+  }
+  const counts = new Map<string, Tally>()
+  for (const line of made) {
+    const colour = same(line.fields.colorid)
+    if (colour) {
+      tally(counts, colour, line)
+    }
+  }
+  if (!counts.size) {
+    return undefined
+  }
+  return {
+    values: new Set(counts.keys()),
+    counts,
+    field: 'colorid',
+    lots: 0,
+    exact: true
+  }
+}
+
+/**
  * The lots a query names, as text — the other half of a pass's key. Two
  * queries filtering by the same terms are one question of the lots only when
  * they are asking it of the same lots: `condition:N` over one item's page
@@ -768,6 +842,14 @@ const EMPTY_LOT = {
   entityLabel: '',
   fields: {}
 } as ShellRow
+
+/** The join's count for one record of the type, where it counted one. */
+export function tallied(reach: Reach, row: ShellRow): Tally | undefined {
+  if (!reach.field) {
+    return undefined
+  }
+  return reach.counts?.get(same(row.fields[reach.field]))
+}
 
 /**
  * Whether a record of the type is one the query reaches.

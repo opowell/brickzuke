@@ -71,7 +71,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
-import { provideLots, reachFor, reaches, type Tally } from './reach'
+import { provideLots, reachFor, reaches, tallied, type Tally } from './reach'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -2364,18 +2364,18 @@ async function joined(
   if (!reach.values) {
     return present(rows, request, matcherBesides(request, ...addressed))
   }
-  const tallied = talliedOn(rows)
+  const taken = talliedOn(rows)
   const counted = rows.flatMap((row) => {
     if (!reaches(reach, row)) {
       return []
     }
-    const mine = reach.counts?.get(String(row.fields[reach.field!] ?? '').trim())
+    const mine = tallied(reach, row)
     return [
       mine ? {
         ...row,
         fields: {
           ...row.fields,
-          ...Object.fromEntries(tallied.map((field) => [field, mine[field]]))
+          ...Object.fromEntries(taken.map((field) => [field, mine[field]]))
         }
       } : row
     ]
@@ -2383,7 +2383,7 @@ async function joined(
   return present(
     counted,
     request,
-    matcherOverLots(request, addressed, tallied.filter((field) => LOT_TALLIES.includes(field)))
+    matcherOverLots(request, addressed, taken.filter((field) => LOT_TALLIES.includes(field)))
   )
 }
 
@@ -2795,6 +2795,27 @@ function namedRecords(expr: string): Promise<string[]> | undefined {
 }
 
 /**
+ * What the query's item is made of — the stored lines of each record it
+ * stands for, as the set's own inventory table shows them — or nothing where
+ * it names no item. Read and never fetched, like [namedLots]: the wall's
+ * fill is what fetches a set's parts, see [withNamedInventories]. What the
+ * join reads a set's colours off, there being no colour on a lot of a set.
+ */
+function namedLines(expr: string): Promise<ShellRow[]> | undefined {
+  const request = requestOf(expr)
+  if (!namesItem(request)) {
+    return undefined
+  }
+  return (async () => {
+    const lines: ShellRow[] = []
+    for (const record of await itemRecords(request)) {
+      lines.push(...(await inventoryRows(requestOf(`record:"${record}"`), false)))
+    }
+    return lines
+  })()
+}
+
+/**
  * The item's lots, fetched — for the home screen under a query naming one.
  *
  * What the lots table does when it opens on the item, done for the wall
@@ -2864,5 +2885,6 @@ function withNamedInventories(request: QueryRequest, lots: Fill): Fill {
 provideLots({
   each: eachLot,
   named: namedLots,
-  records: namedRecords
+  records: namedRecords,
+  lines: namedLines
 })

@@ -87,28 +87,35 @@ beforeAll(async () => {
       countryCount: 1
     }
   ])
+  // The directory's own numbers — how many sellers a country has, how many
+  // pieces a seller has for sale — which are what a card writes beside a
+  // record until the query gives it a better number to write.
   await putAll(db, STORES.STORE_COUNTRIES, [
     {
       countryCode: 'DE',
       countryName: 'Germany',
-      regionId: 'Europe'
+      regionId: 'Europe',
+      storeCount: 1700
     },
     {
       countryCode: 'US',
       countryName: 'United States',
-      regionId: 'North America'
+      regionId: 'North America',
+      storeCount: 900
     }
   ])
   await putAll(db, STORES.BRICK_LINK_STORES, [
     {
       id: 'brickmeister',
       name: 'Brickmeister',
-      countryID: 'DE'
+      countryID: 'DE',
+      items: 723_000
     },
     {
       id: 'bricksusa',
       name: 'Bricks USA',
-      countryID: 'US'
+      countryID: 'US',
+      items: 5_000
     }
   ])
   // Two items. Nobody's page has been read this session; what is known of
@@ -150,7 +157,13 @@ beforeAll(async () => {
   await putAll(db, STORES.STORE_LOTS, [
     storedLot('1', 'P-3001', 'brickmeister'),
     storedLot('2', 'P-3001', 'brickmeister', '7'),
-    storedLot('3', 'P-2456', 'bricksusa')
+    storedLot('3', 'P-2456', 'bricksusa'),
+    // And the set on both fronts, twice on the German one: a set is sold as
+    // the box, so its lots carry the colour the catalogue gives an item
+    // that has none.
+    storedLot('4', 'S-100-1', 'brickmeister', '0'),
+    storedLot('5', 'S-100-1', 'brickmeister', '0'),
+    storedLot('6', 'S-100-1', 'bricksusa', '0')
   ])
   await putAll(db, STORES.CATEGORIES, [
     {
@@ -408,5 +421,60 @@ describe('the cards over them', () => {
     const stores = await previewFor('stores', 'id:"30001"')
     expect(stores.count).toBe(1)
     expect(stores.estimated).toBe(true)
+  })
+})
+
+describe('the wall under a set', () => {
+  /** What a card writes beside each record, by the record's name. */
+  async function details(entityKey: string, expr: string): Promise<Record<string, string>> {
+    return Object.fromEntries(
+      (await previewFor(entityKey, expr)).tiles.map((tile) => [tile.label, tile.detail])
+    )
+  }
+
+  it('colours it by its parts, not by its lots', async () => {
+    // The set's lots are in no colour; its one line is a red tile. Read off
+    // the lots the card was the colour that is not a colour, and nothing
+    // drawn.
+    const colors = await previewFor('colors', 'type:S id:"100"')
+    expect(colors.tiles.map((tile) => tile.label)).toEqual(['Red'])
+    expect(colors.count).toBe(1)
+    // An inventory is stored whole: the answer is exact, and says so.
+    expect(colors.estimated).toBeFalsy()
+    // How many of the set's parts are in the colour, not how many parts the
+    // catalogue has in it.
+    expect(colors.tiles[0].detail).toBe('1 part')
+  })
+
+  it('leaves a part\'s colours to its lots, a part being made of nothing', async () => {
+    expect((await previewFor('colors', 'id:"30001"')).count).toBe(2)
+  })
+
+  it('writes beside a seller how many of the set they have, not how much else', async () => {
+    // Two lots of two on the German front and one on the American: `723k
+    // items` beside Brickmeister is the rest of the shop.
+    expect(await details('stores', 'type:S id:"100"')).toEqual({
+      Brickmeister: '4 items',
+      'Bricks USA': '2 items'
+    })
+  })
+
+  it('counts a country and a region by the sellers with the set', async () => {
+    expect(await details('countries', 'type:S id:"100"')).toEqual({
+      Germany: '1 store',
+      'United States': '1 store'
+    })
+    expect(await details('regions', 'type:S id:"100"')).toEqual({
+      Europe: '1 store',
+      'North America': '1 store'
+    })
+  })
+
+  it('keeps the directory\'s numbers where nothing narrows them', async () => {
+    expect(await details('countries', '')).toEqual({
+      Germany: '1.7k stores',
+      'United States': '900 stores'
+    })
+    expect((await details('stores', ''))['Brickmeister']).toBe('723k items')
   })
 })
