@@ -210,6 +210,10 @@ describe('items schema', () => {
       // Headed by the tick that takes the page (header-content-layout
       // 0.30.0), which says nothing in text.
       '',
+      // Where the query stands on each row — `+` named, `·` unsaid, `−`
+      // left out — headed by the same control over the page (0.33.0). Items
+      // declare a scope, so every row wears one.
+      '+·−',
       '#',
       '',
       'Type',
