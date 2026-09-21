@@ -1770,6 +1770,19 @@ export const regionColumns: ColumnDef[] = [
     format: counted,
     click: (row) => narrowTo('countries', 'region', String(row.fields.region ?? ''))
   },
+  {
+    // A region has no count of sellers of its own — the directory counts
+    // them by country — so this is the join's alone: blank until a query
+    // reaches some lots, then the sellers here those lots are from. See
+    // `UNDER_JOIN` in [reach].
+    key: 'stores',
+    label: 'Stores',
+    hint: 'Sellers here with a lot the query reached — blank until a query reaches one',
+    width: '110px',
+    sort: 'stores',
+    format: counted,
+    click: (row) => narrowTo('stores', 'region', String(row.fields.region ?? ''))
+  },
   priceModifierColumn
 ]
 
@@ -1804,7 +1817,7 @@ export const countryColumns: ColumnDef[] = [
   {
     key: 'stores',
     label: 'Stores',
-    hint: 'BrickLink’s own count of the sellers here, stated before any of them has been fetched',
+    hint: 'BrickLink’s own count of the sellers here, stated before any of them has been fetched — or, under a query the lots answer, the sellers here with a lot it reached',
     width: '110px',
     sort: 'stores',
     format: counted,
@@ -1868,7 +1881,7 @@ export const provinceColumns: ColumnDef[] = [
   {
     key: 'stores',
     label: 'Stores',
-    hint: 'How many of the sellers fetched so far are in this province',
+    hint: 'How many of the sellers fetched so far are in this province — or, under a query the lots answer, how many of them have a lot it reached',
     width: '110px',
     sort: 'stores',
     format: counted,
@@ -1957,7 +1970,7 @@ export const storeColumns: ColumnDef[] = [
   {
     key: 'items',
     label: 'Items',
-    hint: 'Every piece the seller has for sale, counted one by one — not how many listings that is',
+    hint: 'Every piece the seller has for sale, counted one by one — not how many listings that is. Under a query the lots answer, only the pieces in the lots it reached',
     width: '100px',
     sort: 'items',
     format: counted,
@@ -2937,6 +2950,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'countries',
           label: 'Countries'
+        },
+        {
+          key: 'stores',
+          label: 'Stores'
         },
         {
           key: 'priceModifier',

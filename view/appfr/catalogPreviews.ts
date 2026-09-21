@@ -33,8 +33,8 @@ import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 import { catalogSchema, counted, narrowTo, narrowToColor, narrowingTo } from './catalogSchema'
 import { catalogSource, sorted, storedRows } from './catalogSource'
 import { ensureConditionCounts } from './conditionCounts'
-import { forgetReach, matching, reachFor, reaches, tallied } from './reach'
-import type { Reach, Tally } from './reach'
+import { UNDER_JOIN, forgetReach, matching, reachFor, reaches, tallied, underJoin } from './reach'
+import type { Reach } from './reach'
 import { awaitedStores } from './homeFill'
 import { openingOrderFor } from './openingOrder'
 
@@ -233,8 +233,12 @@ async function opening(
   const own = all.filter(match)
   const matched = own.filter((row) => reaches(reach, row))
   const order = openingOrderFor(entity)
+  // With the join's figure written in where it restates the type's own —
+  // see [underJoin] — before the order is put on, so that a card of sellers
+  // under a set leads with the seller who has most of it, as its table does.
+  const restated = matched.filter(keep).map((row) => underJoin(entity, reach, row))
   return {
-    rows: sorted(matched.filter(keep), order.sort, order.dir).slice(0, shown),
+    rows: sorted(restated, order.sort, order.dir).slice(0, shown),
     // An untouched query leaves the count to the schema, which has counted the
     // catalogue already and did not have to read it to do so.
     //
@@ -257,50 +261,14 @@ async function opening(
 }
 
 /**
- * What a card's number is under a join, where the type's own figure has
- * stopped being the answer.
- *
- * A seller's row says how many pieces they have for sale and a country's how
- * many sellers are in it: the directory's numbers, true of the type and not
- * of the query. Under `type:S id:979` the sellers card is the sellers with
- * the set — the join sees to that — but `723k items` beside one of them is
- * everything else in the shop, and `1.7k stores` beside Germany is every
- * German seller whether or not they have it. What the reader asked was how
- * many of the set, and how many sellers have one. So where the join has
- * counted a record, the record's number is the join's: for a seller the
- * pieces in the lots that reached them, for a country, a province or a part
- * of the world the sellers those lots are from. The noun is the one the
- * type's own column uses, so the pill reads as it did with the number
- * meaning what the query means.
- *
- * A floor like the count over it — read off the lots held — and written
- * without the `~`, the card's heading having made that admission once for
- * all of them.
+ * The column a card leads with under a join: the one the join wrote the
+ * type's figure into — see [UNDER_JOIN] — where it wrote one. A region's
+ * table leads with its countries, and under a set its card should say the
+ * sellers with one instead, that being the number the query is about.
  */
-const UNDER_JOIN: Record<string, { of(tally: Tally): number; what: string }> = {
-  stores: {
-    of: (tally) => tally.quantity,
-    what: 'Items'
-  },
-  countries: {
-    of: (tally) => tally.sellers.size,
-    what: 'Stores'
-  },
-  provinces: {
-    of: (tally) => tally.sellers.size,
-    what: 'Stores'
-  },
-  regions: {
-    of: (tally) => tally.sellers.size,
-    what: 'Stores'
-  }
-}
-
-/** The record's number under the join, or nothing where the join did not count it. */
-function underJoin(entityKey: string, reach: Reach, row: ShellRow): string | undefined {
+function leading(entityKey: string, reach: Reach, row: ShellRow): string | undefined {
   const under = UNDER_JOIN[entityKey]
-  const tally = under && tallied(reach, row)
-  return tally ? saying(counted(under.of(tally)), under.what) : undefined
+  return under && tallied(reach, row) ? under.field : undefined
 }
 
 /**
@@ -626,15 +594,16 @@ function singular(plural: string): string {
  * A record: what it is called, the first number said about it and what that
  * number counts, and the picture it carries where it has one.
  */
-function tileFor(row: ShellRow, columns: ColumnDef[], detail?: string): PreviewTile {
+function tileFor(row: ShellRow, columns: ColumnDef[], lead?: string): PreviewTile {
   const identity = roleColumn(columns, 'identity') ?? columns[0]
-  const number = columns.find(
-    (column) => column !== identity && typeof cellValue(column, row) === 'number'
-  )
+  const numeric = (column: ColumnDef) =>
+    column !== identity && typeof cellValue(column, row) === 'number'
+  const number =
+    columns.find((column) => column.key === lead && numeric(column)) ?? columns.find(numeric)
   return {
     key: row.id,
     label: identity ? cellText(identity, row) : row.id,
-    detail: detail ?? (number ? saying(cellText(number, row), number.label) : ''),
+    detail: number ? saying(cellText(number, row), number.label) : '',
     image: String(row.fields.image ?? '') || undefined,
     press: pressFor(columns, row)
   }
@@ -692,7 +661,7 @@ function asPreview(entityKey: string, read: Read, expr: string): Preview {
     // terms match, at which point there is no more to reach and it is a tally.
     estimated: read.floor || undefined,
     pinned: pinnedBy(expr, read.rows, read.count),
-    tiles: shown.map((row) => tileFor(row, columns, underJoin(entityKey, read.reach, row)))
+    tiles: shown.map((row) => tileFor(row, columns, leading(entityKey, read.reach, row)))
   }
 }
 

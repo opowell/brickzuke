@@ -71,7 +71,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
-import { provideLots, reachFor, reaches, tallied, type Tally } from './reach'
+import { provideLots, reachFor, reaches, tallied, underJoin, type Tally } from './reach'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -2370,14 +2370,16 @@ async function joined(
       return []
     }
     const mine = tallied(reach, row)
+    // And the type's own figure restated, where the join restates one —
+    // see [underJoin] — so the table is sorted by the query's number too.
     return [
-      mine ? {
+      underJoin(key, reach, mine ? {
         ...row,
         fields: {
           ...row.fields,
           ...Object.fromEntries(taken.map((field) => [field, mine[field]]))
         }
-      } : row
+      } : row)
     ]
   })
   return present(

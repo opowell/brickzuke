@@ -158,12 +158,15 @@ beforeAll(async () => {
     storedLot('1', 'P-3001', 'brickmeister'),
     storedLot('2', 'P-3001', 'brickmeister', '7'),
     storedLot('3', 'P-2456', 'bricksusa'),
-    // And the set on both fronts, twice on the German one: a set is sold as
-    // the box, so its lots carry the colour the catalogue gives an item
+    // And the set on both fronts, twice on the German one and three times
+    // on the American — the smaller shop with more of the set. A set is sold
+    // as the box, so its lots carry the colour the catalogue gives an item
     // that has none.
     storedLot('4', 'S-100-1', 'brickmeister', '0'),
     storedLot('5', 'S-100-1', 'brickmeister', '0'),
-    storedLot('6', 'S-100-1', 'bricksusa', '0')
+    storedLot('6', 'S-100-1', 'bricksusa', '0'),
+    storedLot('7', 'S-100-1', 'bricksusa', '0'),
+    storedLot('8', 'S-100-1', 'bricksusa', '0')
   ])
   await putAll(db, STORES.CATEGORIES, [
     {
@@ -451,12 +454,60 @@ describe('the wall under a set', () => {
   })
 
   it('writes beside a seller how many of the set they have, not how much else', async () => {
-    // Two lots of two on the German front and one on the American: `723k
+    // Two lots of two on the German front and three on the American: `723k
     // items` beside Brickmeister is the rest of the shop.
     expect(await details('stores', 'type:S id:"100"')).toEqual({
       Brickmeister: '4 items',
-      'Bricks USA': '2 items'
+      'Bricks USA': '6 items'
     })
+  })
+
+  it('leads with the seller who has most of it', async () => {
+    // The card opens as its table does, by pieces for sale — and under the
+    // set the pieces are the set's, so the smaller shop with more of it
+    // comes first where the bigger one did.
+    const under = await previewFor('stores', 'type:S id:"100"')
+    expect(under.tiles.map((tile) => tile.label)).toEqual(['Bricks USA', 'Brickmeister'])
+    const whole = await previewFor('stores', '')
+    expect(whole.tiles.map((tile) => tile.label)).toEqual(['Brickmeister', 'Bricks USA'])
+  })
+
+  it('restates the same figures on the tables behind the cards', async () => {
+    const byItems = {
+      ...requestFor('stores', 'type:S id:"100"'),
+      query: {
+        ...requestFor('stores', 'type:S id:"100"').query,
+        sort: 'items',
+        dir: 'desc'
+      }
+    }
+    expect((await matchingRows(byItems)).map((row) => [row.id, row.fields.items])).toEqual([
+      ['bricksusa', 6],
+      ['brickmeister', 4]
+    ])
+    expect(
+      (await matchingRows(requestFor('countries', 'type:S id:"100"'))).map((row) => [
+        row.id,
+        row.fields.stores
+      ])
+    ).toEqual([
+      ['DE', 1],
+      ['US', 1]
+    ])
+    // A region counts countries of its own; the sellers are the join's.
+    expect(
+      (await matchingRows(requestFor('regions', 'type:S id:"100"'))).map((row) => [
+        row.id,
+        row.fields.countries,
+        row.fields.stores
+      ])
+    ).toEqual([
+      ['Europe', 1, 1],
+      ['North America', 1, 1]
+    ])
+    expect(
+      (await matchingRows(requestFor('regions', ''))).map((row) => row.fields.stores)
+    ).toEqual([undefined, undefined])
   })
 
   it('counts a country and a region by the sellers with the set', async () => {

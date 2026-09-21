@@ -852,6 +852,71 @@ export function tallied(reach: Reach, row: ShellRow): Tally | undefined {
 }
 
 /**
+ * The types whose own figure the join restates, and in what.
+ *
+ * A seller's row says how many pieces they have for sale and a country's
+ * how many sellers are in it: the directory's numbers, true of the type and
+ * not of the query. Under `type:S id:979` the sellers table is the sellers
+ * with the set — the join sees to that — but `723k` beside one of them is
+ * everything else in the shop, and `1.7k` beside Germany is every German
+ * seller whether or not they have it. What the reader asked was how many of
+ * the set, and how many sellers have one. So where the join has counted a
+ * record, the record's figure is the join's, written into the field the
+ * type already draws and sorts by: for a seller the pieces in the lots that
+ * reached them, for a country, a province or a part of the world the
+ * sellers those lots are from. A region has no such field of its own — it
+ * counts countries — so `stores` is one the join alone fills, blank until a
+ * query reaches something, as a colour's `lots` is.
+ *
+ * A floor like the count over the table, read off the lots held.
+ */
+export interface UnderJoin {
+  /** The field the figure is written to on the type's own rows. */
+  field: string
+  /** The figure, off the join's count for the record. */
+  of(tally: Tally): number
+}
+
+export const UNDER_JOIN: Record<string, UnderJoin> = {
+  stores: {
+    field: 'items',
+    of: (tally) => tally.quantity
+  },
+  countries: {
+    field: 'stores',
+    of: (tally) => tally.sellers.size
+  },
+  provinces: {
+    field: 'stores',
+    of: (tally) => tally.sellers.size
+  },
+  regions: {
+    field: 'stores',
+    of: (tally) => tally.sellers.size
+  }
+}
+
+/**
+ * The record's row with the join's figure written in — see [UNDER_JOIN] —
+ * or the row as it was, where the type has no such figure or the join did
+ * not count this record.
+ */
+export function underJoin(entityKey: string, reach: Reach, row: ShellRow): ShellRow {
+  const under = UNDER_JOIN[entityKey]
+  const tally = under && tallied(reach, row)
+  if (!under || !tally) {
+    return row
+  }
+  return {
+    ...row,
+    fields: {
+      ...row.fields,
+      [under.field]: under.of(tally)
+    }
+  }
+}
+
+/**
  * Whether a record of the type is one the query reaches.
  *
  * A row carrying several values in the field — the records a list wants — is
