@@ -87,15 +87,25 @@ export async function getAllFromIndex<T>(
   return db.getAllFromIndex(index.store.name, index.name, query, count)
 }
 
+/**
+ * Makes the index where the store has none by that name yet.
+ *
+ * Every upgrade runs over every index there is, most of which the database
+ * already has — so an index that exists is passed over rather than asked for
+ * again, which IndexedDB answers with a ConstraintError.
+ */
 export function createIndex(
   transaction: IDBPTransaction<unknown, string[], 'versionchange'>,
   index: IndexDefinition,
 ) {
   const store = transaction.objectStore(index.store.name)
+  if (store.indexNames.contains(index.name)) return
   store.createIndex(index.name, index.keyPath)
 }
 
+/** Makes the store where the database has none by that name yet — as [createIndex]. */
 export function createStore(db: IDBPDatabase, storeDefinition: StoreDefinition) {
+  if (db.objectStoreNames.contains(storeDefinition.name)) return
   db.createObjectStore(storeDefinition.name, {
     keyPath: storeDefinition.keyPath,
     autoIncrement: storeDefinition.autoIncrement === true,
