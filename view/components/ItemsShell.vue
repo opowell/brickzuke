@@ -376,8 +376,16 @@ const plainTokens = {
  * all, kept the browser's own rounded one. Two shapes is two button styles,
  * however alike the rest of them is, and the whole point here is that a press
  * looks the same wherever it is.
+ *
+ * Not the rows of a picker's list, though. A `<button>` each, so this rule
+ * reaches them — and put a face and an edge on every entity in the list, and
+ * a raised one under the pointer, as if the list were a stack of buttons.
+ * They are the options of a `<select>`, drawn by hand: plain text on the
+ * menu's ground, and the shell's own tint on the one the pointer is over,
+ * which is the whole of what an option says. `:where` so the exemption
+ * weighs nothing and the rule stays where it was against the shell's own.
  */
-.items-shell :deep(button) {
+.items-shell :deep(button:where(:not(.dc-menu__item))) {
   appearance: revert;
   background: revert;
   border: revert;
@@ -463,9 +471,10 @@ const plainTokens = {
  * record, red with ⌘ held to leave it out — and the `+` or `−` fades to say
  * the press lifts it. A face and a reverted ink would say neither. `:where`
  * so the exemption weighs nothing, and the tie with the active rule below is
- * kept as it stands.
+ * kept as it stands. Nor a row of a picker's list, for the reason given over
+ * the rule above: its hover is the shell's tint, not a lifted face.
  */
-.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing))) {
+.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing, .dc-menu__item))) {
   background: color-mix(in oklab, ButtonFace 88%, ButtonText);
   border: revert;
   border-radius: revert;
