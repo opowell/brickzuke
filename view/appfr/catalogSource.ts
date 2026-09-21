@@ -33,6 +33,7 @@ import { ensureStoreInventories, storeInventoryOf } from './storeInventoryCounts
 import { conditionCounts, conditionCountsVersion, ensureConditionCounts } from './conditionCounts'
 import { colorItemsFill, colorItemsFor, readColorItems } from './colorItemsFetch'
 import { notePriceCurrency, priceSign } from './priceCurrency'
+import { noteRecordsOfItem } from './recordsOfItem'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import type { StoredColorItem } from '../stores/bricklink/catalog-list-color-page'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
@@ -606,6 +607,9 @@ async function itemRecords(request: QueryRequest): Promise<string[]> {
   try {
     const records =
       (await getAllFromIndex<JoinedItem>(db, indices.BRICK_LINK_ITEMS_BY_ITEM_ID, itemId)) ?? []
+    // What the item stands for, before the `type:` narrows it — kept for the
+    // schema, which has only the query to go on: see [recordsOfItem].
+    noteRecordsOfItem(itemId, records.map((one) => String(one.id)))
     return records
       .filter((one) => !type || one.itemType === type)
       .map((one) => String(one.id))

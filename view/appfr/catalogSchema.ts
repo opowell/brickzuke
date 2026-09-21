@@ -26,6 +26,7 @@ import { itemTypes, processingCounts, selectedCounts } from '../../model'
 import { browsedCounts } from './catalogCounts'
 import { LOADING, fills } from './homeFill'
 import { priceCurrency } from './priceCurrency'
+import { recordsOfItem } from './recordsOfItem'
 import { priceText, priceUnitsPhrase } from './priceText'
 import CellCount from './CellCount.vue'
 import CellPrice from './CellPrice.vue'
@@ -1387,12 +1388,34 @@ const INVENTORY_LINES_SETTLED_BY: SettledBy = {
  * is named either as its `record:` or as the `id:` a press writes, with the
  * `type:` beside it saying which of the item's records is meant — the pair
  * the lots read as an address too, see [namesItem].
+ *
+ * An `id:` with no `type:` beside it says nothing about the kind on its own,
+ * so the answer is what the item turned out to stand for once the source
+ * looked it up — see [recordsOfItem]. One record, and that a set's, is the
+ * set repeated down the column; two records are two sets' lines, and the
+ * column tells them apart. An item not looked up yet keeps the column,
+ * which it loses when the answer lands.
  */
 function namesOneSet(expr: string): boolean {
   const record = pinnedValue(expr, 'record')
-  const type = record === undefined
-    ? pinsOneValue(expr, 'id') ? pinnedValue(expr, 'type') : undefined
-    : record.split('-')[0]
+  if (record !== undefined) {
+    return isSet(record)
+  }
+  const id = pinnedValue(expr, 'id')
+  if (id === undefined) {
+    return false
+  }
+  const type = pinnedValue(expr, 'type')
+  if (type !== undefined) {
+    return type === 'S' || type === 'U'
+  }
+  const records = recordsOfItem.value.get(Number(id))
+  return records?.length === 1 && isSet(records[0])
+}
+
+/** Whether a record is a set's: BrickLink's, `S-`, or one of their own, `U-`. */
+function isSet(record: string): boolean {
+  const type = record.split('-')[0]
   return type === 'S' || type === 'U'
 }
 

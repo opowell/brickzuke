@@ -34,6 +34,10 @@ vi.mock('../../../model', async () => {
 const {
   catalogSchema
 } = await import('../catalogSchema')
+const {
+  noteRecordsOfItem,
+  forgetRecordsOfItem
+} = await import('../recordsOfItem')
 
 /** Puts the app where a press would, then reads a type's columns back. */
 async function columnsOf(entity: string, expr = ''): Promise<string[]> {
@@ -276,10 +280,49 @@ describe('every set\'s parts', () => {
     expect(await columnsOf('itemInventories', 'type:M id:120')).toContain('record')
   })
 
-  it('keeps it when the id has no type beside it', async () => {
+  it('keeps it when the id has no type beside it and the item is not yet known', async () => {
     // Without the type the id may be a part's; the join reads the item's
-    // records, and this cannot.
+    // records, and until it has, this cannot.
+    forgetRecordsOfItem()
     expect(await columnsOf('itemInventories', 'id:979')).toContain('record')
+  })
+
+  it('drops it once the id turns out to be one set\'s', async () => {
+    // The screen this is for: a press on the items table writes `id:6658`
+    // and no type, the source looks the item up on the way to the lines,
+    // and the column is `S-8813-1` down every one of them.
+    forgetRecordsOfItem()
+    noteRecordsOfItem(6658, ['S-8813-1'])
+    const columns = await columnsOf('itemInventories', 'id:6658')
+    expect(columns).not.toContain('record')
+    expect(columns).toContain('name')
+    expect(columns).toContain('quantity')
+    // And one of theirs is a set the same way.
+    noteRecordsOfItem(7, ['U-5'])
+    expect(await columnsOf('itemInventories', 'id:7')).not.toContain('record')
+  })
+
+  it('keeps it when the id turns out to be a part\'s, or a minifigure\'s', async () => {
+    forgetRecordsOfItem()
+    noteRecordsOfItem(3001, ['P-3001'])
+    expect(await columnsOf('itemInventories', 'id:3001')).toContain('record')
+    noteRecordsOfItem(120, ['M-sw0001'])
+    expect(await columnsOf('itemInventories', 'id:120')).toContain('record')
+  })
+
+  it('keeps it when the id stands for more than one set', async () => {
+    // Two records are two sets' lines under one item, and the column is
+    // what tells one from the other.
+    forgetRecordsOfItem()
+    noteRecordsOfItem(979, ['S-979-1', 'S-979-2'])
+    expect(await columnsOf('itemInventories', 'id:979')).toContain('record')
+  })
+
+  it('still reads the type beside the id over what was looked up', async () => {
+    forgetRecordsOfItem()
+    noteRecordsOfItem(120, ['P-120', 'S-120-1'])
+    expect(await columnsOf('itemInventories', 'type:S id:120')).not.toContain('record')
+    expect(await columnsOf('itemInventories', 'type:P id:120')).toContain('record')
   })
 
   it('keeps it when two sets are named', async () => {
