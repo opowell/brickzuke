@@ -62,6 +62,7 @@ const cards = computed(() =>
         entity,
         count,
         pinned: Boolean(preview?.pinned),
+        empty: emptyUnder(expr.value, preview, count),
         // Drawn quieter than a number, and the reason the placeholder is a
         // character rather than a word: a card still being fetched should be
         // legible as such at a glance across the wall, without any of them
@@ -78,10 +79,40 @@ const cards = computed(() =>
       }
     })
     // The types the query has already picked the single record of, left off:
-    // see [pinnedBy]. Dropped here rather than never read, because whether a
-    // card is one of them is something only its own read can say.
-    .filter((card) => !card.pinned)
+    // see [pinnedBy]. And the types it matched none of — see [emptyUnder].
+    // Dropped here rather than never read, because whether a card is one of
+    // them is something only its own read can say.
+    .filter((card) => !card.pinned && !card.empty)
 )
+
+/**
+ * Whether a card under a query has nothing to show for it.
+ *
+ * A set's home screen is read through `type:S id:979`, and most of the wall
+ * has no answer to that: no category is a set's, no shopping list holds it,
+ * no cart does. Each of those was a heading over `0` and a blank — a dozen
+ * ways of saying the same nothing, standing between the reader and the cards
+ * that do have something in them. So the ones that came back with nothing go.
+ *
+ * Only under a query, and only once the read has landed. The untouched wall
+ * is every type the schema declares, which is what it is for; and a card whose
+ * read is still out is not empty but unanswered, and keeps its place rather
+ * than jump into it when the answer arrives.
+ *
+ * And only where the nothing is the read's own word. A count of nought is one
+ * — see [opening], which says it about records brickzuke has actually read
+ * and stays quiet otherwise — and so is a read that had neither rows nor a
+ * number and no population to fall back on. A card still headed by the
+ * schema's population is the other case: the read found nothing stored to
+ * match against, which is not the query matching none of them, and the wall
+ * keeps the card and the number the same way it does with no query at all.
+ */
+function emptyUnder(asked: string, preview: Preview | undefined, count: string): boolean {
+  if (!asked.trim() || !preview || preview.tiles.length) {
+    return false
+  }
+  return preview.count === 0 || (preview.count === undefined && !count)
+}
 
 /**
  * The number a card is headed with: how many of the type the query matched,
