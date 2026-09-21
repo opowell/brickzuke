@@ -1148,6 +1148,8 @@ export const itemTypeColumns: ColumnDef[] = [
  * is not in the original and has to be here — one set's inventory is headed by
  * the set, and this table is all of them at once, so without it two identical
  * bricks from two different sets are two rows with nothing to tell them apart.
+ * Narrowed to one set it is that set repeated down the table, and goes the
+ * way a settled column does: see [namesOneSet].
  */
 export const itemInventoryColumns: ColumnDef[] = [
   {
@@ -1296,8 +1298,14 @@ export const itemVariantColumns: ColumnDef[] = [
  * pins where they are and what feedback they carry, neither of which varies
  * over one store's lots; pinning an item pins its name. Hence a list per
  * column rather than a field per column.
+ *
+ * And some by a term only under one of its values, which a field's name
+ * cannot say — see [namesOneSet] — so an entry is a field pinned to any one
+ * value, or a test of the expression itself.
  */
-const SETTLED_BY: Record<string, string[]> = {
+type SettledBy = Record<string, Array<string | ((expr: string) => boolean)>>
+
+const SETTLED_BY: SettledBy = {
   // One item, whichever way the query names it: a `record:` spelling the
   // BrickLink record, or the `id:` a press on the items table writes — the
   // same two the lots read as what to fetch, see [namesItem].
@@ -1323,9 +1331,14 @@ const SETTLED_BY: Record<string, string[]> = {
  * the field at all lets everything through.
  */
 function pinsOneValue(expr: string, field: string): boolean {
+  return pinnedValue(expr, field) !== undefined
+}
+
+/** The one value an expression fixes a field to, or nothing where it fixes none. */
+function pinnedValue(expr: string, field: string): string | undefined {
   const groups = parseExpression(expr)
   if (!groups.length) {
-    return false
+    return undefined
   }
   let pinned: string | undefined
   for (const group of groups) {
@@ -1333,15 +1346,54 @@ function pinsOneValue(expr: string, field: string): boolean {
       (one) => one.kind === 'field' && one.field === field && one.comparator === ':'
     )
     if (!term) {
-      return false
+      return undefined
     }
     const value = String((term as { value?: unknown }).value ?? '')
     if (pinned !== undefined && pinned !== value) {
-      return false
+      return undefined
     }
     pinned = value
   }
-  return pinned !== undefined
+  return pinned
+}
+
+/**
+ * What settles a column of the item inventories, which is not what settles
+ * one of the lots.
+ *
+ * A `record:` on the lots is the item every lot is of, so it fixes the
+ * category with it. On the lines of the sets it is either record a line is
+ * of — see the join in [reach] — and a set named leaves its lines' categories
+ * as varied as they were, so here only `category:` itself settles that
+ * column. What a set named does settle is the set: see [namesOneSet].
+ */
+const INVENTORY_LINES_SETTLED_BY: SettledBy = {
+  record: [namesOneSet],
+  categoryName: ['category'],
+  color: ['colorid']
+}
+
+/**
+ * Whether the query names one set, and nothing but a set.
+ *
+ * A query naming an item reaches a line of the item inventories by either
+ * record it is of — see the join in [reach] — so what the `Set` column then
+ * says depends on which kind of item was named. A part named reaches the
+ * sets it is a line of, and the column is the whole answer; a set named
+ * reaches its own lines, every one of which is in that set, and the column
+ * is the one record repeated. A minifigure is both at once — its own parts
+ * and the sets it comes in — so only a set settles it: BrickLink's, `S-`,
+ * or one of their own, `U-`, which is a set of theirs the same way. The set
+ * is named either as its `record:` or as the `id:` a press writes, with the
+ * `type:` beside it saying which of the item's records is meant — the pair
+ * the lots read as an address too, see [namesItem].
+ */
+function namesOneSet(expr: string): boolean {
+  const record = pinnedValue(expr, 'record')
+  const type = record === undefined
+    ? pinsOneValue(expr, 'id') ? pinnedValue(expr, 'type') : undefined
+    : record.split('-')[0]
+  return type === 'S' || type === 'U'
 }
 
 /**
@@ -1352,10 +1404,16 @@ function pinsOneValue(expr: string, field: string): boolean {
  * because the query fixed it would leave nothing naming anything — the next
  * column carrying text takes the role instead.
  */
-function informative(columns: ColumnDef[], expr: string): ColumnDef[] {
+function informative(
+  columns: ColumnDef[],
+  expr: string,
+  settledBy: SettledBy = SETTLED_BY
+): ColumnDef[] {
   const kept = columns.filter((column) => {
-    const settling = column.key ? SETTLED_BY[column.key] : undefined
-    return !settling?.some((field) => pinsOneValue(expr, field))
+    const settling = column.key ? settledBy[column.key] : undefined
+    return !settling?.some((by) =>
+      typeof by === 'string' ? pinsOneValue(expr, by) : by(expr)
+    )
   })
   if (kept.length === columns.length || kept.some((column) => column.role === 'identity')) {
     return kept
@@ -2662,7 +2720,9 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       facets: [],
       tabs: [],
       samples: [],
-      columns: itemInventoryColumns,
+      // Less the set, once the query is one set's: see
+      // [INVENTORY_LINES_SETTLED_BY].
+      columns: informative(itemInventoryColumns, openExpr.value, INVENTORY_LINES_SETTLED_BY),
       sorts: [
         {
           key: 'type',

@@ -235,3 +235,58 @@ describe('the table the shell draws', () => {
     expect(text).toContain('Heavy playwear.')
   })
 })
+
+describe('every set\'s parts', () => {
+  it('drops the set column once the query is one set\'s, by its id', async () => {
+    // A set's home screen is read through `type:S id:979`, and every line
+    // it reaches is in that one set — the column is the set repeated.
+    const columns = await columnsOf('itemInventories', 'type:S id:979')
+    expect(columns).not.toContain('record')
+    expect(columns).toContain('name')
+    expect(columns).toContain('color')
+    expect(columns).toContain('quantity')
+  })
+
+  it('drops it under the set\'s record too, BrickLink\'s or their own', async () => {
+    const columns = await columnsOf('itemInventories', 'record:"S-6074-1"')
+    expect(columns).not.toContain('record')
+    // The lots' rule — a record pins its category — is not this table's: the
+    // record named is the set, and its lines are of every category.
+    expect(columns).toContain('categoryName')
+    expect(await columnsOf('itemInventories', 'record:"U-5"')).not.toContain('record')
+  })
+
+  it('still drops the category and colour the query pins outright', async () => {
+    const columns = await columnsOf('itemInventories', 'type:S id:979 category:5 colorid:11')
+    expect(columns).not.toContain('record')
+    expect(columns).not.toContain('categoryName')
+    expect(columns).not.toContain('color')
+    expect(columns).toContain('name')
+  })
+
+  it('keeps it when the query names a part', async () => {
+    // A part named reaches the sets it is a line of, which is what the
+    // column then answers.
+    expect(await columnsOf('itemInventories', 'type:P id:3001')).toContain('record')
+    expect(await columnsOf('itemInventories', 'record:"P-3001"')).toContain('record')
+  })
+
+  it('keeps it when the query names a minifigure', async () => {
+    // A minifigure is its own parts and the sets it comes in, both at once.
+    expect(await columnsOf('itemInventories', 'type:M id:120')).toContain('record')
+  })
+
+  it('keeps it when the id has no type beside it', async () => {
+    // Without the type the id may be a part's; the join reads the item's
+    // records, and this cannot.
+    expect(await columnsOf('itemInventories', 'id:979')).toContain('record')
+  })
+
+  it('keeps it when two sets are named', async () => {
+    expect(await columnsOf('itemInventories', 'record:"S-6074-1" OR record:"S-6073-1"')).toContain('record')
+  })
+
+  it('leaves the table alone with no query', async () => {
+    expect(await columnsOf('itemInventories')).toContain('record')
+  })
+})
