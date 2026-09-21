@@ -316,14 +316,31 @@ function namesItem(term: Term): boolean {
   return term.kind === 'field' && term.field === 'id' && term.comparator === ':' && !term.negated
 }
 
-/** The expression with the item's address lifted out, on every table but the items table's. */
+/** Whether a term is the `type:` that, beside an `id:`, says which of the item's records is meant. */
+function typesItem(term: Term): boolean {
+  return term.kind === 'field' && term.field === 'type' && term.comparator === ':' && !term.negated
+}
+
+/**
+ * The expression with the item's address lifted out, on every table but the
+ * items table's.
+ *
+ * The `type:` beside an `id:` goes with it — see `itemAddress` in the source,
+ * which reads the pair the same way. Left in, it was put to the rows of a
+ * type that carries a type of its own: every line of the set `type:S id:979`
+ * names is a part, so `type:S` matched none of them, and the card the join
+ * had just reached read nought. On its own `type:` stays a filter.
+ */
 function withoutItemAddress(entityKey: string, expression: Term[][]): Term[][] {
   if (entityKey === 'items') {
     return expression
   }
   // A group left empty constrains nothing, and matches every row — which is
   // right: a query that was only the item's address asks nothing of a colour.
-  return expression.map((group) => group.filter((term) => !namesItem(term)))
+  return expression.map((group) => {
+    const named = group.some(namesItem)
+    return group.filter((term) => !namesItem(term) && !(named && typesItem(term)))
+  })
 }
 
 /**

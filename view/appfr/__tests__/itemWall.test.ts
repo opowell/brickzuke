@@ -387,6 +387,17 @@ describe('the cards over them', () => {
     expect(lines.estimated).toBeFalsy()
   })
 
+  it('read the `type:` beside the `id:` as the item\'s, not the line\'s', async () => {
+    // The set's lines are parts: `type:S` put to them matched none.
+    const lines = await previewFor('itemInventories', 'type:S id:"100"')
+    expect(lines.count).toBe(1)
+    const variants = await previewFor('itemVariants', 'type:S id:"100"')
+    expect(variants.count).toBe(1)
+    // On its own it is still a filter: no line of these sets is a set.
+    const nested = await previewFor('itemInventories', 'type:S')
+    expect(nested.count).toBe(0)
+  })
+
   it('leave the items card off, that being the term in the header', async () => {
     const items = await previewFor('items', 'id:"30070"')
     expect(items.count).toBe(1)
