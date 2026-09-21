@@ -279,6 +279,15 @@ const OF_ITEM: Record<string, OfItem> = {
   }
 }
 
+/**
+ * The types a query naming an item answers through the item's lots — who
+ * sells it, where, in what condition — rather than off the item itself,
+ * which are the ones with lots worth fetching under such a query. The rest
+ * of {@link JOINED} are read off the item's own records, see [OF_ITEM],
+ * and need no lot at all.
+ */
+export const LOT_JOINED: readonly string[] = JOINED.filter((key) => !(key in OF_ITEM))
+
 /** Whether reading this type needs the item behind each lot as well as the lot. */
 function needsItems(entityKey: string): boolean {
   return ['items', 'categories', 'years'].includes(entityKey)

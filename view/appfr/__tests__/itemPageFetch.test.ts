@@ -39,6 +39,19 @@ const {
 const {
   useCatalogItemPageStore
 } = await import('../../stores/bricklink/catalog-item-page')
+const {
+  catalogSource
+} = await import('../catalogSource')
+const {
+  catalogSchema
+} = await import('../catalogSchema')
+const {
+  getDbConnection
+} = await import('../../../idb/idb')
+const {
+  putAll
+} = await import('../../../idb/db')
+const STORES = (await import('../../../idb/stores')).default
 
 /** The page as `handlePageResponse` reads it: the numeric id, the name, a colour. */
 function pageFor(number: string): string {
@@ -415,4 +428,107 @@ describe('the rest of a narrowed answer', () => {
   function byAskShort(url: string) {
     return /cond=N/.test(url) ? [lot(51, 'N'), lot(52, 'N')] : []
   }
+})
+
+describe('a table joined through the lots of an item whose page nobody has read', () => {
+  /** The sellers table streamed to its end: every page pushed, then closed. */
+  async function streamed(entityKey: string, expr: string): Promise<string[][]> {
+    const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)!
+    const pushes: string[][] = []
+    await new Promise<void>((resolve, reject) => {
+      const sink = {
+        open: true,
+        insert() {},
+        set(update: { rows?: { id: string }[] }) {
+          if (update.rows) {
+            pushes.push(update.rows.map((row) => row.id))
+          }
+        },
+        close() {
+          sink.open = false
+          resolve()
+        },
+        fail(error: unknown) {
+          sink.open = false
+          reject(error as Error)
+        }
+      }
+      catalogSource.stream(
+        {
+          query: {
+            entity: entityKey,
+            view: 'table',
+            sort: 'name',
+            dir: 'asc',
+            expr,
+            facets: {},
+            page: 1
+          },
+          schema: catalogSchema.value,
+          entity,
+          limit: 50,
+          offset: 0
+        },
+        sink
+      )
+    })
+    return pushes
+  }
+
+  it('fetches the lots the wall would have, and narrows to the sellers with one', async () => {
+    // Two sellers in the directory, and no lot of the brick stored on
+    // either's front: opened straight from the address bar, the join had
+    // nothing to read a seller off and the table was both of them. Now it
+    // asks the item's page, as the wall under the same query does, and the
+    // second push is the one seller the page names.
+    const db = await getDbConnection()
+    await putAll(db, STORES.STORE_COUNTRIES, [
+      {
+        countryCode: 'DE',
+        countryName: 'Germany',
+        regionId: 'Europe'
+      }
+    ])
+    await putAll(db, STORES.BRICK_LINK_STORES, [
+      {
+        id: 'store1',
+        name: 'Store 1',
+        countryID: 'DE'
+      },
+      {
+        id: 'store2',
+        name: 'Store 2',
+        countryID: 'DE'
+      }
+    ])
+    await putAll(db, STORES.BRICK_LINK_ITEMS, [
+      {
+        id: 'P-3040',
+        bzItemId: 3040,
+        itemType: 'P',
+        Name: 'Brick 3040',
+        Number: '3040'
+      }
+    ])
+    db.close()
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, [lot(1, 'N')])
+    const pushes = await streamed('stores', 'id:"3040"')
+    expect(pushes[0]).toEqual(['store1', 'store2'])
+    expect(pushes[pushes.length - 1]).toEqual(['store1'])
+    expect(extension.sent.filter((call) => call.includes('catalogitem.page'))).toHaveLength(1)
+  })
+
+  it('asks for nothing under a query naming no item', async () => {
+    extension = answering({
+      page: 10,
+      images: 10,
+      lots: 10
+    }, [])
+    expect(await streamed('stores', 'country:"DE"')).toEqual([['store1', 'store2']])
+    expect(extension.sent).toHaveLength(0)
+  })
 })

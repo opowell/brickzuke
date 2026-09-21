@@ -71,7 +71,7 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
-import { provideLots, reachFor, reaches, tallied, underJoin, type Tally } from './reach'
+import { LOT_JOINED, forgetReach, provideLots, reachFor, reaches, tallied, underJoin, type Tally } from './reach'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -2603,77 +2603,25 @@ export const catalogSource: DataSource = {
 
     const source = key ? fetched[key] : undefined
     if (source) {
-      /** Everything stored for this query, as the page the shell asked for. */
-      const push = async () => {
-        const all = await source.rows(request, true)
-        if (cancelled || !sink.open) return
-        // The address terms are this table's address rather than a filter
-        // over it, so the rows they fetched are not filtered by them again —
-        // but whatever else the query carries does narrow them.
-        const rows = await joined(all, request, addressesOf(source, request))
-        if (cancelled || !sink.open) return
-        sink.set({
-          rows: rows.slice(request.offset, request.offset + request.limit),
-          total: rows.length
-        })
-      }
-
-      /*
-       * A table that arrives over a minute rather than in one go.
-       *
-       * The first push is what is stored, which for a seller nobody has opened
-       * is the one page `storeLotsFor` fetched to have anything at all. The
-       * fill then works through the rest, and every page it lands bumps the
-       * version this watches — so the rows are read again and the shell is
-       * told the page as it now stands, count and pager included.
-       *
-       * The sink stays open for the whole of it, that being what the shell
-       * draws as pending, and the last push is made after the run rather than
-       * left to a watcher that would fire after the close.
-       */
-      const fill = source.fill?.(request)
-      const unwatch = fill && watch(fill.version, () => void push())
-      void (async () => {
-        try {
-          await push()
-          if (fill && !cancelled && sink.open) {
-            await fill.run()
-            await push()
-          }
-          sink.close()
-        } catch (thrown) {
-          sink.fail(thrown)
-        } finally {
-          unwatch?.()
-        }
-      })()
-      return () => {
-        cancelled = true
-        // The query changed or the shell went away, and page forty-one is now
-        // a request on nobody's behalf. What was fetched is stored, and the
-        // next visit picks up from it.
-        fill?.stop()
-        unwatch?.()
-      }
+      // The address terms are this table's address rather than a filter
+      // over it, so the rows they fetched are not filtered by them again —
+      // but whatever else the query carries does narrow them.
+      return streamHeld(
+        request,
+        sink,
+        async () => joined(await source.rows(request, true), request, addressesOf(source, request)),
+        source.fill?.(request) ?? namedLotsFillFor(key!, request)
+      )
     }
 
     const held = key ? rowsFor(key, getDbConnection) : undefined
     if (held) {
-      void held
-        .then(async (all) => {
-          if (cancelled || !sink.open) return
-          const rows = await joined(all, request)
-          if (cancelled || !sink.open) return
-          sink.set({
-            rows: rows.slice(request.offset, request.offset + request.limit),
-            total: rows.length
-          })
-          sink.close()
-        })
-        .catch((thrown) => sink.fail(thrown))
-      return () => {
-        cancelled = true
-      }
+      return streamHeld(
+        request,
+        sink,
+        async () => joined(await held, request),
+        namedLotsFillFor(key!, request)
+      )
     }
 
     // Nothing scans for a type with no rows behind it — part and colour codes
@@ -2777,6 +2725,123 @@ export const catalogSource: DataSource = {
     // Called when the query changes or the shell unmounts.
     return () => {
       cancelled = true
+    }
+  }
+}
+
+/**
+ * A table read whole, pushed as the page the shell asked for — and again as
+ * a fill behind it lands more.
+ *
+ * The first push is what is stored, which for a seller nobody has opened is
+ * the one page `storeLotsFor` fetched to have anything at all. The fill then
+ * works through the rest, and every page it lands bumps the version this
+ * watches — so the rows are read again and the shell is told the page as it
+ * now stands, count and pager included.
+ *
+ * The sink stays open for the whole of it, that being what the shell draws
+ * as pending, and the last push is made after the run rather than left to a
+ * watcher that would fire after the close.
+ */
+function streamHeld(
+  request: QueryRequest,
+  sink: QuerySink,
+  read: () => Promise<ShellRow[]>,
+  fill: Fill | undefined
+): () => void {
+  let cancelled = false
+  const push = async () => {
+    if (cancelled || !sink.open) return
+    const rows = await read()
+    if (cancelled || !sink.open) return
+    sink.set({
+      rows: rows.slice(request.offset, request.offset + request.limit),
+      total: rows.length
+    })
+  }
+  const unwatch = fill && watch(fill.version, () => void push())
+  void (async () => {
+    try {
+      await push()
+      if (fill && !cancelled && sink.open) {
+        await fill.run()
+        await push()
+      }
+      sink.close()
+    } catch (thrown) {
+      sink.fail(thrown)
+    } finally {
+      unwatch?.()
+    }
+  })()
+  return () => {
+    cancelled = true
+    // The query changed or the shell went away, and page forty-one is now
+    // a request on nobody's behalf. What was fetched is stored, and the
+    // next visit picks up from it.
+    fill?.stop()
+    unwatch?.()
+  }
+}
+
+/**
+ * The item's lots behind a table joined through them, fetched while the
+ * table is up — for a table opened on a query naming an item, in a session
+ * that has not read the item's page.
+ *
+ * A sellers table under `type:S id:979` is the sellers with the set, and it
+ * is the set's lots that say who they are — held for the session, not in
+ * IndexedDB, see [itemPageFetch]. Opened from the home screen the lots are
+ * there already, the wall's own fill having fetched them; opened from the
+ * address bar in a fresh session there are none, the join had nothing to
+ * read a seller off, and the table was every seller in the directory. So
+ * the table fetches what the wall would have: the page's lots, then the
+ * rest of them a page at a time — see [fetchNamedLots] — and is read again
+ * as each lands. The held walks are dropped first, a pass taken before the
+ * lots landed being the answer that was wrong.
+ *
+ * Nothing where the type is not joined through the lots, or the query names
+ * no item — and nothing said where the page never comes: the table says
+ * what the stored lots say, which is the floor it said before this was
+ * asked.
+ */
+function namedLotsFillFor(key: string, request: QueryRequest): Fill | undefined {
+  if (!LOT_JOINED.includes(key) || !namesItem(request)) {
+    return undefined
+  }
+  const version = ref(0)
+  let stopped = false
+  let running: Fill | undefined
+  const landed = () => {
+    forgetReach()
+    version.value++
+  }
+  return {
+    version,
+    stop() {
+      stopped = true
+      running?.stop()
+    },
+    async run() {
+      let lots: Fill | undefined
+      try {
+        lots = await fetchNamedLots(request.query.expr)
+      } catch {
+        return
+      }
+      if (!lots || stopped) {
+        return
+      }
+      landed()
+      running = lots
+      const unwatch = watch(lots.version, landed)
+      try {
+        await lots.run()
+      } catch {
+        // A later page never came: the table says what the pages that did.
+      } finally {
+        unwatch()
+      }
     }
   }
 }
