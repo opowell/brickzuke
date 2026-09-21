@@ -290,7 +290,7 @@ const plainTokens = {
 
       The one record-scoped narrow a row press used to make that no cell
       already covered — a bare press on a country, say — moved onto the cell
-      that names the record: see `narrowingTo` and `countryColumns`. No
+      that names the record: see `narrowToRecord` and `countryColumns`. No
       `@activate`, `rowPress="open"` reporting one only where nothing else
       offers a way in, and there being nowhere left brickzuke needs to route it.
     -->

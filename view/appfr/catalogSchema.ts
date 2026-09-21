@@ -123,11 +123,31 @@ export function narrowingTo(row: ShellRow): ((options?: PressOptions) => void) |
  * goes for the same reason — the type on the far side declares its own, and
  * the shell falls back to it when the URL names none.
  */
-export function narrowTo(entity: string | null, field: string, value: string) {
+export function narrowTo(
+  entity: string | null,
+  field: string,
+  value: string,
+  options: PressOptions = {}
+) {
   if (!value) {
     return
   }
-  openWith(entity, `${field}:"${value}"`)
+  openWith(entity, `${field}:"${value}"`, options)
+}
+
+/**
+ * The press a record's own name takes, on every table whose rows can be named:
+ * `Everything` narrowed to that record — and, with ⇧ or ⌘ held, `Everything`
+ * with that record left out. The screen goes to the whole catalogue either
+ * way, since what was pressed is the record itself and not a population it
+ * belongs to; the standing column beside the name is where the same three
+ * answers are given without leaving the table.
+ */
+export function narrowToRecord(
+  field: string,
+  value: string
+): (row: ShellRow, options?: PressOptions) => void {
+  return (row, options) => narrowTo(null, field, String(row.fields[value] ?? ''), options)
 }
 
 /**
@@ -155,8 +175,21 @@ export function openOn(entity: string, field: string, value: string) {
 }
 
 /**
- * Every term of `expr` added to `base`, each superseding whatever `base`
- * already says on that field rather than ANDing with it.
+ * Every term of `expr` turned round — what the same press states with ⇧ or ⌘
+ * held. `-country:"AT" -province:"AT-5"` for a province, since leaving a
+ * record out is leaving out every term that named it.
+ */
+function excludingTerms(expr: string): string {
+  return parseExpression(expr)
+    .flat()
+    .map((term) => excludingTerm(formatTerm(term)))
+    .filter((term) => term !== null)
+    .join(' ')
+}
+
+/**
+ * Every term of `expr` added to `base`, each positive one superseding whatever
+ * `base` already says on that field rather than ANDing with it.
  *
  * A record term names one record: `record:"S-10511-1"` kept from the last
  * press and `record:"S-43217-1"` stated by this one both together would ask
@@ -166,6 +199,12 @@ export function openOn(entity: string, field: string, value: string) {
  * of what it is handed, which is why a press stating two, like
  * `narrowToVariant`'s `record:` and `colorid:`, still needs each folded in on
  * its own rather than passed through in one call.
+ *
+ * A negated term supersedes nothing: `-record:"S-43217-1"` beside
+ * `-record:"S-10511-1"` is two records left out, which is what two presses
+ * leaving them out asked for. `addTerm` still turns the one term that named
+ * the same record the other way, so a record narrowed to and then left out
+ * is left out and not both.
  */
 function addTerms(base: string, expr: string): string {
   if (!base.trim()) {
@@ -173,7 +212,9 @@ function addTerms(base: string, expr: string): string {
   }
   const stated = parseExpression(expr).flat()
   const statedFields = new Set(
-    stated.map((term) => (term.kind === 'field' ? term.field : null)).filter((field) => field !== null)
+    stated
+      .map((term) => (term.kind === 'field' && !term.negated ? term.field : null))
+      .filter((field) => field !== null)
   )
   const kept = formatExpression(
     parseExpression(base).map((group) =>
@@ -198,14 +239,15 @@ function addTerms(base: string, expr: string): string {
  * narrowing — the same absence of `e` the home screen opens on, so pressing
  * back to a bucket's own name reads as coming from nowhere in particular.
  */
-function openWith(entity: string | null, expr: string) {
+function openWith(entity: string | null, expr: string, options: PressOptions = {}) {
   const params = new URLSearchParams(window.location.search)
   if (entity === null) {
     params.delete(PARAM_ENTITY)
   } else {
     params.set(PARAM_ENTITY, entity)
   }
-  params.set(PARAM_EXPR, addTerms(recordTerms(params.get(PARAM_EXPR) ?? ''), expr))
+  const stated = options.exclude ? excludingTerms(expr) : expr
+  params.set(PARAM_EXPR, addTerms(recordTerms(params.get(PARAM_EXPR) ?? ''), stated))
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
@@ -282,13 +324,13 @@ export function openType(entity: string) {
  * being one such population is what its own `year`, `category` and `type`
  * columns pivot to instead.
  */
-function narrowToItem(row: ShellRow) {
+function narrowToItem(row: ShellRow, options?: PressOptions) {
   const type = String(row.fields.type ?? '')
   const number = String(row.fields.itemId ?? '')
   if (!type || !number) {
     return
   }
-  narrowTo(null, 'name', `(${type}-${number})`)
+  narrowTo(null, 'name', `(${type}-${number})`, options)
 }
 
 /**
@@ -883,7 +925,7 @@ export const categoryColumns: ColumnDef[] = [
     component: CellUserText,
     width: '300px',
     sort: 'name',
-    click: (row) => narrowTo(null, 'category', String(row.fields.category ?? ''))
+    click: narrowToRecord('category', 'category')
   },
   priceModifierColumn
 ]
@@ -1050,7 +1092,7 @@ export const itemTypeColumns: ColumnDef[] = [
     // The type's own identity rather than a count, so it pivots to
     // `Everything` narrowed to it — the Items and Categories columns beside
     // it are what lead to those two populations.
-    click: (row) => narrowTo(null, 'type', String(row.fields.type ?? ''))
+    click: narrowToRecord('type', 'type')
   },
   {
     key: 'items',
@@ -1523,7 +1565,7 @@ export const conditionColumns: ColumnDef[] = [
     sort: 'name',
     // Its own identity, not the count beside it, so it pivots to `Everything`
     // narrowed to it rather than to the lots the Lots column counts.
-    click: (row) => narrowTo(null, 'condition', String(row.fields.condition ?? ''))
+    click: narrowToRecord('condition', 'condition')
   },
   {
     key: 'lots',
@@ -1566,7 +1608,7 @@ export const yearColumns: ColumnDef[] = [
     label: 'Year',
     width: '95px',
     sort: 'year',
-    click: (row) => narrowTo(null, 'year', String(row.fields.name ?? ''))
+    click: narrowToRecord('year', 'name')
   },
   {
     key: 'items',
@@ -1637,7 +1679,7 @@ export const regionColumns: ColumnDef[] = [
     // The region's own identity, not the count beside it, so it pivots to
     // `Everything` narrowed to it rather than to the countries the Countries
     // column counts.
-    click: (row) => narrowTo(null, 'region', String(row.fields.region ?? ''))
+    click: narrowToRecord('region', 'region')
   },
   {
     key: 'countries',
@@ -1665,12 +1707,10 @@ export const countryColumns: ColumnDef[] = [
     label: '#',
     width: '48px'
   },
-  // The flag and the name as one cell — see [CellFlag]. `narrowingTo` rather
-  // than a row press: rows stopped taking presses of their own once brickzuke
-  // moved the hand back onto the cells that lead somewhere, and this is the one
-  // cell whose whole job is leading to the record itself — `region:"Europe"`
-  // and all, on top of whatever the screen already asked. The count beside it
-  // narrows to the sellers instead.
+  // The flag and the name as one cell — see [CellFlag]. The one cell whose
+  // whole job is leading to the record itself — `Everything` narrowed to the
+  // country, `region:"Europe"` and all, on top of whatever record the screen
+  // already asked about. The count beside it narrows to the sellers instead.
   {
     key: 'name',
     role: 'identity',
@@ -1679,7 +1719,7 @@ export const countryColumns: ColumnDef[] = [
     component: CellFlag,
     width: '220px',
     sort: 'name',
-    click: (row, options) => narrowingTo(row)?.(options)
+    click: narrowToRecord('country', 'country')
   },
   {
     key: 'stores',
@@ -1733,7 +1773,7 @@ export const provinceColumns: ColumnDef[] = [
     // by country still does and the header names both. `Everything` rather
     // than the sellers table, being the province's own identity and not a
     // count of the sellers the Stores column already leads to.
-    click: (row) => openWith(null, provinceTerms(row))
+    click: (row, options) => openWith(null, provinceTerms(row), options)
   },
   {
     key: 'countryName',
@@ -1826,10 +1866,10 @@ export const storeColumns: ColumnDef[] = [
     label: 'Name',
     width: '220px',
     sort: 'name',
-    // This one seller, out of whatever is on screen. It narrows rather than
-    // states the term, so the country already asked about survives the press;
-    // the count beside it is the cell that leads out to the seller's lots.
-    click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
+    // This one seller: `Everything` narrowed to it, the country already asked
+    // about surviving the press as a record term does; the count beside it is
+    // the cell that leads out to the seller's lots.
+    click: narrowToRecord('store', 'store')
   },
   // What the seller has for sale, and the way through to it. `Items` and not
   // `Lots`: the directory prints a quantity — every brick counted one by one —
