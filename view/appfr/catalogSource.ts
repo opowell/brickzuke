@@ -431,33 +431,50 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
 }
 
 /**
- * Whether a term is an address: a plain `field:"…"`, naming one record.
+ * Whether a term has the shape of an address: a plain `field:"…"`, naming one
+ * record.
  *
  * The same term with a `-` in front of it is the opposite of an address — it
  * says which record the rows are *not* — so it is left to the matcher with
  * every other filter, and a source that reads `record:` as where to look reads
  * `-record:` as nowhere in particular.
  */
-function addresses(term: Term, field: string): term is FieldTerm {
+function names(term: Term, field: string): term is FieldTerm {
   return term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated
 }
 
 /**
- * What a `field:"…"` term names, read straight off the parsed expression.
+ * What a `field:"…"` term names, read straight off the parsed expression —
+ * where the expression holds exactly one on the field.
  *
  * Opening a record is one indexed lookup, not a scan — the index is keyed by
  * exactly this — so these sources read the term as an address rather than
- * filtering the whole catalogue down to it.
+ * filtering the whole catalogue down to it. Two such terms name two records,
+ * which the language reads as either of them (appfr 0.33.0: naming terms on
+ * one field are any-of) and no index is keyed by: so the field is then no
+ * address at all, the source reads the table as it would under no term, and
+ * the two terms stay in the matcher, which is what `addresses` says.
  */
 function termValue(request: QueryRequest, field: string): string | undefined {
-  for (const group of parseExpression(request.query.expr)) {
-    for (const term of group) {
-      if (addresses(term, field)) {
-        return term.value
-      }
-    }
-  }
-  return undefined
+  const found = parseExpression(request.query.expr)
+    .flat()
+    .filter((term) => names(term, field))
+  return found.length === 1 ? found[0].value : undefined
+}
+
+/**
+ * Whether `term` is the address the query gives `field`: the one term the
+ * source read as where to look, which the matcher then leaves alone — see
+ * [termValue]. Two terms on the field are neither of them the address, and
+ * both stay in the matcher as the alternatives they are.
+ *
+ * `id` is the exception: on every table but the items table's it names the
+ * item whose lots the query is about and is a filter on no row — see
+ * [itemAddress] — so however many the query holds, none of them is put to
+ * the rows.
+ */
+function addresses(request: QueryRequest, term: Term, field: string): boolean {
+  return names(term, field) && (field === 'id' || termValue(request, field) !== undefined)
 }
 
 /**
@@ -476,7 +493,9 @@ function matcherBesides(
   request: QueryRequest,
   ...addressed: string[]
 ): (row: ShellRow) => boolean {
-  return matcherWithout(request, (term) => addressed.some((field) => addresses(term, field)))
+  return matcherWithout(request, (term) =>
+    addressed.some((field) => addresses(request, term, field))
+  )
 }
 
 /**
@@ -501,7 +520,7 @@ function matcherOverLots(
   return matcherWithout(
     request,
     (term) =>
-      addressed.some((field) => addresses(term, field)) ||
+      addressed.some((field) => addresses(request, term, field)) ||
       (term.kind === 'field' && answered.includes(term.field))
   )
 }
@@ -1040,7 +1059,8 @@ const LOT_FIELDS = {
 function lotTerms(request: QueryRequest): Term[][] | undefined {
   const groups = parseExpression(request.query.expr).map((group) =>
     group.filter(
-      (term) => !['record', 'id', 'store', 'condition'].some((field) => addresses(term, field))
+      (term) =>
+        !['record', 'id', 'store', 'condition'].some((field) => addresses(request, term, field))
     )
   )
   return !groups.length || groups.some((group) => !group.length) ? undefined : groups

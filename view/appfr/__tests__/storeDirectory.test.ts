@@ -13,8 +13,29 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest'
 import { computed, effectScope, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { PARAM_ENTITY, PARAM_EXPR, useResults } from 'header-content-layout'
-import type { ShellQuery } from 'header-content-layout'
+import {PARAM_ENTITY,
+  PARAM_EXPR,
+  matchesExpression,
+  parseExpression,
+  useResults} from 'header-content-layout'
+import type { EntitySchema, ShellQuery } from 'header-content-layout'
+
+/** Whether the shell installed reads two naming terms on one field as any of them. */
+const anyOf = matchesExpression(
+  parseExpression('a:1 a:2'),
+  {
+    id: '',
+    entityKey: '',
+    entityLabel: '',
+    fields: {
+      a: 1
+    }
+  },
+  {
+    facets: [],
+    columns: []
+  } as unknown as EntitySchema
+)
 
 vi.mock('../../../model', async () => {
   const {
@@ -316,6 +337,22 @@ describe('stores', () => {
     })
     expect(rows.map((row) => row.fields.id).sort()).toEqual(['brickmeister', 'steinehaus'])
     expect(rows.every((row) => row.fields.region === 'Europe')).toBe(true)
+  })
+
+  it('reads two countries as either of them, and no longer as an address', async () => {
+    // `country:"DE" country:"US"` names no one country to look up, so the
+    // source reads every seller stored — the same read the un-narrowed table
+    // makes, asking BrickLink for nothing — and leaves both terms to the
+    // matcher, which reads two naming terms on one field as any of them
+    // (header-content-layout 0.33.0). Under the older shell, which ANDs
+    // them, the same read filters down to nothing; the test says which.
+    const rows = await rowsOf({
+      entity: 'stores',
+      expr: 'country:"DE" country:"US"'
+    })
+    expect(rows.map((row) => row.fields.id).sort()).toEqual(
+      anyOf ? ['brickmeister', 'bricksusa', 'buckeyebricks', 'steinehaus'] : []
+    )
   })
 
   it('shows what is stored when no country is named, and asks for nothing', async () => {

@@ -37,6 +37,7 @@ vi.mock('../../../model', async () => {
 
 const {
   categoryColumns,
+  itemInventoryColumns,
   itemTypeColumns
 } = await import('../catalogSchema')
 
@@ -63,21 +64,32 @@ async function press(columns: ColumnDef[], key: string, row: ShellRow, expr: str
 }
 
 beforeEach(async () => {
-  await router.replace({ path: '/', query: {} })
+  await router.replace({
+    path: '/',
+    query: {} 
+  })
 })
 
 const itemTypeRow: ShellRow = {
   id: '07',
   entityKey: 'itemTypes',
   entityLabel: 'Item types',
-  fields: { type: 'Part', items: 14000, categories: 855 }
+  fields: {
+    type: 'Part',
+    items: 14000,
+    categories: 855 
+  }
 }
 
 const categoryRow: ShellRow = {
   id: '748',
   entityKey: 'categories',
   entityLabel: 'Categories',
-  fields: { category: 748, name: 'Plate, Modified', items: 187 }
+  fields: {
+    category: 748,
+    name: 'Plate, Modified',
+    items: 187 
+  }
 }
 
 describe('pressing a cell that pivots to a different table', () => {
@@ -116,18 +128,40 @@ describe('pressing a cell that pivots to a different table', () => {
     })
   })
 
-  it('still replaces a term of its own field, rather than ANDing two values of it', async () => {
+  it('names a second record of its own field beside the first, on Everything', async () => {
     const row: ShellRow = {
       id: '05',
       entityKey: 'itemTypes',
       entityLabel: 'Item types',
-      fields: { type: 'Minifigure', items: 1300, categories: 181 }
+      fields: {
+        type: 'Minifigure',
+        items: 1300,
+        categories: 181 
+      }
     }
-    // A query already asking for one type pivoting to another states which
-    // type it means now — asking for both at once would find nothing.
+    // A record's own name opens Everything, where two types named are either
+    // of them — the same press the standing column's `+` makes. Only a type
+    // opened on a record replaces the one before it — see `addTerms`.
     expect(await press(itemTypeColumns, 'name', row, 'type:"Set"')).toEqual({
       entity: undefined,
-      expr: 'type:"Minifigure"'
+      expr: 'type:Set type:Minifigure'
+    })
+  })
+
+  it('still replaces a term of its own field where it opens a type on a record', async () => {
+    // The inventory table is opened on one set: an address is one lookup,
+    // and two sets named are no address at all.
+    const line: ShellRow = {
+      id: 'S-10001-1',
+      entityKey: 'itemInventories',
+      entityLabel: 'Item inventories',
+      fields: {
+        record: 'S-10001-1' 
+      }
+    }
+    expect(await press(itemInventoryColumns, 'record', line, 'record:"S-10511-1"')).toEqual({
+      entity: 'inventory',
+      expr: 'record:"S-10001-1"'
     })
   })
 

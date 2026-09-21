@@ -24,14 +24,15 @@ import { colorScopeVersion, readColorScope } from './colorItemsFetch'
  * `-field:"…"` names: that is the colour the table is *not* about.
  */
 function termValue(expr: string, field: string): string | undefined {
-  for (const group of parseExpression(expr)) {
-    for (const term of group) {
-      if (term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated) {
-        return term.value
-      }
-    }
-  }
-  return undefined
+  // Exactly one: two colours named are either of them, and the table is then
+  // no one colour's — the same reading the source makes of an address.
+  const found = parseExpression(expr)
+    .flat()
+    .filter(
+      (term) =>
+        term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated
+    )
+  return found.length === 1 ? found[0].value : undefined
 }
 
 /**

@@ -4,9 +4,9 @@
  * The name of a category, a country or a seller is the record itself and not
  * a count of anything, so pressing it opens `Everything` narrowed to that
  * record — and, with ⇧ or ⌘ held, `Everything` with that record left out.
- * What is left out accumulates, since two records left out is what two such
- * presses asked for; what is narrowed to supersedes, a record term naming
- * one record.
+ * Either accumulates: two records named on one field are either of them,
+ * and two left out are both left out, which is what two such presses asked
+ * for.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
@@ -135,14 +135,16 @@ describe('pressing a record by its name', () => {
     expect(query()[PARAM_EXPR]).toBe('-category:5')
     nameOf(categoryColumns).click!(category(5))
     await flushPromises()
-    expect(query()[PARAM_EXPR]).toBe('category:"5"')
+    expect(query()[PARAM_EXPR]).toBe('category:5')
   })
 
-  it('supersedes the record narrowed to, one record term naming one record', async () => {
+  it('narrows to a second record beside the first — either of them', async () => {
     await open('categories', 'category:"5"')
     nameOf(categoryColumns).click!(category(7))
     await flushPromises()
-    expect(query()[PARAM_EXPR]).toBe('category:"7"')
+    // Both through the shell's formatter, which quotes only where it must —
+    // the same text either way to the parse.
+    expect(query()[PARAM_EXPR]).toBe('category:5 category:7')
   })
 
   it('carries the region a country was found under across', async () => {

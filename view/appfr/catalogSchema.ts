@@ -188,17 +188,33 @@ function excludingTerms(expr: string): string {
 }
 
 /**
+ * Every term of `expr` added to `base`, beside whatever `base` already says
+ * on the field — what `Everything` is opened on, where two records named on
+ * one field are either of them. `addTerm` still turns the one term that
+ * named the same record the other way, and adds nothing twice.
+ */
+function besideTerms(base: string, expr: string): string {
+  if (!base.trim()) {
+    return expr
+  }
+  return parseExpression(expr)
+    .flat()
+    .reduce((acc, term) => addTerm(acc, formatTerm(term)), base)
+}
+
+/**
  * Every term of `expr` added to `base`, each positive one superseding whatever
- * `base` already says on that field rather than ANDing with it.
+ * `base` already says on that field rather than standing beside it.
  *
- * A record term names one record: `record:"S-10511-1"` kept from the last
- * press and `record:"S-43217-1"` stated by this one both together would ask
- * for a record that is two sets at once, a query that finds nothing rather
- * than the one this press is pointing at. So a field the new expression
- * states is dropped from `base` first — `addTerm` reads only the first term
- * of what it is handed, which is why a press stating two, like
- * `narrowToVariant`'s `record:` and `colorid:`, still needs each folded in on
- * its own rather than passed through in one call.
+ * A table opened on a record is opened on one: `record:"S-10511-1"` kept from
+ * the last press and `record:"S-43217-1"` stated by this one both together
+ * name two sets — either of them, as the language reads two terms on one
+ * field — and the inventory table can be opened on no such thing, an address
+ * being one indexed lookup. So a field the new expression states is dropped
+ * from `base` first — `addTerm` reads only the first term of what it is
+ * handed, which is why a press stating two, like `narrowToVariant`'s
+ * `record:` and `colorid:`, still needs each folded in on its own rather than
+ * passed through in one call.
  *
  * A negated term supersedes nothing: `-record:"S-43217-1"` beside
  * `-record:"S-10511-1"` is two records left out, which is what two presses
@@ -238,6 +254,11 @@ function addTerms(base: string, expr: string): string {
  * `entity` null is `Everything`: no type in force, the query alone doing the
  * narrowing — the same absence of `e` the home screen opens on, so pressing
  * back to a bucket's own name reads as coming from nowhere in particular.
+ * There the stated terms stand beside what the query already names on the
+ * field rather than superseding it: `category:"5" category:"7"` is the rows
+ * under either, and pressing a second category is asking for both, the same
+ * press the table's standing column makes with its `+`. A type opened on a
+ * record is opened on one — see `addTerms`.
  */
 function openWith(entity: string | null, expr: string, options: PressOptions = {}) {
   const params = new URLSearchParams(window.location.search)
@@ -247,7 +268,8 @@ function openWith(entity: string | null, expr: string, options: PressOptions = {
     params.set(PARAM_ENTITY, entity)
   }
   const stated = options.exclude ? excludingTerms(expr) : expr
-  params.set(PARAM_EXPR, addTerms(recordTerms(params.get(PARAM_EXPR) ?? ''), stated))
+  const kept = recordTerms(params.get(PARAM_EXPR) ?? '')
+  params.set(PARAM_EXPR, entity === null ? besideTerms(kept, stated) : addTerms(kept, stated))
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())

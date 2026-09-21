@@ -53,22 +53,16 @@ const record = computed(() => String(props.row.fields.record ?? ''))
 /** The expression the shell is showing, which is the one in the URL. */
 const expr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
 
-/** The one store a plain `store:"…"` term in the query names, if any. */
-const addressedStore = computed(() => {
-  for (const group of parseExpression(expr.value)) {
-    for (const term of group) {
-      if (
-        term.kind === 'field' &&
-        term.field === 'store' &&
-        term.comparator === ':' &&
-        !term.negated
-      ) {
-        return term.value
-      }
-    }
-  }
-  return undefined
-})
+/** The stores the plain `store:"…"` terms in the query name — any of them. */
+const addressedStores = computed(() =>
+  parseExpression(expr.value)
+    .flat()
+    .flatMap((term) =>
+      term.kind === 'field' && term.field === 'store' && term.comparator === ':' && !term.negated
+        ? [term.value]
+        : []
+    )
+)
 
 const count = computed(() => storeInventoryOf(record.value, expr.value))
 
@@ -81,7 +75,7 @@ const counting = computed(() => {
   if (!storeInventoriesReady()) {
     return true
   }
-  return Boolean(addressedStore.value && storeLotsPending(addressedStore.value))
+  return addressedStores.value.some((store) => storeLotsPending(store))
 })
 
 const title = computed(() => {
@@ -101,9 +95,9 @@ const title = computed(() => {
  */
 void ensureStoreInventories()
 watch(
-  addressedStore,
-  (store) => {
-    if (store) {
+  addressedStores,
+  (stores) => {
+    for (const store of stores) {
       ensureStoreLots(store)
     }
   },

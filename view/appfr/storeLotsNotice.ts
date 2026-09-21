@@ -21,14 +21,12 @@ import { readStoreScope, storeScopeVersion } from './storeLotsFetch'
 
 /** What a `field:"…"` term names, read straight off the expression. */
 function termValue(expr: string, field: string): string | undefined {
-  for (const group of parseExpression(expr)) {
-    for (const term of group) {
-      if (term.kind === 'field' && term.field === field && term.comparator === ':') {
-        return term.value
-      }
-    }
-  }
-  return undefined
+  // Exactly one: two sellers named are either of them, and the table is then
+  // no one seller's — the same reading the source makes of an address.
+  const found = parseExpression(expr)
+    .flat()
+    .filter((term) => term.kind === 'field' && term.field === field && term.comparator === ':')
+  return found.length === 1 ? found[0].value : undefined
 }
 
 /**
