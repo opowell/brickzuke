@@ -134,6 +134,17 @@ beforeAll(async () => {
       'Category ID': '37',
       'Category Name': 'Tile',
       'Year Released': '1995'
+    },
+    // And the set the tile is in, which is an item like any other.
+    {
+      id: 'S-100-1',
+      bzItemId: 100,
+      itemType: 'S',
+      Name: 'Tile Box',
+      Number: '100-1',
+      'Category ID': '1',
+      'Category Name': 'Basic',
+      'Year Released': '1996'
     }
   ])
   await putAll(db, STORES.STORE_LOTS, [
@@ -331,6 +342,17 @@ describe('the types about the item itself, lot or no lot', () => {
   it('are the sets the item is a line of', async () => {
     expect(await idsOf('itemInventories', 'id:"30070"')).toEqual(['S-100-1:P-3070'])
     expect(await idsOf('itemInventories', 'id:"30001"')).toEqual(['S-200-1:P-3001'])
+    expect(await idsOf('itemVariants', 'id:"30070"')).toEqual(['3070-5'])
+  })
+
+  it('are the parts of the item where the item is a set', async () => {
+    // A line is of two records, and a set named is reached through the other
+    // one: no set is a line of itself, and through `part` alone the card
+    // under a set was blank.
+    expect(await idsOf('itemInventories', 'type:S id:"100"')).toEqual(['S-100-1:P-3070'])
+    expect(await idsOf('itemInventories', 'record:"S-200-1"')).toEqual(['S-200-1:P-3001'])
+    expect(await idsOf('itemVariants', 'type:S id:"100"')).toEqual(['3070-5'])
+    expect(await countOf('itemInventories', 'record:"S-300-1"')).toBe(0)
   })
 
   it('are the lists that want it and the carts holding a lot of it', async () => {

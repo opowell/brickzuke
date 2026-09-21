@@ -179,6 +179,9 @@ function userLineFields(line: UserInventoryLine, colors: Map<string, string>): R
     own: true,
     record: line.record,
     part: line.part,
+    // As on a line of BrickLink's: the set it is in and the part it is, for
+    // the join in [reach] — see [inventoryFields].
+    records: [line.record, line.part].filter((record) => record !== undefined),
     type,
     itemId,
     name: line.name,

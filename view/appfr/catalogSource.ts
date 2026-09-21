@@ -27,7 +27,7 @@ import indices from '../../idb/indices'
 import dbStores from '../../idb/stores'
 import { inventoryFields, rowsFor } from './catalogRows'
 import type { StoredItemInventory } from '../stores/bricklink/catalog-item-inv-page'
-import { inventoryFor, readInventory } from './inventoryFetch'
+import { hasInventory, inventoryFor, readInventory } from './inventoryFetch'
 import { ensurePartCounts, partsOf } from './partCounts'
 import { ensureStoreInventories, storeInventoryOf } from './storeInventoryCounts'
 import { conditionCounts, conditionCountsVersion, ensureConditionCounts } from './conditionCounts'
@@ -175,9 +175,18 @@ function matcherFor(request: QueryRequest): (row: ShellRow) => boolean {
  * and one condition. The lots read it as what to fetch (see [namesItem]);
  * everything else reads it as nothing to narrow by, and the rest of the
  * expression still does.
+ *
+ * A `type:` beside the `id:` is part of the address: it says which of the
+ * item's records is meant — see [itemRecords] — and the join reads the type
+ * off those. Left in as a filter it was put to rows that carry a type of
+ * their own: a line of the set `type:S id:979` names is a part, so
+ * `type:S` matched no line of it. On its own `type:` stays a filter.
  */
 function itemAddress(request: QueryRequest): string[] {
-  return entityKey(request) === 'items' || entityKey(request) === null ? [] : ['id']
+  if (entityKey(request) === 'items' || entityKey(request) === null) {
+    return []
+  }
+  return termValue(request, 'id') === undefined ? ['id'] : ['id', 'type']
 }
 
 function sortValue(row: ShellRow, key: string): string | number {
@@ -2780,7 +2789,52 @@ export async function fetchNamedLots(expr: string): Promise<Fill | undefined> {
     return undefined
   }
   await storeInventoryRows(request, true)
-  return itemLotsFill(request)
+  return withNamedInventories(request, itemLotsFill(request))
+}
+
+/**
+ * The fill of an item's lots, with what the item is made of fetched beside
+ * them.
+ *
+ * A set's parts are the one thing about it that is not a bulk download: they
+ * are written when somebody opens the set, and a wall under `type:S id:979`
+ * is somebody opening it. Without this the Item inventories card stayed blank
+ * until the set's own Inventory table had been visited once. The parts go
+ * behind the lots rather than in front of them — a set BrickLink lists as
+ * empty, gear mostly, answers only by the deadline in [inventoryFetch], and
+ * the lots landing should not wait on that — so the fill is what carries
+ * them: its version ticks when they land, as it does when a page does, and
+ * the wall re-reads on either. Nothing for a part, which is made of nothing
+ * — see [hasInventory] — and nothing where the extension does not answer.
+ */
+function withNamedInventories(request: QueryRequest, lots: Fill): Fill {
+  const version = ref(0)
+  const unwatch = watch(lots.version, () => {
+    version.value++
+  })
+  return {
+    version,
+    stop() {
+      unwatch()
+      lots.stop()
+    },
+    async run() {
+      const parts = (async () => {
+        const records = (await itemRecords(request)).filter(hasInventory)
+        await Promise.all(
+          records.map(async (record) => {
+            try {
+              await inventoryFor(record)
+              version.value++
+            } catch {
+              // Asked, and nothing came: the card says what is stored.
+            }
+          })
+        )
+      })()
+      await Promise.all([lots.run(), parts])
+    }
+  }
 }
 
 /*

@@ -255,6 +255,10 @@ async function itemTypeRows(db: IDBPDatabase): Promise<ShellRow[]> {
  */
 export function inventoryFields(stored: StoredItemInventory): Record<string, unknown> {
   const variant = stored.itemVariant
+  // The part as a record — `P-3001` — which is what a lot names, and so what
+  // joins a line to the lots on offer of it. A line of somebody's own set
+  // carries the same field: see [userLineFields].
+  const part = `${variant.itemType}-${variant.itemId}`
   return {
     id: stored.id,
     record: stored.record,
@@ -263,10 +267,12 @@ export function inventoryFields(stored: StoredItemInventory): Record<string, unk
     type: variant.itemType,
     name: variant.name,
     itemId: variant.itemId,
-    // The part as a record — `P-3001` — which is what a lot names, and so
-    // what joins a line to the lots on offer of it. A line of somebody's own
-    // set carries the same field: see [userLineFields].
-    part: `${variant.itemType}-${variant.itemId}`,
+    part,
+    // Both records the line is of — the set it is in and the part it is —
+    // which is what a query naming an item reaches the line through: a set
+    // named is its own parts, a part named is the sets it is a line of. As
+    // on a list, not a column; see the join in [reach].
+    records: [stored.record, part],
     color: variant.colorName,
     // Lowercase because the parser lowercases a term's field, and a number
     // because `:` compares numbers exactly where it substring-matches strings
@@ -330,28 +336,34 @@ async function itemVariantRows(db: IDBPDatabase): Promise<ShellRow[]> {
   }
   return Array.from(variants.values()).map(({
     variant, records
-  }) => ({
-    id: variant.variantId,
-    entityKey: 'itemVariants',
-    entityLabel: 'Item variants',
-    fields: {
+  }) => {
+    const part = `${variant.itemType}-${variant.itemId}`
+    return {
       id: variant.variantId,
-      variant: variant.variantId,
-      image: variant.thumbnail,
-      type: variant.itemType,
-      name: variant.name,
-      itemId: variant.itemId,
-      // As on a line: the record a lot of this part names.
-      part: `${variant.itemType}-${variant.itemId}`,
-      color: variant.colorName,
-      colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
-      // See `inventoryFields` above: a number, not the string `catString`
-      // holds it as.
-      category: Number(variant.catString),
-      categoryName: variant.categoryName,
-      sets: records.size
+      entityKey: 'itemVariants',
+      entityLabel: 'Item variants',
+      fields: {
+        id: variant.variantId,
+        variant: variant.variantId,
+        image: variant.thumbnail,
+        type: variant.itemType,
+        name: variant.name,
+        itemId: variant.itemId,
+        // As on a line: the record a lot of this part names.
+        part,
+        // And as on a line, every record it is of: the part, and the sets it
+        // is a line of — so a set named reaches the variants in it.
+        records: [part, ...records],
+        color: variant.colorName,
+        colorid: variant.colorId === undefined ? undefined : Number(variant.colorId),
+        // See `inventoryFields` above: a number, not the string `catString`
+        // holds it as.
+        category: Number(variant.catString),
+        categoryName: variant.categoryName,
+        sets: records.size
+      }
     }
-  }))
+  })
 }
 
 const loaders: Record<string, (db: IDBPDatabase) => Promise<ShellRow[]>> = {

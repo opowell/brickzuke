@@ -236,12 +236,19 @@ const OF_ITEM: Record<string, OfItem> = {
     field: 'record',
     of: (record) => record
   },
+  /*
+   * A line is of two records — the set it is in and the part it is — and is
+   * reached by either: a set named is its own parts, a part named is the sets
+   * it is a line of. Through `part` alone a set reached nothing, no set being
+   * a line of itself. A variant the same way: the part, and the sets it is
+   * in. See [inventoryFields].
+   */
   itemInventories: {
-    field: 'part',
+    field: 'records',
     of: (record) => record
   },
   itemVariants: {
-    field: 'part',
+    field: 'records',
     of: (record) => record
   },
   /*
