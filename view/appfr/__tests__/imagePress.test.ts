@@ -77,7 +77,10 @@ const coloured = {
 // what a table's own first press is landing on, rather than what a previous
 // test in this file left the route holding.
 beforeEach(async () => {
-  await router.replace({ path: '/', query: {} })
+  await router.replace({
+    path: '/',
+    query: {}
+  })
 })
 
 describe('pressing a picture', () => {
@@ -91,7 +94,10 @@ describe('pressing a picture', () => {
     ]) {
       // Each table's press is independent of the last one's landing, the same
       // reason the suite itself starts clean.
-      await router.replace({ path: '/', query: {} })
+      await router.replace({
+        path: '/',
+        query: {}
+      })
       // Everything addressed by the item and narrowed to the colour, which
       // resolves to BrickLink's part-and-colour page: everyone selling that
       // brick in black.

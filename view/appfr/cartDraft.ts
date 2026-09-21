@@ -89,7 +89,10 @@ export async function targetLots(): Promise<ShellRow[]> {
 }
 
 function proposedEntry(row: ShellRow, mode: 'max' | 'none'): DraftEntry {
-  return { fields: row.fields, quantity: mode === 'max' ? availableOf(row.fields) : 0 }
+  return {
+    fields: row.fields,
+    quantity: mode === 'max' ? availableOf(row.fields) : 0
+  }
 }
 
 /**

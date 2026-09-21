@@ -286,7 +286,9 @@ describe('what ItemsShell hands the shell', () => {
   async function mounted(entity: string | null) {
     await router.replace({
       path: '/',
-      query: entity ? { [PARAM_ENTITY]: entity } : {}
+      query: entity ? {
+        [PARAM_ENTITY]: entity
+      } : {}
     })
     const shell = mount(ItemsShell, {
       global: {

@@ -61,7 +61,10 @@ async function press(entity: string, columns: ColumnDef[], key: string, row: She
 }
 
 beforeEach(async () => {
-  await router.replace({ path: '/', query: {} })
+  await router.replace({
+    path: '/',
+    query: {}
+  })
 })
 
 describe('pressing a related-entity cell a row already carries the field for', () => {
@@ -70,7 +73,11 @@ describe('pressing a related-entity cell a row already carries the field for', (
       id: '748',
       entityKey: 'categories',
       entityLabel: 'Categories',
-      fields: { typeId: 'P', name: 'Plate, Modified', items: 187 }
+      fields: {
+        typeId: 'P',
+        name: 'Plate, Modified',
+        items: 187
+      }
     }
     expect(await press('categories', categoryColumns, 'type', row, 'store:"Bunte Steinewelt"')).toEqual({
       entity: 'categories',
@@ -83,7 +90,11 @@ describe('pressing a related-entity cell a row already carries the field for', (
       id: 'DE',
       entityKey: 'countries',
       entityLabel: 'Countries',
-      fields: { region: 'Europe', name: 'Germany', stores: 120 }
+      fields: {
+        region: 'Europe',
+        name: 'Germany',
+        stores: 120
+      }
     }
     expect(await press('countries', countryColumns, 'region', row, 'stores>0')).toEqual({
       entity: 'countries',
@@ -96,7 +107,12 @@ describe('pressing a related-entity cell a row already carries the field for', (
       id: 'ON',
       entityKey: 'provinces',
       entityLabel: 'Provinces',
-      fields: { region: 'North America', countryName: 'Canada', name: 'Ontario', stores: 4 }
+      fields: {
+        region: 'North America',
+        countryName: 'Canada',
+        name: 'Ontario',
+        stores: 4
+      }
     }
     expect(await press('provinces', provinceColumns, 'region', row, 'country:"CA"')).toEqual({
       entity: 'provinces',
@@ -111,7 +127,11 @@ describe('pressing a related-entity cell a row already carries the field for', (
       id: '1',
       entityKey: 'inventories',
       entityLabel: 'Store inventories',
-      fields: { store: 'A brick per day', storeName: 'A brick per day...', priceValue: 23 }
+      fields: {
+        store: 'A brick per day',
+        storeName: 'A brick per day...',
+        priceValue: 23
+      }
     }
     expect(await press('inventories', storeInventoryColumns, 'storeName', row, 'type:P id:21674 region:Europe')).toEqual({
       entity: 'inventories',
