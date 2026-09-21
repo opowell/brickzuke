@@ -2641,6 +2641,11 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       // own bare name, which reads as nothing to a reader.
       scope: 'id',
       scopeLabel: 'item',
+      // And kept on this table's own list, where every other type's scope is
+      // lifted off it: the items under `id:979` are the set and its parts,
+      // not every item — see `itemAddress` in [catalogSource] and [OF_ITEM]
+      // in reach for how the source reads the term.
+      keepsScope: true,
       // The catalogue's count and theirs, this table listing both — and
       // reading `userCounts` is what rebuilds the schema after one of theirs
       // is written. See [userCounts].

@@ -26,9 +26,11 @@ import {addTerm,
   roleColumn,
   scopeTermFor} from 'header-content-layout'
 import type { ColumnDef, EntitySchema, PressOptions, ShellRow } from 'header-content-layout'
-import { getAllFromIndex } from '../../idb/db'
+import type { IDBPDatabase } from 'idb'
+import { get, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import indices from '../../idb/indices'
+import dbStores from '../../idb/stores'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 import { catalogSchema, counted, narrowTo, narrowToColor, narrowingTo } from './catalogSchema'
 import { catalogSource, sorted, storedRows } from './catalogSource'
@@ -342,6 +344,9 @@ function itemTile(row: ShellRow): PreviewTile {
   }
 }
 
+/** `bzItemId` is on the stored records and not on the interface — the gap the source reads through too. */
+type JoinedItem = BrickLinkItem & { bzItemId: number }
+
 /**
  * The items a query reaches through the lots, where it reaches them at all.
  *
@@ -366,26 +371,17 @@ async function reachedItems(shown: number, expr: string): Promise<Preview | unde
   if (!reach.values) {
     return undefined
   }
-  const wanted = [...reach.values]
   const db = await getDbConnection()
   try {
+    const items = await reachedRecords(db, reach)
     const rows: ShellRow[] = []
-    for (const id of wanted.slice(0, shown)) {
-      const records =
-        (await getAllFromIndex<BrickLinkItem>(
-          db,
-          indices.BRICK_LINK_ITEMS_BY_ITEM_ID,
-          Number(id)
-        )) ?? []
-      if (!records.length) {
-        continue
-      }
+    for (const [id, records] of [...items].slice(0, shown)) {
       rows.push({
-        id: String(id),
+        id,
         entityKey: 'items',
         entityLabel: 'Items',
         fields: {
-          id: String(id),
+          id,
           name: records[0].Name,
           record: records[0].id,
           image: records.find((record) => record.image)?.image
@@ -394,18 +390,61 @@ async function reachedItems(shown: number, expr: string): Promise<Preview | unde
     }
     return {
       kind: 'pictures',
-      count: reach.values.size,
+      count: items.size,
       // A floor like every other joined card: more lots reach more items —
       // unless the item was named, and the answer is the item.
       estimated: !reach.exact || undefined,
       // Named, it is the one item the query already says: the card would be
       // the header's own term drawn again, so it is left off — see [pinnedBy].
-      pinned: pinnedBy(expr, rows, reach.values.size),
+      pinned: pinnedBy(expr, rows, items.size),
       tiles: rows.map(itemTile)
     }
   } finally {
     db.close()
   }
+}
+
+/**
+ * The records of every item the join reached, by the item's id and in the
+ * join's order.
+ *
+ * Read through the lots the reach is item ids — see `THROUGH` in reach — and
+ * each is the indexed read of its records. Read off an item named it is
+ * records: the item's own and, for a set, its parts' — see `OF_ITEM` there
+ * — and a record is one get, folded onto the item it is one record of. The
+ * fold is what makes the count the table's: a set named without its type
+ * is three records of one line each, but a part in two of its records is
+ * one item, counted once.
+ */
+async function reachedRecords(
+  db: IDBPDatabase,
+  reach: Reach
+): Promise<Map<string, BrickLinkItem[]>> {
+  const items = new Map<string, BrickLinkItem[]>()
+  const wanted = [...(reach.values ?? [])]
+  if (reach.field === 'records') {
+    for (const record of wanted) {
+      const stored = await get<JoinedItem>(db, dbStores.BRICK_LINK_ITEMS, record)
+      if (!stored) {
+        continue
+      }
+      const id = String(stored.bzItemId)
+      items.set(id, [...(items.get(id) ?? []), stored])
+    }
+    return items
+  }
+  for (const id of wanted) {
+    const records =
+      (await getAllFromIndex<BrickLinkItem>(
+        db,
+        indices.BRICK_LINK_ITEMS_BY_ITEM_ID,
+        Number(id)
+      )) ?? []
+    if (records.length) {
+      items.set(String(id), records)
+    }
+  }
+  return items
 }
 
 /**

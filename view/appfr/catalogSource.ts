@@ -165,7 +165,7 @@ function matcherFor(request: QueryRequest): (row: ShellRow) => boolean {
 
 /**
  * The term that names an item, on every table where it is an address and not
- * a filter — which is every table but the items table's own.
+ * a filter — which is every table but the mixed one.
  *
  * `id:` is the items table's scope: what a press on an item writes, and what
  * the header reads back as `item: Plate 6 x 6` whichever table is in force.
@@ -176,6 +176,17 @@ function matcherFor(request: QueryRequest): (row: ShellRow) => boolean {
  * everything else reads it as nothing to narrow by, and the rest of the
  * expression still does.
  *
+ * On the items table too. The shell lifts a type's own scope off its list
+ * — every condition under `condition:N` — but the items table keeps it (see
+ * `keepsScope` in [catalogSchema]), because an item named is not one row:
+ * it is the item and what it is made of, and the items under `id:979` are
+ * the set and its parts. That is the join's answer, read off the set's
+ * records and the lines of its inventory — see `OF_ITEM` in reach — and the
+ * scan's own matcher has nothing to say to the term: put to the rows as a
+ * filter it kept the set and lost every part. Whatever else the query
+ * carries still narrows: `category:9` beside it is the set's parts in
+ * Castle, terms on different fields being an `and`.
+ *
  * A `type:` beside the `id:` is part of the address: it says which of the
  * item's records is meant — see [itemRecords] — and the join reads the type
  * off those. Left in as a filter it was put to rows that carry a type of
@@ -183,7 +194,7 @@ function matcherFor(request: QueryRequest): (row: ShellRow) => boolean {
  * `type:S` matched no line of it. On its own `type:` stays a filter.
  */
 function itemAddress(request: QueryRequest): string[] {
-  if (entityKey(request) === 'items' || entityKey(request) === null) {
+  if (entityKey(request) === null) {
     return []
   }
   return termValue(request, 'id') === undefined ? ['id'] : ['id', 'type']
@@ -298,6 +309,12 @@ async function scan(
 ): Promise<void> {
   const index = indices.BRICK_LINK_ITEMS_BY_ITEM_ID
   const expr = request.query.expr
+  // A set named is the set and its parts — see [itemAddress] — and the parts
+  // are stored only once somebody has opened the set. This is somebody
+  // opening it, so they are fetched first, as the wall fetches them: the
+  // join reads what is stored, and read before the fetch it was the set
+  // alone. See [namedInventories].
+  await namedInventories(request)
   // The items the rest of the query reaches through the lots — the ones
   // with a New lot in Europe, say — which a scan cannot read off any row:
   // see [joined]. Nothing is walked for a query the items answer alone.
@@ -2862,22 +2879,38 @@ function withNamedInventories(request: QueryRequest, lots: Fill): Fill {
       lots.stop()
     },
     async run() {
-      const parts = (async () => {
-        const records = (await itemRecords(request)).filter(hasInventory)
-        await Promise.all(
-          records.map(async (record) => {
-            try {
-              await inventoryFor(record)
-              version.value++
-            } catch {
-              // Asked, and nothing came: the card says what is stored.
-            }
-          })
-        )
-      })()
-      await Promise.all([lots.run(), parts])
+      await Promise.all([
+        lots.run(),
+        namedInventories(request, () => {
+          version.value++
+        })
+      ])
     }
   }
+}
+
+/**
+ * What the query's item is made of, fetched — for every record the item
+ * stands for that is made of anything, see [hasInventory]. `landed` is told
+ * of each one that comes. One that does not — a set BrickLink lists as
+ * empty, or an extension that does not answer — is left at what is stored,
+ * and the reader says that much. Nothing where the query names no item.
+ */
+async function namedInventories(request: QueryRequest, landed?: () => void): Promise<void> {
+  if (!namesItem(request)) {
+    return
+  }
+  const records = (await itemRecords(request)).filter(hasInventory)
+  await Promise.all(
+    records.map(async (record) => {
+      try {
+        await inventoryFor(record)
+        landed?.()
+      } catch {
+        // Asked, and nothing came: the reader says what is stored.
+      }
+    })
+  )
 }
 
 /*

@@ -222,9 +222,15 @@ interface OfItem {
 }
 
 const OF_ITEM: Record<string, OfItem> = {
+  /*
+   * The item itself, by its records — and its parts with it, see [andParts].
+   * An item's row carries every record it collapses, and a part of the set
+   * is one record on a line of its inventory, so the two are compared where
+   * a list's and a cart's are: on the records.
+   */
   items: {
-    field: 'id',
-    of: (_record, facts) => facts?.id
+    field: 'records',
+    of: (record) => record
   },
   categories: {
     field: 'category',
@@ -666,7 +672,8 @@ export async function reachFor(
   const ofItem = OF_ITEM[entityKey]
   const records = ofItem && lots?.records(expr)
   if (ofItem && records) {
-    return await ofItemNamed(ofItem, records)
+    const named = await ofItemNamed(ofItem, records)
+    return entityKey === 'items' ? await andParts(named, lots?.lines(expr)) : named
   }
   const lines = entityKey === 'colors' ? lots?.lines(expr) : undefined
   if (lines) {
@@ -751,7 +758,7 @@ async function ofItemNamed(ofItem: OfItem, records: Promise<string[]>): Promise<
   } catch {
     return UNCONSTRAINED
   }
-  const needsFacts = ['id', 'category', 'year'].includes(ofItem.field)
+  const needsFacts = ['category', 'year'].includes(ofItem.field)
   const facts = needsFacts ? await itemsBehind(new Set(named)) : new Map<string, ItemFacts>()
   const values = new Set<string>()
   for (const record of named) {
@@ -766,6 +773,43 @@ async function ofItemNamed(ofItem: OfItem, records: Promise<string[]>): Promise<
     field: ofItem.field,
     lots: 0,
     exact: true
+  }
+}
+
+/**
+ * The item and what it is made of — the items table under a query naming
+ * one.
+ *
+ * On every other table `id:979` says whose lots or whose facts the rows are
+ * about, and the item is no row of them. On the items table it is one row,
+ * and one row is not a list: what a reader opening a set wants under it is
+ * the set and its parts, which is what the set's own inventory table shows
+ * and what the wall's cards count. So the reach is the item's records — see
+ * [OF_ITEM] — and the record of every line of its inventory beside them.
+ * Exact, an inventory being stored whole or not at all; empty of parts for
+ * an item made of nothing, and for a set nobody has opened yet — the source
+ * fetches one before it scans, see `namedInventories` there.
+ */
+async function andParts(named: Reach, lines: Promise<ShellRow[]> | undefined): Promise<Reach> {
+  if (!named.values || !lines) {
+    return named
+  }
+  let made: ShellRow[]
+  try {
+    made = await lines
+  } catch {
+    return named
+  }
+  const values = new Set(named.values)
+  for (const line of made) {
+    const part = same(line.fields.part)
+    if (part) {
+      values.add(part)
+    }
+  }
+  return {
+    ...named,
+    values
   }
 }
 

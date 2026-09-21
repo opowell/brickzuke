@@ -392,6 +392,33 @@ describe('the types about the item itself, lot or no lot', () => {
   })
 })
 
+describe('the items table under an item', () => {
+  /** The items the scan finds under the query, by id — the table's own rows. */
+  async function itemsUnder(expr: string): Promise<string[]> {
+    return (await catalogSource.query(requestFor('items', expr))).rows.map((row) => row.id).sort()
+  }
+
+  it('is the set and its parts, the term being kept on this table', async () => {
+    expect(await itemsUnder('id:"100"')).toEqual(['100', '30070'])
+    expect(await itemsUnder('type:S id:"100"')).toEqual(['100', '30070'])
+    expect(await countOf('items', 'id:"100"')).toBe(2)
+  })
+
+  it('is the part alone where the item is made of nothing', async () => {
+    expect(await itemsUnder('id:"30070"')).toEqual(['30070'])
+  })
+
+  it('narrows those by whatever else the query says, a different field being an `and`', async () => {
+    expect(await itemsUnder('id:"100" category:37')).toEqual(['30070'])
+    expect(await itemsUnder('id:"100" category:1')).toEqual(['100'])
+    expect(await itemsUnder('id:"100" category:5')).toEqual([])
+  })
+
+  it('is nothing for an id the catalogue has no record of', async () => {
+    expect(await countOf('items', 'id:"999999"')).toBe(0)
+  })
+})
+
 describe('the cards over them', () => {
   it('say the number plainly where the item was read rather than its lots', async () => {
     const lists = await previewFor('shopLists', 'id:"30070"')
