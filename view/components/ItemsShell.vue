@@ -416,6 +416,18 @@ const plainTokens = {
 }
 
 /*
+ * Nor is a sign one. The `+ · −` over each row is three one-character
+ * buttons in a box the shell sizes at 1.5em a sign, and the column at three
+ * of those — so the eight pixels a word gets on each side pushed the box past
+ * its column, and the header, which clips, lost its `−`. Three pixels is what
+ * the shell gives them, and leaves the sign narrower than its 1.5em; the
+ * browser's edge, which stays, is why it is not `padding: 0`.
+ */
+.items-shell :deep(.dc-standing-control > button) {
+  padding: 3px;
+}
+
+/*
  * And no underline on the way past. That is a link's manner, and these are
  * buttons — they have edges to say what they are, which a link has not.
  */
