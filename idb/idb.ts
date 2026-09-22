@@ -5,6 +5,7 @@ import INDICES from './indices'
 import { createIndex, createStore } from './db'
 import { userCategoryRef } from './userCategory'
 import { userItemRecord } from './userItem'
+import { largerSetPicture } from '../view/stores/bricklink/itemPicture'
 
 const DB_NAME = 'brickzuke'
 // 19 adds COLOR_SCOPES, which says how much of a colour was fetched.
@@ -56,7 +57,11 @@ const DB_NAME = 'brickzuke'
 // 32 adds ITEM_IMAGES — the pictures of each item opened, which until now
 // lived only in memory and were fetched again on every reload. Made by the
 // loop below like any other and, being a copy of BrickLink's, safe to clear.
-const DB_VERSION = 32
+// 33 brings every stored set's picture up from the `.t2` thumbnail to the
+// normal size — see [itemPicture]. Rewritten in place rather than cleared:
+// the items are a copy of BrickLink's, but a copy of 199k rows that takes an
+// evening to download again, and the one field is derivable from the row.
+const DB_VERSION = 33
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -295,6 +300,31 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           }
         } catch (e) {
           console.log('Error filing price modifiers under a profile', e)
+        }
+      }
+      /*
+       * v33. A set stored before carries its `.t2` thumbnail, 160×120, and a
+       * view that draws pictures at their own size draws a set at that. The
+       * store is keyed by record — `S-10179-1` — so the sets are the one key
+       * range, and the walk is over them alone rather than every part.
+       */
+      if (oldVersion >= 1 && oldVersion < 33) {
+        try {
+          const items = transaction.objectStore(STORES.BRICK_LINK_ITEMS.name)
+          let cursor = await items.openCursor(IDBKeyRange.bound('S-', 'S-\uffff'))
+          while (cursor) {
+            const item = cursor.value as { image?: string }
+            const image = largerSetPicture(item.image)
+            if (image !== item.image) {
+              await cursor.update({
+                ...item,
+                image
+              })
+            }
+            cursor = await cursor.continue()
+          }
+        } catch (e) {
+          console.log('Error bringing set pictures up to size', e)
         }
       }
     },

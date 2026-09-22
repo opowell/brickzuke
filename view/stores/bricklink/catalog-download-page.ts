@@ -10,6 +10,7 @@ import { getDbConnection } from '../../../idb/idb'
 import stores, { type StoreDefinition } from '../../../idb/stores'
 import { get, getAll, put } from '../../../idb/db'
 import { BRICK_LINK_CATALOG } from './catalog-codes'
+import { itemPicture } from './itemPicture'
 
 export interface BrickLinkItem {
   image: string
@@ -429,11 +430,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
           out[header] = row[index]
         })
         out.id = itemKey(itemType, out.Number)
-        if (itemType === 'S') {
-          out.image = `https://img.bricklink.com/ItemImage/${itemType}T/0/${out.Number}.t2.png`
-        } else {
-          out.image = `https://img.bricklink.com/ItemImage/${itemType}L/${out.Number}.png`
-        }
+        out.image = itemPicture(itemType, out.Number)
         out.weight = out['Weight (in Grams)']
         out.categoryId = out['Category ID']
         // The columns come off a tab-separated download, so every field arrives
