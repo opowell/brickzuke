@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "BrickZuke",
-  "version": "1.4",
+  "version": "1.5",
   "icons": {
     "32": "images/32x32.png"
   },
   "host_permissions": [
     "https://*.bricklink.com/*",
-    "https://www.lego.com/api/"
+    "https://www.lego.com/*"
   ],
   "content_scripts": [
     {
@@ -27,5 +27,5 @@
     "scripting",
     "tabs"
   ],
-  "description": "Fetches and scrapes BrickLink catalog data on behalf of the BrickZuke web app."
+  "description": "Fetches and scrapes BrickLink catalog data, and LEGO.com prices, on behalf of the BrickZuke web app."
 }

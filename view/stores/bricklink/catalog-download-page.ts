@@ -114,7 +114,7 @@ export interface BrickLinkCategory {
   bzCategoryId: number
   'Category Name': string
 }
-function getOptions(itemType: string, viewType: number = 0) {
+export function getOptions(itemType: string, viewType: number = 0) {
   return {
     headers: {
       accept:

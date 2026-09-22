@@ -17,6 +17,7 @@ const indices: {
   BRICK_LINK_STORES_BY_COUNTRY: IndexDefinition
   STORE_LOTS_BY_STORE: IndexDefinition
   STORE_LOTS_BY_RECORD: IndexDefinition
+  ELEMENT_CODES_BY_RECORD: IndexDefinition
   USER_INVENTORY_LINES_BY_RECORD: IndexDefinition
   SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
   CART_LINES_BY_CART: IndexDefinition
@@ -100,6 +101,16 @@ const indices: {
    */
   STORE_LOTS_BY_RECORD: {
     store: stores.STORE_LOTS,
+    name: 'record',
+    keyPath: 'record'
+  },
+  /**
+   * Every LEGO element of one BrickLink part — `P-3001`, in every colour and
+   * every element number it has had. What asking LEGO for one part's price
+   * starts from: Pick a Brick is searched by element number.
+   */
+  ELEMENT_CODES_BY_RECORD: {
+    store: stores.ELEMENT_CODES,
     name: 'record',
     keyPath: 'record'
   },

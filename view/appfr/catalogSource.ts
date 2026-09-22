@@ -61,6 +61,7 @@ import {readAllStoreLots,
   storeLotsFill,
   storeLotsFor} from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
+import { legoLotsOf, legoSeller } from './legoLotsFetch'
 import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePolicyFetch'
 import type { StoredShippingMethod, StoredStorePolicy } from '../stores/bricklink/store-policy-page'
 import { ratesApplying, termsOf, withPostage } from './shopPostage'
@@ -838,7 +839,7 @@ async function directoryForRegion(request: QueryRequest): Promise<void> {
  */
 async function lotDirectory(records: Iterable<string> = []): Promise<LotDirectory> {
   const directory: LotDirectory = {
-    sellers: new Map((await readStores()).map((store) => [store.id, store])),
+    sellers: new Map(withLego(await readStores()).map((store) => [store.id, store])),
     countries: new Map((await readCountries()).map((one) => [one.countryCode, one])),
     categories: new Map(),
     asked: new Set()
@@ -1363,6 +1364,26 @@ function itemLotsFill(
 }
 
 /**
+ * Asks LEGO what it wants for one item, without waiting for the answer.
+ *
+ * Asked beside BrickLink's page of the item's lots rather than after it: it
+ * is one small request, and neither answer is a reason to wait for the other
+ * — a part's first ask waits in turn on BrickLink's element numbers, which
+ * are one large download. What it brings is stored among every other
+ * seller's lots, and the table is told to read them again. Once a session per
+ * item, however often the table reads — see [legoLotsOf].
+ */
+function askLego(record: string): void {
+  void legoLotsOf(record)
+    .then((lots) => {
+      if (lots) {
+        narrowedLotsVersion.value++
+      }
+    })
+    .catch(() => undefined)
+}
+
+/**
  * The lots on offer for the item a query names, or the ones a seller has, or
  * every lot loaded so far.
  *
@@ -1402,6 +1423,9 @@ async function storeInventoryRows(
   // and none at all for an id the catalogue has no record of, which is an
   // empty table rather than every lot stored.
   const records = named ? await itemRecords(request) : [undefined]
+  if (fetching && named) {
+    records.forEach((record) => record && askLego(record))
+  }
   // The narrowing is put to BrickLink where it can be — see [lotNarrowingOf]
   // — and what it cannot take is narrowed here as before, off the page.
   const lots = (
@@ -1769,12 +1793,25 @@ async function countryRows(request: QueryRequest, fetching = true): Promise<Shel
   return countries.map(toCountryRow)
 }
 
+/**
+ * BrickLink's sellers with LEGO among them, where LEGO has a shop in the Ship
+ * to country and the sellers are that country's or everybody's — see
+ * [legoSeller] for why it is joined here rather than stored with them.
+ */
+function withLego(stores: Store[], country?: string): Store[] {
+  const lego = legoSeller()
+  if (!lego || (country && country !== lego.countryID)) {
+    return stores
+  }
+  return [...stores, lego]
+}
+
 /** The sellers in the country a query names, or every one stored. */
 async function storeRows(request: QueryRequest, fetching = true): Promise<ShellRow[]> {
   const country = termValue(request, 'country')
   const stores = fetching ? await storesFor(country) : await readStores(country)
   const regions = await countryRegions()
-  return stores.map((store) => toStoreRow(store, regions))
+  return withLego(stores, country).map((store) => toStoreRow(store, regions))
 }
 
 /** What the sellers of one province add up to, before it is a row. */

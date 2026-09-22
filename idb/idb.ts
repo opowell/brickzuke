@@ -61,7 +61,10 @@ const DB_NAME = 'brickzuke'
 // normal size — see [itemPicture]. Rewritten in place rather than cleared:
 // the items are a copy of BrickLink's, but a copy of 199k rows that takes an
 // evening to download again, and the one field is derivable from the row.
-const DB_VERSION = 33
+// 34 adds ELEMENT_CODES — which BrickLink part and colour each LEGO element
+// number is — so that LEGO's own prices can be filed as lots. Made by the loop
+// below like any other and, being a copy of BrickLink's, safe to clear.
+const DB_VERSION = 34
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {

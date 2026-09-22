@@ -106,7 +106,7 @@ describe('making a set of theirs an item of theirs', () => {
     await writeOldShape()
 
     const db = await getDbConnection()
-    expect(db.version).toBe(33)
+    expect(db.version).toBe(34)
     const items = await loadUserItems(db)
     const set = items.find((item) => item.name === 'My MOC')!
     const piece = items.find((item) => item.name === 'Sprue offcut')!

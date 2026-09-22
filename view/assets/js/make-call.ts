@@ -28,6 +28,11 @@ import {handleStoreFrontResponse,
   type StoreItemsResponse} from '@/stores/bricklink/store-front-page'
 import { handleStorePolicyResponse, type StorePolicyResponse } from '@/stores/bricklink/store-policy-page'
 import { handleResponse as handleColorGuidePageResponse } from '../../../sources/bricklink/color-guide'
+import { handleElementCodesResponse } from '@/stores/bricklink/element-codes'
+import {handleLegoElementPageResponse,
+  handleLegoElementsResponse,
+  handleLegoProductResponse,
+  handleLegoSetPageResponse} from '@/stores/lego/lego-shop'
 import catalogTreePage from '@/stores/bricklink/catalog-tree-page'
 import catalogPage from './../../../sources/bricklink/catalog-page'
 export enum Call {
@@ -39,6 +44,9 @@ export enum Call {
   GET_COLOR_GUIDE_PAGE = 'https://v2.bricklink.com/en-us/catalog/color-guide',
   GET_CATALOG_PAGE = 'https://www.bricklink.com/catalog.asp',
   GET_CATALOG_DOWNLOAD_PAGE = 'https://www.bricklink.com/catalogDownload.asp',
+  // The same page as the one above, asked for one download of it and handled
+  // on its own — see [element-codes].
+  GET_ELEMENT_CODES = 'https://www.bricklink.com/catalogDownload.asp#codes',
   GET_CATALOG_TREE_PAGE = 'https://www.bricklink.com/catalogTree.asp',
   GET_CATALOG_ITEM_PAGE = 'https://www.bricklink.com/catalogitem.page',
   GET_CATALOG_ITEM_IMAGES = 'https://www.bricklink.com/ajax/renovate/catalog/getItemImageList.ajax',
@@ -55,6 +63,12 @@ export enum Call {
   // The one call here that changes something on BrickLink rather than reading
   // it — see `sendOnce`, and [cart-add] for the request.
   ADD_TO_CART = 'https://store.bricklink.com/ajax/clone/cart/add.ajax',
+  // LEGO's own shop, which is one more seller — see [lego-shop]. One endpoint
+  // answers all four, so they are told apart by what they ask.
+  GET_LEGO_PRODUCT = 'https://www.lego.com/api/graphql#product',
+  GET_LEGO_ELEMENTS = 'https://www.lego.com/api/graphql#elements',
+  GET_LEGO_ELEMENT_PAGE = 'https://www.lego.com/api/graphql#element-page',
+  GET_LEGO_SET_PAGE = 'https://www.lego.com/api/graphql#set-page',
 }
 
 /**
@@ -217,6 +231,26 @@ export function handleEvent(detail: EventDetail) {
       }
       case Call.GET_STORE_POLICY: {
         void handleStorePolicyResponse(detail as StorePolicyResponse)
+        return
+      }
+      case Call.GET_ELEMENT_CODES: {
+        void handleElementCodesResponse(detail)
+        return
+      }
+      case Call.GET_LEGO_PRODUCT: {
+        void handleLegoProductResponse(detail as Parameters<typeof handleLegoProductResponse>[0])
+        return
+      }
+      case Call.GET_LEGO_ELEMENTS: {
+        void handleLegoElementsResponse(detail as Parameters<typeof handleLegoElementsResponse>[0])
+        return
+      }
+      case Call.GET_LEGO_ELEMENT_PAGE: {
+        void handleLegoElementPageResponse(detail as Parameters<typeof handleLegoElementPageResponse>[0])
+        return
+      }
+      case Call.GET_LEGO_SET_PAGE: {
+        void handleLegoSetPageResponse(detail as Parameters<typeof handleLegoSetPageResponse>[0])
         return
       }
       case Call.GET_COLOR_GUIDE_PAGE: {

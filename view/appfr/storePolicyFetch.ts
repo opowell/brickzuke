@@ -19,6 +19,7 @@ import { get, getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
 import { storeIdFor } from './storeLotsFetch'
+import { isLegoStore } from './legoLotsFetch'
 
 /**
  * How long to wait before saying nothing is coming — the same budget a
@@ -94,6 +95,11 @@ const inFlight = new Map<string, Promise<StoredStorePolicy>>()
  * is what keeps every redraw of a table from being a request.
  */
 export function storePolicyFor(username: string): Promise<StoredStorePolicy> {
+  // LEGO's terms are on LEGO.com and are not a BrickLink policy; there is
+  // nothing of BrickLink's to ask for them.
+  if (isLegoStore(username)) {
+    return Promise.reject(new Error('LEGO.com states no shipping terms here.'))
+  }
   const running = inFlight.get(username)
   if (running) {
     return running

@@ -21,6 +21,7 @@ import {PAGE_SIZE,
   storeIds} from '../stores/bricklink/store-front-page'
 import type {StoredStoreLot,
   StoredStoreScope} from '../stores/bricklink/store-front-page'
+import { isLegoStore, legoFirstPage, legoStorePages, settleLegoShop } from './legoLotsFetch'
 import { fillPages } from './pageFill'
 import type { Fill } from './pageFill'
 import { get, getAll, getAllFromIndex } from '../../idb/db'
@@ -141,6 +142,12 @@ async function awaitStoreId(username: string): Promise<number> {
  * lots are read back by username, and by then nothing in memory knows the id.
  */
 export async function storeIdFor(username: string): Promise<number> {
+  // LEGO is a seller with no BrickLink front, and so no id to learn: asking
+  // BrickLink for `store.bricklink.com/LEGO.com` would be a request for a
+  // page that is not there, and whatever came back would be taken for one.
+  if (isLegoStore(username)) {
+    throw new Error('LEGO.com is not a BrickLink store.')
+  }
   const known = storeIds.get(username)
   if (known !== undefined) {
     return known
@@ -178,6 +185,10 @@ async function firstPage(username: string): Promise<StoredStoreLot[]> {
  * the run costs and what ends it.
  */
 export function storeLotsFill(username: string): Fill {
+  if (isLegoStore(username)) {
+    // Its own pages, on the same terms and reporting the same way.
+    return fillPages(legoStorePages(), storeScopeVersion)
+  }
   return fillPages(
     {
       async next() {
@@ -230,11 +241,20 @@ export function storeLotsFor(username: string): Promise<StoredStoreLot[]> {
     return running
   }
   const attempt = (async () => {
+    if (isLegoStore(username)) {
+      await settleLegoShop()
+    }
     const stored = await readStoreLots(username)
     if (stored.length) {
       return stored
     }
-    const fetched = await firstPage(username)
+    let fetched: StoredStoreLot[]
+    if (isLegoStore(username)) {
+      await legoFirstPage()
+      fetched = await readStoreLots(username)
+    } else {
+      fetched = await firstPage(username)
+    }
     // Bumped where a page landed and nowhere else. A read bumping it would be
     // read by the table as "there is more", and the table's answer to that is
     // to read again — which would bump it again.

@@ -21,6 +21,7 @@ import { getDbConnection } from '../../idb/idb'
 import { addToBrickLinkCart } from '../stores/bricklink/cart-add'
 import type { CartAddRefusal } from '../stores/bricklink/cart-add'
 import { storeIdFor } from './storeLotsFetch'
+import { LEGO_STORE } from '../stores/lego/lego-shop'
 
 /** How a hand-off stands: under way, done, or gone wrong. */
 export interface CartTransfer {
@@ -110,6 +111,16 @@ export function moveCartToBrickLink(cartId: number): Promise<void> {
     const bySeller = linesBySeller(lines)
     let added = 0
     const refused: CartAddRefusal[] = []
+    // LEGO's lots are bought on LEGO.com, and BrickLink's cart has no place
+    // for them. Said of each rather than left out in silence, so the report
+    // accounts for every line in the cart.
+    for (const line of bySeller.get(LEGO_STORE) ?? []) {
+      refused.push({
+        lotId: line.lotId,
+        reason: 'LEGO sells this on LEGO.com, not through BrickLink.'
+      })
+    }
+    bySeller.delete(LEGO_STORE)
     let sent = 0
     for (const [store, own] of bySeller) {
       report(cartId, {

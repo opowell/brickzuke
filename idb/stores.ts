@@ -25,6 +25,7 @@ const stores: {
   STORE_LOTS: StoreDefinition
   STORE_LOT_SCOPES: StoreDefinition
   STORE_POLICIES: StoreDefinition
+  ELEMENT_CODES: StoreDefinition
   USER_CATEGORIES: StoreDefinition
   USER_ITEMS: StoreDefinition
   USER_INVENTORY_LINES: StoreDefinition
@@ -189,6 +190,20 @@ const stores: {
   STORE_POLICIES: {
     name: 'storePolicies',
     keyPath: 'store'
+  },
+  /**
+   * Which BrickLink part and colour each LEGO element is: one record per
+   * element number — `300101` is a 2x4 brick in White, `P-3001` colour 1.
+   *
+   * The key between the two catalogues. LEGO sells a part by its element
+   * number and nothing else, and BrickLink numbers parts its own way — its
+   * `3070b` is LEGO's design `3070` — so a price off Pick a Brick is filed
+   * against a BrickLink record through this and no other way. BrickLink's own
+   * download, one file for every part there is; see [element-codes].
+   */
+  ELEMENT_CODES: {
+    name: 'elementCodes',
+    keyPath: 'code'
   },
   /*
    * The stores below are the ones nobody scraped.

@@ -180,6 +180,20 @@ describe('the hand-off', () => {
     )
   })
 
+  it('sends LEGO’s lots nowhere, and says each is bought on LEGO.com', async () => {
+    answers.set('steinehaus', allTaken)
+    const cartId = await cartOf(
+      lot('lego-S-10311-1', 'LEGO.com', 'Orchid'),
+      lot('101', 'steinehaus', 'Brick 2 x 4')
+    )
+    await moveCartToBrickLink(cartId)
+    expect(sent.map((s) => s.username)).toEqual(['steinehaus'])
+    const transfer = cartTransferOf(cartId)
+    expect(transfer?.state).toBe('failed')
+    expect(transfer?.text).toBe('Added 1 of 2 lots')
+    expect(transfer?.detail).toBe('Orchid, Red (LEGO.com): LEGO sells this on LEGO.com, not through BrickLink.')
+  })
+
   it('has nothing to send for an empty cart, and says so without a request', async () => {
     const cartId = await cartOf()
     await moveCartToBrickLink(cartId)

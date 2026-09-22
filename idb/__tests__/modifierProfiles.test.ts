@@ -63,7 +63,7 @@ describe('filing the price modifiers under a profile', () => {
     await writeOldShape()
 
     const db = await getDbConnection()
-    expect(db.version).toBe(33)
+    expect(db.version).toBe(34)
     const profiles = await loadPriceModifierProfiles(db)
     const all = await loadAllPriceModifiers(db)
 
