@@ -26,6 +26,7 @@
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
+import { cartQuantityOf } from './activeCart'
 import { draftQuantityOf, dropDraft, proposeOne } from './cartDraft'
 import { activeCart } from './settings'
 import { setCartQuantity } from './userWrites'
@@ -53,7 +54,19 @@ function shown(value: unknown): string {
   return value === undefined || value === null || value === '' ? '' : String(value)
 }
 
-const typed = ref(shown(props.value))
+/**
+ * What the cart holds of this lot now.
+ *
+ * Off the held lines rather than off `value`: the row was built with the
+ * figure the cart held then, and a write from this column does not rebuild
+ * the row — see [userRevision] for why not. The lines are refreshed on every
+ * write, so this is the figure after Apply, where `value` is the one before
+ * it; the box fell back to that and went blank over a line it had just
+ * written.
+ */
+const held = computed(() => cartQuantityOf(props.row.fields.id))
+
+const typed = ref(shown(held.value))
 
 /** The header's proposal for this lot, where it made one. */
 const proposed = computed(() => draftQuantityOf(props.row.fields.id))
@@ -64,7 +77,7 @@ const proposed = computed(() => draftQuantityOf(props.row.fields.id))
  * fall back to what the cart holds rather than keep the number it was showing.
  */
 watch(
-  [() => props.value, proposed],
+  [held, proposed],
   ([value, draft]) => {
     typed.value = draft === undefined ? shown(value) : String(draft)
   },
