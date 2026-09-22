@@ -38,6 +38,7 @@ import { get } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
+import { ITEM_FIELDS } from './itemFields'
 /**
  * Where the lots come from — handed in by the source rather than imported
  * from it, because the source applies this join to its own tables (see
@@ -101,6 +102,14 @@ const LOT_FIELDS = {
 interface Through {
   field: string
   of(lot: ShellRow, item: ItemFacts | undefined): unknown
+  /**
+   * Fields the type's rows do not carry but answer for themselves, so that a
+   * term on one is never put to the lots. The years: a year is counted off
+   * the items, and `type:"S"` narrows that count (see `scanYears` in the
+   * source) — put to the lots instead it was the years some stored lot of a
+   * set reaches, which is none, and the table read nought under it.
+   */
+  answers?: readonly string[]
 }
 
 /** The three things a lot's item says that the lot itself does not. */
@@ -161,7 +170,8 @@ const THROUGH: Record<string, Through> = {
   },
   years: {
     field: 'year',
-    of: (_lot, item) => item?.year
+    of: (_lot, item) => item?.year,
+    answers: ITEM_FIELDS
   },
   /*
    * And the ones a lot speaks for by way of who sells it and what it is of.
@@ -404,13 +414,20 @@ function vocabularyOf(entity: EntitySchema | undefined, rows: readonly ShellRow[
 /**
  * The terms this type cannot answer for itself, which are the ones worth
  * joining through the lots.
+ *
+ * `answered` are the fields the type answers without carrying — see
+ * {@link Through.answers}.
  */
 function foreignTerms(
   entity: EntitySchema | undefined,
   rows: readonly ShellRow[],
-  expr: string
+  expr: string,
+  answered: readonly string[] = []
 ): Term[][] {
   const carried = vocabularyOf(entity, rows)
+  for (const field of answered) {
+    carried.add(field.toLowerCase())
+  }
   return parseExpression(expr).map((group) =>
     group.filter(
       (term) => term.kind === 'field' && !carried.has(term.field.toLowerCase()) && !namesItem(term)
@@ -695,7 +712,7 @@ export async function reachFor(
   if (!through) {
     return UNCONSTRAINED
   }
-  const foreign = foreignTerms(entity, rows, expr)
+  const foreign = foreignTerms(entity, rows, expr, through.answers)
   const named = namedIn(expr)
   // No term to put to the lots and no lots named is a query this type
   // answers alone. An address on its own is not: `id:"21051"` filters no lot

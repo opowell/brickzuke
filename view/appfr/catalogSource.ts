@@ -7,7 +7,7 @@
  * cannot write the query someone just left over the one they are looking at.
  */
 import { ref, watch } from 'vue'
-import { matchesExpression, parseExpression } from 'header-content-layout'
+import { formatExpression, matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
   EntitySchema,
   FacetValue,
@@ -73,6 +73,7 @@ import {cartLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
 import { LOT_JOINED, forgetReach, provideLots, reachFor, reaches, tallied, underJoin, type Tally } from './reach'
+import { ITEM_FIELDS } from './itemFields'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
@@ -1958,11 +1959,63 @@ async function shippingCostRows(request: QueryRequest, fetching = true): Promise
  * one an item's first record states, which is exactly what the items table
  * shows in that column, so pressing a year lands on the number beside it.
  *
- * Held once. The catalogue changes when an update run rewrites it and not
- * while anyone is looking at it, so this is paid on the first press of Years
- * and never again.
+ * Held by what the pass was narrowed by — see [itemTermsOf] — and the
+ * un-narrowed one is the home screen's. The catalogue changes when an update
+ * run rewrites it and not while anyone is looking at it, so each is paid on
+ * the first press and never again.
  */
-let years: Promise<ShellRow[]> | undefined
+const years = new Map<string, Promise<ShellRow[]>>()
+
+/**
+ * The item's own vocabulary, as an entity the pass matches its rows through:
+ * a term resolves against the fields a row carries, and the join reads off
+ * these columns that every one of them is the item's to answer — see
+ * `vocabularyOf` in reach — so nothing in the pass is put to the lots.
+ */
+const ITEM_ROWS = {
+  key: 'items',
+  label: 'Items',
+  facets: [],
+  columns: ITEM_FIELDS.map((key) => ({
+    key
+  }))
+} as unknown as EntitySchema
+
+/**
+ * The terms of the query about the items themselves — `type:"S"`,
+ * `category:5`, `name:brick` — as the expression the years are counted
+ * under.
+ *
+ * The years are a count of items, so a term an item answers narrows the
+ * count: the years under `type:"S"` are the years a set came out in, each
+ * with how many. Every other term is a question about the lots — who sells
+ * something from that year, where, in what condition — and stays with the
+ * join, which reads it off the lots held and says `~` for the floor it is:
+ * see `answers` in reach, which reads the same list. A term that names an
+ * item is neither: `id:` is the item whose year is asked for, read off its
+ * records by the join, and the `type:` beside it says which record — the
+ * pair every table reads as an address, see [itemAddress].
+ *
+ * Empty where nothing narrows the items, which is the pass the home screen
+ * makes. An alternative left with no term in it matches every item, and so
+ * does the whole expression with it — the language's rule, and the one
+ * [matcherWithout] keeps.
+ */
+function itemTermsOf(request: QueryRequest): string {
+  const address = termValue(request, 'id') === undefined ? ['id'] : ['id', 'type']
+  const groups = parseExpression(request.query.expr).map((group) =>
+    group.filter(
+      (term) =>
+        term.kind === 'field' &&
+        ITEM_FIELDS.includes(term.field) &&
+        !address.some((field) => addresses(request, term, field))
+    )
+  )
+  if (groups.some((group) => !group.length)) {
+    return ''
+  }
+  return formatExpression(groups)
+}
 
 /**
  * How often the pass says how far it has got, in items.
@@ -1982,16 +2035,24 @@ const YEARS_REPORTED_EVERY = 5_000
  */
 export type YearProgress = (seen: number) => void
 
-function scanYears(report?: YearProgress): Promise<ShellRow[]> {
+function scanYears(expr: string, report?: YearProgress): Promise<ShellRow[]> {
   return (async () => {
     const db = await getDbConnection()
     const counts = new Map<string, number>()
     try {
       let seen = 0
-      // Every item, whatever the query says: the query narrows the years, not
-      // the catalogue they are counted from — a year stating how many items it
-      // holds must not restate the filter that is already on screen.
-      await scan(db, everything, (row) => {
+      // Every item the query's own terms about an item match — see
+      // [itemTermsOf] — so a year states how many of those it holds, which is
+      // the number the items table shows when the year is pressed. The rest of
+      // the query narrows the years afterwards, through the join, and is not
+      // restated here.
+      const under = {
+        query: {
+          expr
+        },
+        entity: ITEM_ROWS
+      } as unknown as QueryRequest
+      await scan(db, under, (row) => {
         const year = String(row.fields.year ?? '').trim()
         if (year) {
           counts.set(year, (counts.get(year) ?? 0) + 1)
@@ -2020,7 +2081,7 @@ function scanYears(report?: YearProgress): Promise<ShellRow[]> {
     }))
   })().catch((thrown) => {
     // A failed pass must not be the answer forever.
-    years = undefined
+    years.delete(expr)
     throw thrown
   })
 }
@@ -2040,17 +2101,26 @@ function yearRows(
   fetching = true,
   report?: YearProgress
 ): Promise<ShellRow[]> {
+  const expr = itemTermsOf(request)
   // The home screen runs one query per type every time it is drawn, and a
-  // summary card is no reason to walk two hundred thousand items. Once the
-  // table itself has been opened the answer is held, and the card is free.
-  if (!fetching && !years) {
+  // summary card is no reason to walk two hundred thousand items: un-narrowed,
+  // the card reads the count the home fill made (see [yearCount]), and once
+  // the table itself has been opened the answer is held, and the card is
+  // free. Narrowed, the pass is the answer and there is no other — the items
+  // card beside it walks the same catalogue under the same terms — so it is
+  // made whoever asks, and held for the next.
+  if (!fetching && !expr && !years.has(expr)) {
     return Promise.resolve([])
   }
   // The progress goes to whoever starts the pass and nobody else: it is one
   // pass however many asked for it, so a second caller arriving halfway
   // through is handed the held promise and hears nothing until it resolves.
-  years ??= scanYears(report)
-  return years
+  let held = years.get(expr)
+  if (!held) {
+    held = scanYears(expr, report)
+    years.set(expr, held)
+  }
+  return held
 }
 
 /**
@@ -2066,7 +2136,7 @@ export async function yearCount(report?: YearProgress): Promise<number> {
 
 /** Drops the held years, for when an update run has rewritten the catalogue. */
 export function forgetScannedRows() {
-  years = undefined
+  years.clear()
   regionByCountry = undefined
 }
 

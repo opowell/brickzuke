@@ -485,6 +485,35 @@ describe('years', () => {
     narrowed.scope.stop()
   }, 60_000)
 
+  it('counts the items the query describes, and drops the years with none', async () => {
+    // The seed alternates types by id and the years cycle by sixty, so a year
+    // holds sets or parts and never both: `type:"S"` is the thirty even years,
+    // each with every item it has. Put to the lots instead — the join's way
+    // with a term a year does not carry — it was the years a stored lot of a
+    // set reaches, which is none.
+    const {
+      state, scope 
+    } = runFor('years', {
+      expr: 'type:"S"' 
+    })
+    await settle(state)
+    expect(state.total.value).toBe(30)
+    const counts = state.rows.value.map((row) => Number(row.fields.items))
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(SEEDED / 2)
+    expect(state.rows.value.find((row) => row.fields.name === '1958')!.fields.items).toBe(84)
+    expect(state.rows.value.find((row) => row.fields.name === '1959')).toBeUndefined()
+    scope.stop()
+
+    // And the press still lands on the number beside the year: the type
+    // carries over, being a scope, so the items table is asked the same.
+    const narrowed = runStream({
+      expr: 'type:"S" year:"1958"' 
+    })
+    await settle(narrowed.state)
+    expect(narrowed.state.total.value).toBe(84)
+    narrowed.scope.stop()
+  }, 60_000)
+
   it('holds a year as a number, so the column sorts as years', async () => {
     const {
       state, scope 
