@@ -14,7 +14,8 @@ describe('the ship-to country', () => {
       'shipTo',
       'activeCart',
       'activeProfile',
-      'priceUnits'
+      'priceUnits',
+      'dynamicPageSizes'
     ])
   })
 

@@ -113,6 +113,23 @@ export function priceUnitsChosen(): PriceUnits {
   return priceUnits.value === 'euros' ? 'euros' : 'cents'
 }
 
+/**
+ * Whether a page is as long as the window is tall, or a fixed fifty rows.
+ *
+ * On, a table, a list or a wall of pictures shows exactly the rows that fit
+ * the results area, read off what is drawn — see [pageFit] — so nothing
+ * scrolls but a wide table sideways, and turning the page is the only way
+ * down. Off is the shell's own page: fifty rows whatever the window, and a
+ * scrollbar for the rest. A choice rather than a number because the number
+ * is the point: it is one nobody should have to pick.
+ */
+export const dynamicPageSizes = useStorage('brickzuke-dynamic-page-sizes', 'on')
+
+/** Whether the page is fitted — anything but an explicit `off` is. */
+export function dynamicPageSizesOn(): boolean {
+  return dynamicPageSizes.value !== 'off'
+}
+
 /** The key a picker setting holds, or nothing where it is blank or nonsense. */
 function idIn(setting: Ref<string>): number | undefined {
   const id = Number(setting.value)
@@ -258,6 +275,24 @@ export const SETTINGS: Setting[] = [
       {
         value: 'euros',
         label: 'EUROs'
+      }
+    ]
+  },
+  {
+    kind: 'choice',
+    key: 'dynamicPageSizes',
+    name: 'Dynamic page sizes',
+    detail:
+      'Whether a page is exactly as many rows as fit the window, so nothing scrolls but a wide table sideways — or a fixed fifty rows a page.',
+    value: dynamicPageSizes,
+    choices: [
+      {
+        value: 'on',
+        label: 'On'
+      },
+      {
+        value: 'off',
+        label: 'Off'
       }
     ]
   }

@@ -29,8 +29,12 @@
  * setting a size of its own on top.
  */
 import {DataShell,
+  PARAM_DIR,
   PARAM_ENTITY,
   PARAM_EXPR,
+  PARAM_PAGE,
+  PARAM_SORT,
+  PARAM_VIEW,
   ResultsArea,
   createVueRouterAdapter,
   isTypeCardsQuery,
@@ -38,7 +42,7 @@ import {DataShell,
   serializeQuery} from 'header-content-layout'
 import type { DataSource, EntitySchema, Selection, ShellQuery } from 'header-content-layout'
 import 'header-content-layout/style.css'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { refreshCount, refreshCounts } from '../appfr/catalogCounts'
 import { startHomeFill, stopHomeFill } from '../appfr/homeFill'
@@ -51,7 +55,8 @@ import { rememberType } from '../appfr/recentTypes'
 import { refreshUserCounts } from '../appfr/userCounts'
 import { createRecordFor, deleteRecordsFor, shopPartsOf, userRevision } from '../appfr/userWrites'
 import { cartSelection } from '../appfr/cartDraft'
-import { activeCart } from '../appfr/settings'
+import { activeCart, dynamicPageSizesOn } from '../appfr/settings'
+import { usePageFit } from '../appfr/pageFit'
 import { openOn } from '../appfr/catalogSchema'
 import HomeCards from '../appfr/HomeCards.vue'
 import { fillCategoryTypes } from '../appfr/categoryTypesFetch'
@@ -251,6 +256,45 @@ async function shopOpenSet() {
  */
 const cartTicks = computed(() => urlEntity.value === 'inventories' && activeCart.value !== '')
 
+/**
+ * How long a page is: as many rows as fill the window, read off what the shell
+ * draws under this element — see [pageFit] — while the setting says so and a
+ * type is on screen. The home screen draws no rows of the shell's, so there is
+ * nothing to fit, and it keeps the shell's own fifty.
+ *
+ * The key is the query and the window: a new one is a page fitted afresh, and
+ * anything the last page learned about what fits is let go with it. Only what
+ * the shell reads — not `appfr=1`, which is brickzuke's — so the fit is not
+ * begun again over a change that redraws nothing.
+ */
+const shellRoot = ref<HTMLElement | null>(null)
+const fitPages = computed(() => dynamicPageSizesOn() && urlEntity.value !== null)
+const windowSize = ref(`${window.innerWidth}x${window.innerHeight}`)
+const fitKey = computed(() => {
+  const query = router.currentRoute.value.query
+  const named = [PARAM_ENTITY, PARAM_VIEW, PARAM_EXPR, PARAM_SORT, PARAM_DIR, PARAM_PAGE].map(
+    (param) => String(query[param] ?? '')
+  )
+  return `${named.join('|')}@${windowSize.value}`
+})
+const fitView = computed(() => {
+  const query = router.currentRoute.value.query
+  return `${String(query[PARAM_ENTITY] ?? '')}|${String(query[PARAM_VIEW] ?? '')}`
+})
+const pageLimit = usePageFit(shellRoot, fitPages, fitKey, fitView)
+
+function noteWindowSize() {
+  windowSize.value = `${window.innerWidth}x${window.innerHeight}`
+}
+
+onMounted(() => {
+  window.addEventListener('resize', noteWindowSize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', noteWindowSize)
+})
+
 /* The populations the four standing user types are headed by, which are also
    what tells the shell to look again after one is written — see [userCounts]. */
 onMounted(() => {
@@ -279,7 +323,10 @@ const plainTokens = {
 
 <template>
   <!-- The shell fills the box it is given, so give it a height. -->
-  <div class="items-shell">
+  <div
+    ref="shellRoot"
+    class="items-shell"
+  >
     <!--
       `rowPress="open"`: appfr 0.21.0 made a row press narrow the whole result
       set to that record, which put two controls over one row — its own press,
@@ -301,6 +348,7 @@ const plainTokens = {
       theme="mono-size"
       :tokens="plainTokens"
       :defaults="shellDefaults"
+      :limit="pageLimit"
       :pages-note="pagesNote"
       :selectable="cartTicks"
       row-press="open"
