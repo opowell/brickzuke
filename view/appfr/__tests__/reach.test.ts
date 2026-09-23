@@ -40,10 +40,13 @@ const {
   previewFor
 } = await import('../catalogPreviews')
 const {
-  eachLot
+  catalogSource, eachLotRows
 } = await import('../catalogSource')
 const {
-  provideLots
+  catalogSchema
+} = await import('../catalogSchema')
+const {
+  provideLots, reachFor
 } = await import('../reach')
 
 // The source's own walk, counted on the way past: the join reads the lots
@@ -51,7 +54,7 @@ const {
 provideLots({
   each: (visit) => {
     counter.walks++
-    return eachLot(visit)
+    return eachLotRows(visit)
   },
   named: () => undefined,
   records: () => undefined,
@@ -348,11 +351,90 @@ describe('the walk behind the wall', () => {
     expect(counter.walks).toBe(1)
   })
 
+  it('is one for cards asking different questions of it at once', async () => {
+    // A region carries its own region, so all a region cannot answer is the
+    // quantity; a colour can answer neither. Two filters — which were two
+    // walks of every lot, side by side — ride the one walk.
+    counter.walks = 0
+    await Promise.all([
+      previewFor('colors', 'region:"Oceania" quantity>1'),
+      previewFor('regions', 'region:"Oceania" quantity>1')
+    ])
+    expect(counter.walks).toBe(1)
+  })
+
+  it('says what it has reached before it has finished', async () => {
+    // The picker's count: told the first chunk's worth as soon as it is read,
+    // and then the answer, which says no less.
+    const heard: string[] = []
+    const reach = reachFor('colors', 'region:"Europe" quantity>3', [], undefined, (partial) => {
+      heard.push(`partial ${[...partial.values!].join(',')} of ${partial.lots}`)
+    }).then((answer) => {
+      heard.push(`answer ${[...answer.values!].join(',')} of ${answer.lots}`)
+      return answer
+    })
+    const answer = await reach
+    expect(heard.length).toBeGreaterThanOrEqual(2)
+    expect(heard[0]).toMatch(/^partial /)
+    expect(heard.at(-1)).toBe(`answer ${[...answer.values!].join(',')} of 2`)
+    expect(answer.values!.size).toBe(1)
+  })
+
   it('is none at all for a type that answers the query itself', async () => {
     // A country carries its own region, so there is nothing to join and nothing
     // to walk — the card filters its own rows as it always did.
     counter.walks = 0
     await previewFor('countries', 'region:"Africa"')
     expect(counter.walks).toBe(0)
+  })
+})
+
+/** The picker's count of a type, with every word it says on the way. */
+async function counted(entityKey: string, expr: string): Promise<{ total: number; heard: number[] }> {
+  const heard: number[] = []
+  const entity = catalogSchema.value.entities.find((one) => one.key === entityKey)!
+  const result = await catalogSource.query({
+    query: {
+      entity: entityKey,
+      view: 'table',
+      sort: 'name',
+      dir: 'asc',
+      expr,
+      facets: {},
+      page: 1
+    },
+    schema: catalogSchema.value,
+    entity,
+    limit: 0,
+    offset: 0,
+    progress: (total) => heard.push(total)
+  })
+  return {
+    total: result.total,
+    heard
+  }
+}
+
+describe('the picker, counting through the join alone', () => {
+  it('counts the items a region reaches without scanning the catalogue', async () => {
+    // One lot in Europe, of one item — and the count said on the way is a
+    // floor under that, never over it.
+    const {
+      total, heard
+    } = await counted('items', 'region:"Europe" quantity>1')
+    expect(total).toBe(1)
+    expect(heard.every((floor) => floor <= total)).toBe(true)
+  })
+
+  it('counts the years a region reaches off the join, before any pass has held them', async () => {
+    // The German lot is of the 1978 brick; the Texan's of the 1995 plate.
+    expect((await counted('years', 'region:"Europe" quantity>1')).total).toBe(1)
+    expect((await counted('years', 'region:"Americas" quantity>1')).total).toBe(1)
+  })
+
+  it('still narrows the items by a term an item answers', async () => {
+    // `name:` is the item's own, so the join is half the answer and the scan
+    // the other half: the plate is in the Americas, not Europe.
+    expect((await counted('items', 'region:"Europe" name:"Plate"')).total).toBe(0)
   })
 })

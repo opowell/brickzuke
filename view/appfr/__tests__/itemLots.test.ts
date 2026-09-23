@@ -346,6 +346,13 @@ describe('the type picker, over a query naming an item', () => {
     expect(await countOf('conditions', 'type:P id:"21051"')).toBe(2)
   })
 
+  it('reads the lots for a condition count only where the query bounds them', async () => {
+    // Both conditions stand whatever the lots say, so a count is the query's
+    // `condition:` alone — until a term asks how many lots a condition is in,
+    // and no condition of one item has a thousand.
+    expect(await countOf('conditions', 'type:P id:"21051" lots>1000')).toBe(0)
+  })
+
   it('counts the one region the query names', async () => {
     expect(await countOf('regions', NARROWED)).toBe(1)
   })

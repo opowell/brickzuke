@@ -34,7 +34,6 @@
 import { formatExpression, matchesExpression, parseExpression } from 'header-content-layout'
 import type { EntitySchema, ShellRow } from 'header-content-layout'
 import type { Term } from 'header-content-layout'
-import { get } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
@@ -43,7 +42,8 @@ import { ITEM_FIELDS } from './itemFields'
  * Where the lots come from — handed in by the source rather than imported
  * from it, because the source applies this join to its own tables (see
  * `joined` there) and a module the source imports cannot import the source
- * back. `each` walks every lot held, a row at a time; `named` reads the lots
+ * back. `each` walks every lot held, a chunk at a time, for as long as the
+ * visitor answers that it should go on; `named` reads the lots
  * a query names — an item's, a seller's — as the lots table would show them,
  * or nothing where it names none. See [provideLots].
  */
@@ -55,7 +55,7 @@ import { ITEM_FIELDS } from './itemFields'
  * load is a schema naming a component that is not there yet.
  */
 export interface LotSource {
-  each(visit: (lot: ShellRow) => void): Promise<number>
+  each(visit: (lots: ShellRow[]) => boolean | Promise<boolean>): Promise<number>
   named(expr: string): Promise<ShellRow[]> | undefined
   /**
    * The records the query's item stands for — `P-3001` — or nothing where it
@@ -436,6 +436,30 @@ function foreignTerms(
 }
 
 /**
+ * Whether every term of the query is one the type puts to the lots — so that
+ * what the join reaches is the whole of the type's answer, and a count of it
+ * is the count of the type.
+ *
+ * Not where the query names lots (`id:`, `record:`, `store:`), nor where any
+ * term is one the type answers for itself, words included: those narrow the
+ * type's own rows as well, and the reach is then only half the question.
+ */
+export function reachedWhole(
+  entityKey: string,
+  expr: string,
+  rows: readonly ShellRow[],
+  entity?: EntitySchema
+): boolean {
+  const through = THROUGH[entityKey]
+  const parsed = parseExpression(expr)
+  if (!through || !parsed.length || namedIn(expr)) {
+    return false
+  }
+  const foreign = foreignTerms(entity, rows, expr, through.answers)
+  return parsed.every((group, at) => group.length > 0 && group.length === foreign[at]?.length)
+}
+
+/**
  * The catalogue records behind a set of lots, as the three facts a card needs.
  *
  * One point lookup per distinct record, in one connection: a lot names its
@@ -451,8 +475,16 @@ async function itemsBehind(records: ReadonlySet<string>): Promise<Map<string, It
   }
   const db = await getDbConnection()
   try {
-    for (const record of records) {
-      const item = await get<BrickLinkItem>(db, STORES.BRICK_LINK_ITEMS, record)
+    // Together, in one transaction, rather than one awaited after another: a
+    // pass read as it grows looks thousands up at a time, and each awaited on
+    // its own waits its turn behind everything else on the page.
+    const wanted = [...records]
+    const store = db.transaction(STORES.BRICK_LINK_ITEMS.name).store
+    const found = await Promise.all(
+      wanted.map((record) => store.get(record) as Promise<BrickLinkItem | undefined>)
+    )
+    for (const [at, item] of found.entries()) {
+      const record = wanted[at]
       if (!item) {
         continue
       }
@@ -546,8 +578,16 @@ interface Pass {
   direct: Map<string, Map<string, Tally>>
   /** The records the surviving lots named, for the three types that need them, each with its tally. */
   records: Map<string, Tally>
-  /** Those three resolved, once, and only if anybody asks. */
-  items?: Promise<Map<string, Map<string, Tally>>>
+  /**
+   * The catalogue's facts for the records looked up so far — null for a record
+   * it has none of — so a pass read again as it grows looks up only what is
+   * new since the last read. See [itemValues].
+   */
+  facts: Map<string, ItemFacts | null>
+  /** The lookup in hand, which the next one waits behind. */
+  looking?: Promise<void>
+  /** Whether every lot there is to walk has been — until then the tallies are a start. */
+  whole: boolean
 }
 
 /** One more lot against a value. */
@@ -574,6 +614,99 @@ function tally(into: Map<string, Tally>, value: string, lot: ShellRow | Tally): 
   into.set(value, held)
 }
 
+/** A pass with nothing in it yet. */
+function emptyPass(): Pass {
+  return {
+    lots: 0,
+    direct: new Map(LOT_DIRECT.map((key) => [key, new Map<string, Tally>()])),
+    records: new Map(),
+    facts: new Map(),
+    whole: false
+  }
+}
+
+/** Some lots put to a pass's filter, and every dimension read off the ones that pass it. */
+function admit(pass: Pass, foreign: Term[][], chunk: readonly ShellRow[]): void {
+  pass.lots += chunk.length
+  for (const lot of chunk) {
+    if (!matchesExpression(foreign, lot, LOT_FIELDS)) {
+      continue
+    }
+    for (const key of LOT_DIRECT) {
+      const value = same(THROUGH[key].of(lot, undefined))
+      if (value) {
+        tally(pass.direct.get(key)!, value, lot)
+      }
+    }
+    // Kept whatever was asked for: which types want it is not known here, and a
+    // set of record ids is small beside the lots that named them.
+    const record = same(lot.fields.record)
+    if (record) {
+      tally(pass.records, record, lot)
+    }
+  }
+}
+
+/**
+ * Told what a type reaches so far, while the walk behind it goes on — a floor
+ * that each call raises, until the answer `reachFor` settles on replaces it.
+ */
+export type ReachProgress = (partial: Reach) => void
+
+/**
+ * One filter being answered: the pass it is filling, and whoever is waiting
+ * to hear how far it has got.
+ */
+interface Rider {
+  foreign: Term[][]
+  pass: Pass
+  /** How many chunks of the lots it has been shown. */
+  seen: number
+  /** Told the pass after the chunks that grew it — see [tell]. */
+  listeners: Set<(pass: Pass) => void>
+  /** When the listeners were last told, so a walk tells them now and then rather than every chunk. */
+  told: number
+  done: Promise<Pass>
+  finish(pass: Pass): void
+  fail(thrown: unknown): void
+}
+
+/**
+ * The walk over every lot held, and every filter riding it.
+ *
+ * A pass was once a walk of its own, and a wall asking three different
+ * questions of the lots — what a colour cannot answer, what a region cannot,
+ * what a line of an inventory cannot — made three walks of half a million
+ * lots at once, each fighting the others and the lots table for the
+ * database, and none of their cards said anything for fifteen seconds. Now
+ * there is one walk, and a filter rides it: each chunk of lots it reads is
+ * put to every filter aboard before the next is read.
+ *
+ * A filter asked for while the walk is under way gets on where it is, and
+ * rides round to where it got on — the walk goes on into a second lap for
+ * as long as anybody aboard has lots still to see. Nobody waits for a walk
+ * to finish before theirs can start, and nobody's first chunk waits on
+ * anyone else's last.
+ */
+interface Walk {
+  riders: Rider[]
+  /** How many chunks make a whole lap, once the walk has made one. */
+  chunks?: number
+}
+
+/** The walk taking on riders — undefined when none is. */
+let walk: Walk | undefined
+
+/**
+ * How often a rider's listeners are told what it has so far, at most.
+ *
+ * The first chunk is told at once — the whole point is something on screen
+ * straight away — and after that a card redrawn every few chunks is a card
+ * whose number visibly climbs, where one redrawn every chunk is a hundred
+ * recounts of a table for a number nobody can read that fast.
+ */
+const TELL_EVERY_MS = 300
+
 /**
  * The passes in flight or done, by the query and the filter they answer.
  *
@@ -582,15 +715,38 @@ function tally(into: Map<string, Tally>, value: string, lot: ShellRow | Tally): 
  * for the walk the first one just made. Dropped when the fact table grows, which
  * is [forgetReach]'s job.
  */
-const passes = new Map<string, Promise<Pass>>()
+const passes = new Map<string, Rider>()
 
 /** Drops them, for when a fill has added lots and the answers are short. */
 export function forgetReach(): void {
   passes.clear()
+  // Whoever is aboard rides on to the end of what they asked; a question asked
+  // from here on is a new walk, over the lots as they now are.
+  walk = undefined
+}
+
+/** A rider on no walk: the lots a query names, read at once — see [lotsOver]. */
+function rider(foreign: Term[][]): Rider {
+  let finish!: (pass: Pass) => void
+  let fail!: (thrown: unknown) => void
+  const done = new Promise<Pass>((resolve, reject) => {
+    finish = resolve
+    fail = reject
+  })
+  return {
+    foreign,
+    pass: emptyPass(),
+    seen: 0,
+    listeners: new Set(),
+    told: 0,
+    done,
+    finish,
+    fail
+  }
 }
 
 /**
- * The lots one pass is over: the ones the query names, or every one held.
+ * The pass a filter over the lots a query names or over every lot held.
  *
  * A query naming an item or a seller — `id:`, `record:`, `store:` — is a
  * query about their lots, and those are the lots the lots table shows for
@@ -598,77 +754,164 @@ export function forgetReach(): void {
  * agrees with that table — the twenty-one lots it counts are the twenty-one
  * the colours are read off — and does not walk the whole fact table to
  * answer a question about one item of it. Nothing named is every lot held,
- * walked a row at a time.
+ * which is the walk.
  */
-function lotsOver(expr: string, visit: (lot: ShellRow) => void): Promise<number> {
+function lotsOver(expr: string, foreign: Term[][]): Rider {
+  const aboard = rider(foreign)
+  const named = lots?.named(expr)
   if (!lots) {
-    return Promise.resolve(0)
+    aboard.pass.whole = true
+    aboard.finish(aboard.pass)
+  } else if (named) {
+    named.then((rows) => {
+      admit(aboard.pass, foreign, rows)
+      aboard.pass.whole = true
+      aboard.finish(aboard.pass)
+    }, aboard.fail)
+  } else {
+    walk ??= startWalk()
+    walk.riders.push(aboard)
   }
-  const named = lots.named(expr)
-  if (!named) {
-    return lots.each(visit)
-  }
-  return named.then((rows) => {
-    rows.forEach(visit)
-    return rows.length
-  })
+  return aboard
 }
 
-/** One walk, filtered, collecting every dimension it can as it goes. */
-async function runPass(expr: string, foreign: Term[][]): Promise<Pass> {
-  const direct = new Map(LOT_DIRECT.map((key) => [key, new Map<string, Tally>()]))
-  const records = new Map<string, Tally>()
-  const lots = await lotsOver(expr, (lot) => {
-    if (!matchesExpression(foreign, lot, LOT_FIELDS)) {
-      return
-    }
-    for (const key of LOT_DIRECT) {
-      const value = same(THROUGH[key].of(lot, undefined))
-      if (value) {
-        tally(direct.get(key)!, value, lot)
+/**
+ * A walk, started a moment from now.
+ *
+ * The moment is for the cards asking in the same breath — the picker counts
+ * every type as it opens, the wall draws every card at once — so that they
+ * are all aboard for the first chunk rather than all but the first having to
+ * ride round a second lap.
+ */
+function startWalk(): Walk {
+  const started: Walk = {
+    riders: []
+  }
+  setTimeout(() => void run(started), 0)
+  return started
+}
+
+async function run(started: Walk): Promise<void> {
+  try {
+    while (started.riders.length) {
+      let chunks = 0
+      await lots!.each(async (chunk) => {
+        chunks++
+        for (const aboard of [...started.riders]) {
+          admit(aboard.pass, aboard.foreign, chunk)
+          aboard.seen++
+          if (started.chunks !== undefined && aboard.seen >= started.chunks) {
+            alight(started, aboard)
+          } else {
+            tell(aboard)
+          }
+        }
+        if (!started.riders.length) {
+          return false
+        }
+        // A turn for everything else between chunks — the table's own rows,
+        // a click — which is what lets the counts fill in behind the screen
+        // rather than in front of it.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        return true
+      })
+      // The first lap is the one that finds out how long a lap is. A rider
+      // aboard from its first chunk is done with it; one that got on later
+      // goes round again, as far as where it got on.
+      started.chunks ??= chunks
+      for (const aboard of [...started.riders]) {
+        if (aboard.seen >= started.chunks) {
+          alight(started, aboard)
+        }
       }
     }
-    // Kept whatever was asked for: which types want it is not known here, and a
-    // set of record ids is small beside the lots that named them.
-    const record = same(lot.fields.record)
-    if (record) {
-      tally(records, record, lot)
+  } catch (thrown) {
+    for (const aboard of started.riders) {
+      aboard.fail(thrown)
     }
-  })
-  return {
-    lots,
-    direct,
-    records
+    started.riders = []
+  } finally {
+    if (walk === started) {
+      walk = undefined
+    }
+  }
+}
+
+/** A rider that has seen every lot, off the walk with its answer. */
+function alight(from: Walk, aboard: Rider): void {
+  from.riders = from.riders.filter((other) => other !== aboard)
+  aboard.pass.whole = true
+  aboard.finish(aboard.pass)
+}
+
+/** Tells a rider's listeners what it has, where it has been a while since they last heard. */
+function tell(aboard: Rider): void {
+  const now = Date.now()
+  if (!aboard.listeners.size || (aboard.told && now - aboard.told < TELL_EVERY_MS)) {
+    return
+  }
+  aboard.told = now
+  for (const listener of aboard.listeners) {
+    listener(aboard.pass)
   }
 }
 
 /**
  * The three item-derived types, resolved from the records the pass collected.
  *
- * Lazy and held on the pass: a wall that draws them pays the lookups once
- * between the three, and one that draws none of them does not pay at all.
+ * Read as often as the pass is — a card counting categories hears of them
+ * every few chunks — so the lookups are kept on the pass and only the records
+ * new since the last read are looked up; one read waits behind another rather
+ * than both looking up the same records. The values themselves are summed
+ * afresh each time, being a pass over the records rather than the lots.
  */
-function itemValues(pass: Pass): Promise<Map<string, Map<string, Tally>>> {
-  pass.items ??= (async () => {
-    const values = new Map(ITEM_DERIVED.map((key) => [key, new Map<string, Tally>()]))
-    const behind = await itemsBehind(new Set(pass.records.keys()))
-    for (const [record, counted] of pass.records) {
-      const facts = behind.get(record)
-      if (!facts) {
-        continue
-      }
-      for (const key of ITEM_DERIVED) {
-        const value = same(THROUGH[key].of(EMPTY_LOT, facts))
-        if (value) {
-          // Summed across records: an item is one line over however many
-          // records, and its lots are the lots of all of them.
-          tally(values.get(key)!, value, counted)
-        }
+async function itemValues(pass: Pass): Promise<Map<string, Map<string, Tally>>> {
+  const looking = (pass.looking ?? Promise.resolve()).then(async () => {
+    const wanted = new Set([...pass.records.keys()].filter((record) => !pass.facts.has(record)))
+    const found = await itemsBehind(wanted)
+    for (const record of wanted) {
+      pass.facts.set(record, found.get(record) ?? null)
+    }
+  })
+  // A failed lookup is this read's failure, and not the next one's.
+  pass.looking = looking.catch(() => undefined)
+  await looking
+  const values = new Map(ITEM_DERIVED.map((key) => [key, new Map<string, Tally>()]))
+  for (const [record, counted] of pass.records) {
+    const facts = pass.facts.get(record)
+    if (!facts) {
+      continue
+    }
+    for (const key of ITEM_DERIVED) {
+      const value = same(THROUGH[key].of(EMPTY_LOT, facts))
+      if (value) {
+        // Summed across records: an item is one line over however many
+        // records, and its lots are the lots of all of them.
+        tally(values.get(key)!, value, counted)
       }
     }
-    return values
-  })()
-  return pass.items
+  }
+  return values
+}
+
+/**
+ * What a pass says of one type, as it stands.
+ *
+ * The direct types are copied rather than handed over: the walk goes on
+ * adding to the pass's own tallies, and a reach is a statement of how things
+ * stood when it was read.
+ */
+async function reachOf(entityKey: string, through: Through, pass: Pass): Promise<Reach> {
+  const counts = needsItems(entityKey)
+    ? (await itemValues(pass)).get(entityKey)
+    : new Map(pass.direct.get(entityKey))
+  const held = counts ?? new Map<string, Tally>()
+  return {
+    values: new Set(held.keys()),
+    counts: held,
+    field: through.field,
+    lots: pass.lots
+  }
 }
 
 /**
@@ -680,17 +923,22 @@ function itemValues(pass: Pass): Promise<Map<string, Map<string, Tally>>> {
  * than a filtered list of rows so that the caller can use it for the count as
  * well as for the tiles, those being read at different depths.
  *
- * The walk itself is shared with every other type asking the same question —
- * see [Pass]. One row at a time either way: a region runs to thousands of
- * sellers and a seller to thousands of lots, so the fact table is the one thing
- * here with no bound on it, and reading it into an array to filter the array is
- * how a laptop runs out of memory.
+ * The walk itself is shared with every other type asking of the lots, the
+ * same question or not — see [Walk]. One chunk at a time either way: a region
+ * runs to thousands of sellers and a seller to thousands of lots, so the fact
+ * table is the one thing here with no bound on it, and reading it into an
+ * array to filter the array is how a laptop runs out of memory.
+ *
+ * `progress` is told what the type reaches so far as the walk goes — the
+ * first chunk's worth at once, and more every few hundred milliseconds — for
+ * a caller with somewhere to put a number that is still climbing.
  */
 export async function reachFor(
   entityKey: string,
   expr: string,
   rows: readonly ShellRow[],
-  entity?: EntitySchema
+  entity?: EntitySchema,
+  progress?: ReachProgress
 ): Promise<Reach> {
   if (!expr.trim()) {
     return UNCONSTRAINED
@@ -726,28 +974,47 @@ export async function reachFor(
    *
    * A walk depends on which terms it filters by, on which lots it is over —
    * see [namedIn] — and on nothing about the reader's query beside that. So
-   * `region:"Europe"` and `region:"Europe" name:"brick"` share one walk when
+   * `region:"Europe"` and `region:"Europe" name:"brick"` share one pass when
    * the type in hand cannot answer `name` either: two questions, one thing
    * being asked of the lots.
    */
   const key = `${named}|${formatExpression(foreign)}`
-  let pass = passes.get(key)
-  if (!pass) {
-    pass = runPass(expr, foreign).catch((thrown) => {
-      // A failed walk must not be the answer forever.
-      passes.delete(key)
-      throw thrown
+  let aboard = passes.get(key)
+  if (!aboard) {
+    aboard = lotsOver(expr, foreign)
+    passes.set(key, aboard)
+    const asked = aboard
+    // A failed walk must not be the answer forever.
+    aboard.done.catch(() => {
+      if (passes.get(key) === asked) {
+        passes.delete(key)
+      }
     })
-    passes.set(key, pass)
+  }
+  const listener = progress && ((pass: Pass) => {
+    // Nothing read is nothing to say — see below.
+    if (pass.lots) {
+      void reachOf(entityKey, through, pass).then(progress, () => undefined)
+    }
+  })
+  if (listener && !aboard.pass.whole) {
+    aboard.listeners.add(listener)
+    // Aboard already and some way in: what it has is worth saying now rather
+    // than at the walk's next word.
+    listener(aboard.pass)
   }
   let walked: Pass
   try {
-    walked = await pass
+    walked = await aboard.done
   } catch {
     // The join is an enhancement over a card that already worked, so a failure
     // to read the fact table leaves that card exactly as it was rather than
     // blanking it — the same manners as the reads around it.
     return UNCONSTRAINED
+  } finally {
+    if (listener) {
+      aboard.listeners.delete(listener)
+    }
   }
   // No lots read is not the same claim as nothing on offer — the distinction
   // the conditions card already keeps. With none of the fact table in hand the
@@ -756,15 +1023,7 @@ export async function reachFor(
   if (!walked.lots) {
     return UNCONSTRAINED
   }
-  const counts =
-    (needsItems(entityKey) ? (await itemValues(walked)).get(entityKey) : walked.direct.get(entityKey)) ??
-    new Map<string, Tally>()
-  return {
-    values: new Set(counts.keys()),
-    counts,
-    field: through.field,
-    lots: walked.lots
-  }
+  return reachOf(entityKey, through, walked)
 }
 
 /**

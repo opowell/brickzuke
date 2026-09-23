@@ -17,7 +17,7 @@ import type { ShellRow } from 'header-content-layout'
 import { SETTINGS } from './settings'
 import { priceModifierOf } from './priceModifiers'
 import type { IDBPDatabase } from 'idb'
-import { getAll, getAllFromIndex } from '../../idb/db'
+import { getAll } from '../../idb/db'
 import { loadCategories } from '../../idb/category'
 import { userCategoryRef } from '../../idb/userCategory'
 import type { UserCategory, UserItem } from '../../idb/userTypes'
@@ -26,7 +26,6 @@ import {allUserInventoryLineRows,
   priceModifierProfileRows,
   shopListRows} from './userRows'
 import { itemTypeCode, loadItemTypes } from '../../idb/itemType'
-import indices from '../../idb/indices'
 import stores from '../../idb/stores'
 import type {BrickLinkColor,
   Color} from '../stores/bricklink/catalog-download-page'
@@ -159,11 +158,18 @@ async function categoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
 
 async function colorRows(db: IDBPDatabase): Promise<ShellRow[]> {
   const colors = (await getAll<Color>(db, stores.COLORS)) ?? []
+  // BrickLink's records of every colour at once, grouped here, rather than one
+  // index read per colour: two hundred reads awaited one after another were
+  // nine seconds of the picker's time whenever anything else was busy, each
+  // read waiting its turn behind the rest of the page.
+  const byColor = new Map<unknown, BrickLinkColor[]>()
+  for (const record of (await getAll<BrickLinkColor>(db, stores.BRICK_LINK_COLORS)) ?? []) {
+    const key = record.bzColorId
+    byColor.set(key, [...(byColor.get(key) ?? []), record])
+  }
   const rows: ShellRow[] = []
   for (const color of colors) {
-    const joined =
-      (await getAllFromIndex<BrickLinkColor>(db, indices.BRICK_LINK_COLORS_BY_COLOR_ID, color.id)) ??
-      []
+    const joined = byColor.get(color.id) ?? []
     const years = joined
       .flatMap((c) => [toNumber(c['Year From']), toNumber(c['Year To'])])
       .filter((year): year is number => year !== undefined && year > 0)

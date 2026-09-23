@@ -73,7 +73,16 @@ import {cartLineRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
 import { cartQuantityOf } from './activeCart'
-import { LOT_JOINED, forgetReach, provideLots, reachFor, reaches, tallied, underJoin, type Tally } from './reach'
+import {LOT_JOINED,
+  forgetReach,
+  provideLots,
+  reachFor,
+  reachedWhole,
+  reaches,
+  tallied,
+  underJoin,
+  type Reach,
+  type Tally} from './reach'
 import { ITEM_FIELDS } from './itemFields'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
 import {RATIO,
@@ -159,6 +168,47 @@ function toRow(itemId: number, brickLinkItems: JoinedItem[], expr: string): Shel
       weight: toWeight(first.weight),
       dimensions: raw.Dimensions
     }
+  }
+}
+
+/**
+ * How many items a query reaches through the lots alone — the type picker's
+ * `Items` under `region:"Europe"` — counted off the join rather than by the
+ * scan, or nothing where the scan is still the only way to say.
+ *
+ * A query whose every term is put to the lots asks nothing of an item but
+ * whether some lot reaches it, and the join has those in hand: every item a
+ * lot it walks is of, once. So the count is the join's, and somebody's own
+ * items beside it, those being rows of this table the lots can reach too. The
+ * scan read two hundred thousand items to arrive at the same number, and the
+ * picker's `Items` waited on it after the walk had finished. It also says the
+ * number as it climbs, which a scan behind a finished walk never could.
+ */
+async function itemsReached(request: QueryRequest): Promise<number | undefined> {
+  const expr = request.query.expr
+  // The entity [scan] hands the join, so both put the same terms to the lots.
+  const entity = request.entity ?? request.schema?.entities[0]
+  if (!reachedWhole('items', expr, [], entity)) {
+    return undefined
+  }
+  const told = request.progress
+  const reach = await reachFor(
+    'items',
+    expr,
+    [],
+    entity,
+    told && ((partial) => told(partial.values?.size ?? 0))
+  )
+  if (!reach.values) {
+    return undefined
+  }
+  const db = await getDbConnection()
+  try {
+    const own = matcherFor(request)
+    const mine = (await userItemRows(db)).filter((row) => own(row) && reaches(reach, row))
+    return reach.values.size + mine.length
+  } finally {
+    db.close()
   }
 }
 
@@ -1041,9 +1091,13 @@ const LOT_CHUNK = 5_000
  * hand a few round trips in rather than after a pass over the whole store —
  * which is what lets a table drawn from this show its first page while the
  * rest is still being read. The visitor answers whether to go on; a table
- * whose query has moved on says no. Returns how many were handed over.
+ * whose query has moved on says no. It may take its time answering, and the
+ * join's walk does, to let everything else a turn between chunks — see
+ * [reach]. Returns how many were handed over.
  */
-async function eachLotRows(visit: (rows: ShellRow[]) => boolean): Promise<number> {
+export async function eachLotRows(
+  visit: (rows: ShellRow[]) => boolean | Promise<boolean>
+): Promise<number> {
   let seen = 0
   const directory = await lotDirectory()
   const db = await getDbConnection()
@@ -1053,7 +1107,7 @@ async function eachLotRows(visit: (rows: ShellRow[]) => boolean): Promise<number
       await categoriesBehind(db, directory, held.map((lot) => `${lot.itemType}-${lot.itemNumber}`))
       const rows = held.map((lot) => toStoreInventoryRow(lot, directory))
       seen += rows.length
-      if (!visit(rows)) {
+      if (!(await visit(rows))) {
         return seen
       }
     }
@@ -1066,7 +1120,7 @@ async function eachLotRows(visit: (rows: ShellRow[]) => boolean): Promise<number
       await categoriesBehind(db, directory, batch.map((lot) => lot.record))
       const rows = batch.map((lot) => toStoreLotRow(lot, directory))
       seen += rows.length
-      if (!visit(rows) || batch.length < LOT_CHUNK) {
+      if (!(await visit(rows)) || batch.length < LOT_CHUNK) {
         return seen
       }
       range = IDBKeyRange.lowerBound(batch[batch.length - 1].id, true)
@@ -1681,6 +1735,17 @@ async function conditionRows(request: QueryRequest, fetching = true): Promise<Sh
    * session counted live beside them, there being few and already in hand.
    */
   if (namesItem(request) || termValue(request, 'store') || lotTerms(request)) {
+    // A count and no rows — the picker's `Conditions · 2`. The table states
+    // both conditions whatever the lots say, so how many there are turns on
+    // the query's own `condition:` alone, and reading every lot held to say
+    // `2` was three seconds of the picker's time. Unless the query bounds the
+    // lots a condition is in, which is a question only the lots can answer.
+    if (request.limit === 0 && !references(request.query.expr, 'lots')) {
+      return conditionRowsOf(false, () => ({
+        lots: 0,
+        quantity: 0
+      }))
+    }
     const lots = await storeInventoryRows(request, fetching, conditionNarrowingOf(request))
     const narrowed = lotsMatching(request, lots)
     return conditionRowsOf(lots.length > 0, (code) => {
@@ -2127,25 +2192,75 @@ function scanYears(expr: string, report?: YearProgress): Promise<ShellRow[]> {
     } finally {
       db.close()
     }
-    return Array.from(counts.entries()).map(([year, items]) => ({
-      id: year,
-      entityKey: 'years',
-      entityLabel: 'Years',
-      fields: {
-        id: year,
-        // A number, so the column sorts as years rather than as text and so a
-        // `year:` term compares exactly — the same two reasons every other
-        // addressable field here is one.
-        year: Number(year),
-        name: year,
-        items
-      }
-    }))
+    return Array.from(counts.entries()).map(([year, items]) => yearRow(year, items))
   })().catch((thrown) => {
     // A failed pass must not be the answer forever.
     years.delete(expr)
     throw thrown
   })
+}
+
+/** One year as a row, with how many items came out in it where that is known. */
+function yearRow(year: string, items?: number): ShellRow {
+  return {
+    id: year,
+    entityKey: 'years',
+    entityLabel: 'Years',
+    fields: {
+      id: year,
+      // A number, so the column sorts as years rather than as text and so a
+      // `year:` term compares exactly — the same two reasons every other
+      // addressable field here is one.
+      year: Number(year),
+      name: year,
+      items
+    }
+  }
+}
+
+/**
+ * The years a query reaches through the lots alone, read off the join rather
+ * than off a pass over the catalogue — see [yearRows].
+ *
+ * A query with no term an item answers asks nothing of the catalogue's years
+ * but which of them the lots reach, and the join has those in hand as it
+ * walks: `region:"Europe"` is the years some European lot's item came out
+ * in. The pass over two hundred thousand items was what the type picker's
+ * `Years` waited on, and what every count beside it waited behind. The rows
+ * have no count of items — the pass is what counts them, and the table,
+ * which fetches, still makes it.
+ *
+ * Where no lot is held the join says nothing, and the pass is the answer.
+ */
+async function reachedYears(request: QueryRequest): Promise<ShellRow[]> {
+  const expr = request.query.expr
+  const entity = request.entity ?? undefined
+  // What a year row carries, for the join to read the type's vocabulary off:
+  // the same rows [joined] is about to hand it, so both ask one question.
+  const shape = [yearRow('')]
+  const told = request.progress
+  const whole = reachedWhole('years', expr, shape, entity)
+  const reach = await reachFor(
+    'years',
+    expr,
+    shape,
+    entity,
+    told && whole ? (partial) => told(yearsOf(partial).length) : undefined
+  )
+  if (!reach.values) {
+    return yearRows(request, true)
+  }
+  return yearsOf(reach)
+}
+
+/**
+ * The years a reach names, as rows — the ones that are years. A record's
+ * `Year Released` is BrickLink's text, and one that is no number comes back
+ * from its row as some other number, which the reach then does not know: the
+ * pass drops it the same way, so the count on the way does too.
+ */
+function yearsOf(reach: Reach): ShellRow[] {
+  return [...(reach.values ?? [])].map((year) => yearRow(year)).filter((row) => reaches(reach, row))
 }
 
 /**
@@ -2173,12 +2288,11 @@ function yearRows(
   // made whoever asks, and held for the next.
   //
   // Narrowed is the query and not only its item terms. `region:"Europe"`
-  // leaves no term an item answers, so the pass it wants is the whole
-  // catalogue's — but the join narrows that to the years a European seller
-  // reaches, and handed nothing to narrow it read nought wherever the home
-  // screen had not been through first to hold the pass.
-  if (!fetching && !request.query.expr.trim() && !years.has(expr)) {
-    return Promise.resolve([])
+  // leaves no term an item answers, and handed no years to narrow the join
+  // read nought wherever the home screen had not been through first to hold
+  // the pass — so those are the years the join reaches.
+  if (!fetching && !expr && !years.has(expr)) {
+    return request.query.expr.trim() ? reachedYears(request) : Promise.resolve([])
   }
   // The progress goes to whoever starts the pass and nobody else: it is one
   // pass however many asked for it, so a second caller arriving halfway
@@ -2622,7 +2736,33 @@ async function joined(
     // so the lots have answered what a lot can, as they have below.
     return present(rows, request, matcherOverLots(request, addressed, LOT_TALLIES))
   }
-  const reach = await reachFor(key, request.query.expr, rows, request.entity ?? undefined)
+  // A count asked for with somewhere to say how far it has got — the picker's —
+  // is told as the lots come in: the rows the join reaches so far, put through
+  // the rest of the query exactly as the answer will be.
+  const told = request.progress
+  const reach = await reachFor(
+    key,
+    request.query.expr,
+    rows,
+    request.entity ?? undefined,
+    told && ((partial) => {
+      void throughReach(rows, request, addressed, key, partial).then(
+        (kept) => told(kept.length),
+        () => undefined
+      )
+    })
+  )
+  return throughReach(rows, request, addressed, key, reach)
+}
+
+/** The rows a reach leaves standing, with its counts written on and the rest of the query put to them — see [joined]. */
+function throughReach(
+  rows: readonly ShellRow[],
+  request: QueryRequest,
+  addressed: readonly string[],
+  key: string,
+  reach: Reach
+): Promise<ShellRow[]> {
   if (!reach.values) {
     return present(rows, request, matcherBesides(request, ...addressed), addressed)
   }
@@ -2776,6 +2916,45 @@ function streamLots(request: QueryRequest, sink: QuerySink): () => void {
 }
 
 /**
+ * How many lots the query matches, over every lot held — the type picker's
+ * `Store inventories` — counted by the same walk the table makes, and said
+ * as it climbs.
+ *
+ * It used to be read the way a query over a handful of lots is: every stored
+ * lot at once, each made a row, the category behind every record looked up —
+ * six hundred thousand rows and seventy thousand lookups, all before any
+ * count in the picker could say anything, since each waited its turn behind
+ * them. The walk holds a chunk at a time and the table's own count is the
+ * one it agrees with, being the same walk.
+ */
+function countLots(request: QueryRequest): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let total = 0
+    let told = 0
+    streamLots(request, {
+      open: true,
+      insert() {},
+      set(update) {
+        if (update.total === undefined) {
+          return
+        }
+        total = update.total
+        const now = Date.now()
+        if (now - told >= TELL_LOTS_EVERY_MS) {
+          told = now
+          request.progress?.(total)
+        }
+      },
+      close: () => resolve(total),
+      fail: reject
+    })
+  })
+}
+
+/** How often [countLots] says how far it has got — the join's own pace, see [reach]. */
+const TELL_LOTS_EVERY_MS = 300
+
+/**
  * How the walk over every lot puts a price ratio on them — see [streamLots].
  *
  * A store's price is read before the walk, and every lot has its ratio as it
@@ -2900,6 +3079,14 @@ export const catalogSource: DataSource = {
       }
     }
 
+    if (key === 'inventories' && request.limit === 0 && !namesItem(request) && !termValue(request, 'store')) {
+      return {
+        rows: [],
+        total: await countLots(request),
+        unfiltered
+      }
+    }
+
     const source = key ? fetched[key] : undefined
     if (source) {
       // Reads only: the home screen runs one of these per type every time it
@@ -2927,6 +3114,17 @@ export const catalogSource: DataSource = {
       return {
         rows: [],
         total: 0,
+        unfiltered
+      }
+    }
+
+    const reached = request.limit === 0 && !activeRanges(request).length
+      ? await itemsReached(request)
+      : undefined
+    if (reached !== undefined) {
+      return {
+        rows: [],
+        total: reached,
         unfiltered
       }
     }
@@ -3351,7 +3549,7 @@ async function namedInventories(request: QueryRequest, landed?: () => void): Pro
  * tables — handed over rather than imported both ways. See [LotSource].
  */
 provideLots({
-  each: eachLot,
+  each: eachLotRows,
   named: namedLots,
   records: namedRecords,
   lines: namedLines
