@@ -3,11 +3,11 @@
  * A setting's value, as the control that changes it.
  *
  * The one cell in the catalogue that writes rather than reads. A number field
- * for a number with a stated range, and a `<select>` for a country, a cart, a
- * price modifier profile or a choice the setting declares for itself —
- * in each case the control the browser already has for exactly this, so it
- * arrives with its own steppers or its own list, its own keyboard handling and
- * its own validation, and brickzuke paints none of it.
+ * for a number with a stated range, a text field for a name, and a `<select>`
+ * for a country, a cart, a price modifier profile or a choice the setting
+ * declares for itself — in each case the control the browser already has for
+ * exactly this, so it arrives with its own steppers or its own list, its own
+ * keyboard handling and its own validation, and brickzuke paints none of it.
  *
  * Written on `change` and not on `input`: typing `150` passes through `1` and
  * `15` on the way, and a fill that restarted at each of those would be three
@@ -110,7 +110,7 @@ const choices = computed(() => {
 function write(event: Event) {
   const field = event.target as HTMLInputElement | HTMLSelectElement
   const key = String(props.row.fields.setting ?? '')
-  setSetting(key, picked.value ? field.value : Number(field.value))
+  setSetting(key, picked.value || setting.value?.kind === 'text' ? field.value : Number(field.value))
 }
 </script>
 
@@ -125,10 +125,20 @@ function write(event: Event) {
     class="setting"
     @click.stop
   >
+    <!-- A name there are too many of to list — a seller's username — is
+         typed, and written on `change` for the reason a number is. -->
+    <input
+      v-if="setting.kind === 'text'"
+      class="setting__text"
+      type="text"
+      :value="setting.value.value"
+      :aria-label="setting.name"
+      @change="write"
+    />
     <!-- Narrowed on the kind itself rather than on `picked`, so the number
          branch below is typed as the number setting it is. -->
     <select
-      v-if="setting.kind !== 'number'"
+      v-else-if="setting.kind !== 'number'"
       class="setting__pick"
       :value="setting.value.value"
       :aria-label="setting.name"
@@ -181,6 +191,13 @@ function write(event: Event) {
    profile's name wants the room. */
 .setting__pick {
   max-width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+/* A seller's username, in what the column leaves after the shell's padding. */
+.setting__text {
+  width: 16ch;
   font: inherit;
   color: inherit;
 }

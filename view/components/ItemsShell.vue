@@ -55,7 +55,11 @@ import { rememberType } from '../appfr/recentTypes'
 import { refreshUserCounts } from '../appfr/userCounts'
 import { createRecordFor, deleteRecordsFor, shopPartsOf, userRevision } from '../appfr/userWrites'
 import { cartSelection } from '../appfr/cartDraft'
-import { activeCart, dynamicPageSizesOn } from '../appfr/settings'
+import {activeCart,
+  dynamicPageSizesOn,
+  referencePercentile,
+  referencePrice,
+  referenceStore} from '../appfr/settings'
 import { usePageFit } from '../appfr/pageFit'
 import { openOn } from '../appfr/catalogSchema'
 import HomeCards from '../appfr/HomeCards.vue'
@@ -188,9 +192,15 @@ function onDelete(selection: Selection) {
  * functions on it: the same rows read again, which is what a table with a
  * record just made, unmade or typed into needs. Every other reader gets the
  * one `catalogSource`; the copy is a shell-facing wrapper and holds nothing.
+ *
+ * And made anew when the reference price is changed in Settings, which is a
+ * different price ratio on every lot with nothing written to bring it about.
  */
 const liveSource = computed<DataSource>(() => {
   void userRevision.value
+  void referencePrice.value
+  void referenceStore.value
+  void referencePercentile.value
   return {
     ...catalogSource
   }

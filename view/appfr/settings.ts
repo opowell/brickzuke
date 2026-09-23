@@ -8,12 +8,13 @@
  * and published as records so the shell can draw them as a table like any
  * other type.
  *
- * Four kinds: numbers, which have one obvious control and one obvious
+ * Five kinds: numbers, which have one obvious control and one obvious
  * validation; a country, which is one of the directory's own and so is picked
  * rather than typed; a record of somebody's own — a cart, a price modifier
- * profile — picked the same way; and a choice among a few values declared
- * here, which has a default rather than a blank. Which kind a setting is
- * decides which control the value cell draws — see [CellSetting].
+ * profile — picked the same way; a choice among a few values declared here,
+ * which has a default rather than a blank; and a line of text, for a name
+ * there are too many of to pick from. Which kind a setting is decides which
+ * control the value cell draws — see [CellSetting].
  */
 import { useStorage } from '@vueuse/core'
 import type { Ref } from 'vue'
@@ -130,6 +131,47 @@ export function dynamicPageSizesOn(): boolean {
   return dynamicPageSizes.value !== 'off'
 }
 
+/**
+ * What a lot's price is held against in the Price ratio column: one seller's
+ * price for the same thing, a percentile of the lots the query matches, or
+ * nothing at all.
+ *
+ * A price on its own says little — three cents is dear for a 1 x 1 plate and
+ * a steal for a minifigure torso — so the ratio says it against something:
+ * `0.8` is a fifth under the reference, `1.5` half again over it. What counts
+ * as "the same thing" is the item in the colour, see [referenceKey]; the
+ * condition is left to the query, which can say `condition:N` for itself.
+ */
+export const referencePrice = useStorage('brickzuke-reference-price', 'percentile')
+
+/** The values [referencePrice] takes. */
+export type ReferencePrice = 'percentile' | 'store' | 'off'
+
+/** The reference chosen, as the type — a percentile wherever the stored value is none of the three. */
+export function referencePriceChosen(): ReferencePrice {
+  return referencePrice.value === 'store' || referencePrice.value === 'off'
+    ? referencePrice.value
+    : 'percentile'
+}
+
+/**
+ * The seller whose price is the reference when [referencePrice] says a
+ * store's, by the username a `store:` term names them by — LEGO.com's own
+ * shop to begin with, its price being the one every other is marked up or
+ * down from.
+ *
+ * Typed rather than picked: the directory runs to thousands of sellers, and
+ * a list of all of them is not a control anybody can use.
+ */
+export const referenceStore = useStorage('brickzuke-reference-store', 'LEGO.com')
+
+/**
+ * Which percentile of the matching lots is the reference when
+ * [referencePrice] says a percentile's: 50 is the median, 0 the cheapest
+ * and 100 the dearest.
+ */
+export const referencePercentile = useStorage('brickzuke-reference-percentile', 50)
+
 /** The key a picker setting holds, or nothing where it is blank or nonsense. */
 function idIn(setting: Ref<string>): number | undefined {
   const id = Number(setting.value)
@@ -200,8 +242,23 @@ export interface ChoiceSetting extends SettingBase {
   }[]
 }
 
+/**
+ * A knob that is a line of text, or blank — for a name there are too many of
+ * to offer as a list, a seller's username among them.
+ */
+export interface TextSetting extends SettingBase {
+  kind: 'text'
+  value: Ref<string>
+}
+
 /** One knob, as the table draws it. */
-export type Setting = NumberSetting | CountrySetting | CartSetting | ProfileSetting | ChoiceSetting
+export type Setting =
+  | NumberSetting
+  | CountrySetting
+  | CartSetting
+  | ProfileSetting
+  | ChoiceSetting
+  | TextSetting
 
 /** The kinds drawn as a picker rather than a number field. */
 export function pickedSetting(setting: Setting | undefined): setting is CountrySetting | CartSetting | ProfileSetting | ChoiceSetting {
@@ -280,6 +337,47 @@ export const SETTINGS: Setting[] = [
   },
   {
     kind: 'choice',
+    key: 'referencePrice',
+    name: 'Reference price',
+    detail:
+      'What the Price ratio on every lot divides its price by: a percentile of the lots the query matches, or one store’s price — each for the same item in the same colour.',
+    value: referencePrice,
+    choices: [
+      {
+        value: 'percentile',
+        label: 'A percentile'
+      },
+      {
+        value: 'store',
+        label: 'A store’s price'
+      },
+      {
+        value: 'off',
+        label: 'Off'
+      }
+    ]
+  },
+  {
+    kind: 'number',
+    key: 'referencePercentile',
+    name: 'Reference percentile',
+    detail:
+      'Which percentile of the matching lots is the reference, when the reference price is a percentile: 50 is the median, 0 the cheapest lot.',
+    value: referencePercentile,
+    min: 0,
+    max: 100,
+    unit: 'percentile'
+  },
+  {
+    kind: 'text',
+    key: 'referenceStore',
+    name: 'Reference store',
+    detail:
+      'The store whose price is the reference, when the reference price is a store’s — its username, as a store: term names it. LEGO.com for LEGO’s own prices.',
+    value: referenceStore
+  },
+  {
+    kind: 'choice',
     key: 'dynamicPageSizes',
     name: 'Dynamic page sizes',
     detail:
@@ -311,13 +409,20 @@ export function settingFor(key: string): Setting | undefined {
  * answer than either a silent nought or a dialog. A country is taken as the
  * code it is and a cart or a profile as the id it is — the control is a
  * picker either way, so what arrives is one of the choices or blank — and a
- * value of the wrong kind changes nothing. A choice is held to the choices it
+ * value of the wrong kind changes nothing. Text is taken trimmed, blank
+ * included. A choice is held to the choices it
  * declares: there is no blank to fall back on, so a value that is none of
  * them leaves the one that is set.
  */
 export function setSetting(key: string, value: number | string): void {
   const setting = settingFor(key)
   if (!setting) {
+    return
+  }
+  if (setting.kind === 'text') {
+    if (typeof value === 'string') {
+      setting.value.value = value.trim()
+    }
     return
   }
   if (pickedSetting(setting)) {

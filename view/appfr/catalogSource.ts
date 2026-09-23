@@ -76,6 +76,13 @@ import { cartQuantityOf } from './activeCart'
 import { LOT_JOINED, forgetReach, provideLots, reachFor, reaches, tallied, underJoin, type Tally } from './reach'
 import { ITEM_FIELDS } from './itemFields'
 import { modifiedPrice, priceModifierOf } from './priceModifiers'
+import {RATIO,
+  lowestReferences,
+  percentileReferences,
+  priceSpread,
+  withRatio} from './referencePrices'
+import type { PriceSpread } from './referencePrices'
+import { referencePercentile, referencePriceChosen, referenceStore } from './settings'
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
@@ -209,18 +216,36 @@ function sortValue(row: ShellRow, key: string): string | number {
 }
 
 /**
+ * Whether `a` goes before `b` in the query's order.
+ *
+ * A lot with no price ratio goes last whichever way round: it is most lots
+ * where the reference is one store's, and a blank read as nought put every
+ * one of them ahead of the cheapest lot that has a ratio — the one a reader
+ * sorting by it came to find.
+ */
+function goesBefore(a: ShellRow, b: ShellRow, sort: string, desc: boolean): boolean {
+  if (sort === RATIO) {
+    const blankA = typeof a.fields[RATIO] !== 'number'
+    const blankB = typeof b.fields[RATIO] !== 'number'
+    if (blankA || blankB) {
+      return !blankA && blankB
+    }
+  }
+  const left = sortValue(a, sort)
+  const right = sortValue(b, sort)
+  return desc ? left > right : left < right
+}
+
+/**
  * Where the row belongs among the ones already on screen — the binary search
  * `findIndex` does for `addRow`, against whatever the query is sorted by.
  */
 function positionFor(rows: readonly ShellRow[], row: ShellRow, sort: string, desc: boolean) {
-  const value = sortValue(row, sort)
   let low = 0
   let high = rows.length
   while (low < high) {
     const mid = (low + high) >>> 1
-    const other = sortValue(rows[mid], sort)
-    const before = desc ? other > value : other < value
-    if (before) low = mid + 1
+    if (goesBefore(rows[mid], row, sort, desc)) low = mid + 1
     else high = mid
   }
   return low
@@ -2401,13 +2426,9 @@ export function sorted(
   dir: string | undefined
 ): ShellRow[] {
   const desc = dir === 'desc'
-  return rows.slice().sort((a, b) => {
-    const left = sortValue(a, sort)
-    const right = sortValue(b, sort)
-    if (left === right) return 0
-    const before = left < right ? -1 : 1
-    return desc ? -before : before
-  })
+  return rows.slice().sort((a, b) =>
+    goesBefore(a, b, sort, desc) ? -1 : goesBefore(b, a, sort, desc) ? 1 : 0
+  )
 }
 
 /**
@@ -2438,14 +2459,121 @@ function facetMatcher(request: QueryRequest): (row: ShellRow) => boolean {
     })
 }
 
-/** The small types, filtered and ordered the way the shell asked for them. */
-function present(
+/**
+ * The small types, filtered and ordered the way the shell asked for them.
+ *
+ * The lots with their price ratio on them as well, worked out over the lots
+ * that match — a percentile of the matching lots is a percentile of these,
+ * see [referenced]. Before the sort, so the table can be ordered by it; and
+ * matched once more after, where the query puts a term to the ratio. The
+ * first match cannot answer such a term — no row has a ratio yet, and a field
+ * a row does not carry matches every term on it — so it is the rest of the
+ * query that picks the lots the percentile is over, and the ratio term then
+ * picks among them: see [ratioMatcher].
+ *
+ * `addressed` are the terms that fetched the rows rather than filter them,
+ * as `matches` was built without — see [matcherBesides].
+ */
+async function present(
   rows: readonly ShellRow[],
   request: QueryRequest,
-  matches: (row: ShellRow) => boolean = matcherFor(request)
-): ShellRow[] {
+  matches: (row: ShellRow) => boolean = matcherFor(request),
+  addressed: readonly string[] = itemAddress(request)
+): Promise<ShellRow[]> {
   const inRange = facetMatcher(request)
-  return sorted(rows.filter((row) => matches(row) && inRange(row)), request.query.sort, request.query.dir)
+  let kept = rows.filter((row) => matches(row) && inRange(row))
+  if (entityKey(request) === 'inventories' && referencePriceChosen() !== 'off') {
+    kept = await referenced(kept)
+    if (asksRatio(request)) {
+      const rated = ratioMatcher(request, matches, addressed)
+      kept = kept.filter((row) => rated(row) && inRange(row))
+    }
+  }
+  return sorted(kept, request.query.sort, request.query.dir)
+}
+
+/**
+ * The query put to lots that have had their ratio worked out.
+ *
+ * A lot with a ratio is matched as any row is. One without — no reference
+ * for its item, or no price — would pass every term on the ratio, the
+ * language reading a field a row does not carry as asking nothing of it: so
+ * `ratio<1` over LEGO.com's prices kept every lot LEGO does not sell, the
+ * very lots it has nothing to say about. Put to those, a ratio term is one a
+ * lot cannot meet, and a negated one — `-ratio>2` — one it cannot fail: a
+ * lot with no ratio is not over two. So a group asking for a ratio drops out
+ * for them, and the rest of the query is what they answer.
+ */
+function ratioMatcher(
+  request: QueryRequest,
+  matches: (row: ShellRow) => boolean,
+  addressed: readonly string[]
+): (row: ShellRow) => boolean {
+  const ofRatio = (term: Term) => term.kind === 'field' && term.field === RATIO
+  const groups = parseExpression(request.query.expr)
+    .filter((group) => !group.some((term) => ofRatio(term) && !term.negated))
+    .map((group) =>
+      group.filter(
+        (term) => !ofRatio(term) && !addressed.some((field) => addresses(request, term, field))
+      )
+    )
+  const entity = request.entity ?? request.schema.entities[0]
+  const unrated = !groups.length
+    ? () => false
+    : groups.some((group) => !group.length)
+      ? () => true
+      : (row: ShellRow) => matchesExpression(groups, row, entity)
+  return (row) => (typeof row.fields[RATIO] === 'number' ? matches(row) : unrated(row))
+}
+
+/**
+ * These lots with their reference and price ratio on them — see
+ * [referencePrices] — against whichever reference the setting names: the
+ * chosen percentile of these same lots, or the store's own price.
+ */
+async function referenced(lots: readonly ShellRow[]): Promise<ShellRow[]> {
+  const references =
+    referencePriceChosen() === 'store'
+      ? await storeReferences()
+      : percentileReferences(lots, referencePercentile.value)
+  return lots.map((lot) => withRatio(lot, references))
+}
+
+/**
+ * The reference store's price for each item and colour it has on offer — the
+ * lowest, where it has two — off every lot of theirs brickzuke holds: the
+ * ones stored off their front, and the ones on the item pages read this
+ * session. Nothing where no store is named.
+ *
+ * Whatever the query: the reference is the store's price for the item, and a
+ * query leaving the store's own lots out — `-store:LEGO.com` — has not
+ * changed what LEGO charges.
+ */
+async function storeReferences(): Promise<Map<string, number>> {
+  const store = referenceStore.value.trim()
+  if (!store) {
+    return new Map()
+  }
+  const stored = (await readStoreLots(store)).map((lot) => ({
+    record: lot.record,
+    colorId: lot.colorId,
+    price: lotPrice(lot.displayPrice, lot.nativePrice, lot.price)
+  }))
+  const held = readStoreInventories()
+    .filter((lot) => lot.strSellerUsername === store)
+    .map((lot) => ({
+      record: `${lot.itemType}-${lot.itemNumber}`,
+      colorId: lot.colorId,
+      price: lotPrice(lot.price, lot.nativePrice)
+    }))
+  return lowestReferences([...stored, ...held])
+}
+
+/** Whether the query puts a term to the price ratio — see [present]. */
+function asksRatio(request: QueryRequest): boolean {
+  return parseExpression(request.query.expr)
+    .flat()
+    .some((term) => term.kind === 'field' && term.field === RATIO)
 }
 
 /**
@@ -2481,7 +2609,7 @@ async function joined(
 ): Promise<ShellRow[]> {
   const key = entityKey(request)
   if (!key) {
-    return present(rows, request, matcherBesides(request, ...addressed))
+    return present(rows, request, matcherBesides(request, ...addressed), addressed)
   }
   if (key === 'conditions') {
     // Counted before it got here, over the lots the query's terms reach —
@@ -2490,7 +2618,7 @@ async function joined(
   }
   const reach = await reachFor(key, request.query.expr, rows, request.entity ?? undefined)
   if (!reach.values) {
-    return present(rows, request, matcherBesides(request, ...addressed))
+    return present(rows, request, matcherBesides(request, ...addressed), addressed)
   }
   const taken = talliedOn(rows)
   const counted = rows.flatMap((row) => {
@@ -2583,19 +2711,29 @@ export async function matchingRows(request: QueryRequest): Promise<ShellRow[]> {
 function streamLots(request: QueryRequest, sink: QuerySink): () => void {
   let cancelled = false
   const matches = matcherBesides(request, 'record', 'store')
+  const rated = asksRatio(request) ? ratioMatcher(request, matches, ['record', 'store']) : matches
   const inRange = facetMatcher(request)
   const page = pageOf(request)
+  const open = () => !cancelled && sink.open
   void (async () => {
     try {
       await directoryForRegion(request)
+      const ratios = await lotRatios(request, matches, inRange, open)
+      if (!open()) {
+        return
+      }
       await eachLotRows((rows) => {
-        if (cancelled || !sink.open) {
+        if (!open()) {
           return false
         }
         let changed = false
-        for (const row of rows) {
-          if (matches(row) && inRange(row) && page.take(row)) {
-            changed = true
+        for (const lot of rows) {
+          const row = ratios.references ? withRatio(lot, ratios.references) : lot
+          if ((ratios.references ? rated(row) : matches(row)) && inRange(row)) {
+            ratios.spread?.note(row.fields)
+            if (page.take(row)) {
+              changed = true
+            }
           }
         }
         // A chunk sorting wholly past the end of the page changes the count
@@ -2612,6 +2750,15 @@ function streamLots(request: QueryRequest, sink: QuerySink): () => void {
         )
         return true
       })
+      // The percentile, where it was left to the end: the page is the page
+      // either way, and the ratios go on the rows on it.
+      if (ratios.spread && open()) {
+        const references = ratios.spread.references(referencePercentile.value)
+        sink.set({
+          rows: page.rows().map((row) => withRatio(row, references)),
+          total: page.total()
+        })
+      }
       sink.close()
     } catch (thrown) {
       sink.fail(thrown)
@@ -2620,6 +2767,110 @@ function streamLots(request: QueryRequest, sink: QuerySink): () => void {
   return () => {
     cancelled = true
   }
+}
+
+/**
+ * How the walk over every lot puts a price ratio on them — see [streamLots].
+ *
+ * A store's price is read before the walk, and every lot has its ratio as it
+ * goes by. A percentile of the matching lots is not known until the last of
+ * them has been seen, so it is worked out one of two ways. Where the page
+ * does not depend on it the walk notes each matching lot's price, `spread`,
+ * and the ratios go on the page's rows at the end. Where it does — the table
+ * sorted by the ratio, or a term put to it — one walk first notes the
+ * prices, and the walk that draws the page has the `references`: twice the
+ * reading, and only for the one question that needs it.
+ */
+interface LotRatios {
+  references?: ReadonlyMap<string, number>
+  spread?: PriceSpread
+}
+
+async function lotRatios(
+  request: QueryRequest,
+  matches: (row: ShellRow) => boolean,
+  inRange: (row: ShellRow) => boolean,
+  open: () => boolean
+): Promise<LotRatios> {
+  const chosen = referencePriceChosen()
+  if (chosen === 'off') {
+    return {}
+  }
+  if (chosen === 'store') {
+    return {
+      references: await storeReferences()
+    }
+  }
+  if (request.query.sort !== RATIO && !asksRatio(request)) {
+    return {
+      spread: priceSpread()
+    }
+  }
+  const key = await percentileKey(request)
+  if (heldPercentiles?.key === key) {
+    return {
+      references: heldPercentiles.references
+    }
+  }
+  // Rows with no ratio yet, so a term on it matches every one — see [present].
+  const spread = priceSpread()
+  let finished = true
+  await eachLotRows((rows) => {
+    for (const row of rows) {
+      if (matches(row) && inRange(row)) {
+        spread.note(row.fields)
+      }
+    }
+    finished = open()
+    return finished
+  })
+  const references = spread.references(referencePercentile.value)
+  // Only a walk that saw every lot: one cut short is a percentile of some.
+  if (finished) {
+    heldPercentiles = {
+      key,
+      references
+    }
+  }
+  return {
+    references
+  }
+}
+
+/**
+ * The last percentiles a walk worked out, and what they answer.
+ *
+ * Held because the walk that works them out is the whole of the lots, and
+ * the shell asks the same question more than once in a row: the page is
+ * fitted to the window once its first rows are drawn — see [pageFit] — and a
+ * page of a different length is a new request. Sorted by the ratio, the first
+ * rows are only drawn once the percentiles are in hand, so every refit walked
+ * every lot again: three walks for one table. The page's length and the sort
+ * do not change which lots match, so they are not in the key.
+ */
+let heldPercentiles: { key: string; references: ReadonlyMap<string, number> } | undefined
+
+/**
+ * What a held walk's percentiles depend on: the lots the query matches, the
+ * percentile taken, and the lots there are — counted, so a seller's front
+ * landing in the meantime is a walk taken again rather than an answer short
+ * of their lots.
+ */
+async function percentileKey(request: QueryRequest): Promise<string> {
+  const db = await getDbConnection()
+  let stored: number
+  try {
+    stored = await count(db, dbStores.STORE_LOTS)
+  } finally {
+    db.close()
+  }
+  return JSON.stringify([
+    request.query.expr,
+    request.query.facets ?? {},
+    referencePercentile.value,
+    stored,
+    readStoreInventories().length
+  ])
 }
 
 export const catalogSource: DataSource = {

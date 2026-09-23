@@ -42,7 +42,8 @@ import CellUserPick from './CellUserPick.vue'
 import CellUserText from './CellUserText.vue'
 import CellPriceModifier from './CellPriceModifier.vue'
 import { openedOwnSet } from './userWrites'
-import { SETTINGS } from './settings'
+import { SETTINGS, referencePercentile, referencePriceChosen, referenceStore } from './settings'
+import { RATIO, ratioText } from './referencePrices'
 import { userCounts } from './userCounts'
 import {cartLinesEntity,
   shopListItemsEntity,
@@ -1480,6 +1481,38 @@ function pricedIn(columns: ColumnDef[], currency: string): ColumnDef[] {
   )
 }
 
+/**
+ * The price ratio column, saying what the price is divided by — or gone,
+ * with its sort, where the setting says there is no reference: a column
+ * blank on every row is a column saying nothing.
+ */
+function referencedIn(columns: ColumnDef[]): ColumnDef[] {
+  const chosen = referencePriceChosen()
+  if (chosen === 'off') {
+    return columns.filter((column) => column.key !== RATIO)
+  }
+  const reference =
+    chosen === 'store'
+      ? `${referenceStore.value.trim() || 'the reference store'}’s price`
+      : `the ${ordinal(referencePercentile.value)} percentile of the matching lots’ prices`
+  return columns.map((column) =>
+    column.key === RATIO
+      ? {
+        ...column,
+        hint: `The price over ${reference} for the same item in the same colour — under 1 is cheaper. Change the reference in Settings`
+      }
+      : column
+  )
+}
+
+/** `50th`, `1st`, `22nd`, `13th`. */
+function ordinal(n: number): string {
+  const tens = n % 100
+  const suffix =
+    tens >= 11 && tens <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th'
+  return `${n}${suffix}`
+}
+
 /** The expression the shell is showing, which is the one in the URL. */
 const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
 
@@ -1540,6 +1573,20 @@ export const storeInventoryColumns: ColumnDef[] = [
     hint: 'The price times every price modifier that applies to this lot — hover for the working',
     width: '115px',
     sort: 'modPrice'
+  },
+  // The price over what the same item in the same colour costs elsewhere —
+  // a percentile of the matching lots, or one store's price, as the setting
+  // says. Beside the prices, being a third way of reading them. See
+  // [referencePrices]; the hint is [referencedIn]'s to state. A number, which
+  // is also what keeps it from being made the row's name where the Item
+  // column is settled — see [informative].
+  {
+    key: RATIO,
+    kind: 'number',
+    label: 'Price ratio',
+    width: '120px',
+    sort: RATIO,
+    format: ratioText
   },
   // What the lot is *of*, and the way through to it. The original had no such
   // column: every row on an item's page is the same item, so the only thing
@@ -2853,7 +2900,9 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       ],
       tabs: [],
       samples: [],
-      columns: pricedIn(informative(storeInventoryColumns, openExpr.value), priceCurrency.value),
+      columns: referencedIn(
+        pricedIn(informative(storeInventoryColumns, openExpr.value), priceCurrency.value)
+      ),
       sorts: [
         {
           key: 'priceValue',
@@ -2902,8 +2951,12 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
         {
           key: 'modPrice',
           label: 'Mod. price'
+        },
+        {
+          key: RATIO,
+          label: 'Price ratio'
         }
-      ]
+      ].filter((sort) => sort.key !== RATIO || referencePriceChosen() !== 'off')
     },
     {
       // BrickLink's own one-letter code, `N` or `U`, which is what a lot
