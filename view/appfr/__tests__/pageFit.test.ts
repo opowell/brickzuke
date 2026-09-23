@@ -95,6 +95,15 @@ describe('fitting the page to the window', () => {
     expect(nextLimit(drawn(12, 25, 350), fit)).toBeUndefined()
   })
 
+  it('holds the length once somebody pages, whether the page would fit more or fewer', () => {
+    // Taller rows on the next page would trim it to eleven, shorter ones grow
+    // it to fifteen — and either moves where every page starts.
+    const fit = state(12)
+    fit.held = true
+    expect(nextLimit(drawn(12, 25, 280), fit)).toBeUndefined()
+    expect(nextLimit(drawn(12, 20, 300), fit)).toBeUndefined()
+  })
+
   it('stops after enough passes, whatever the rows are doing', () => {
     const fit = state(10)
     fit.steps = MOST_STEPS

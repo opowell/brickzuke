@@ -275,14 +275,15 @@ const cartTicks = computed(() => urlEntity.value === 'inventories' && activeCart
  * The key is the query and the window: a new one is a page fitted afresh, and
  * anything the last page learned about what fits is let go with it. Only what
  * the shell reads — not `appfr=1`, which is brickzuke's — so the fit is not
- * begun again over a change that redraws nothing.
+ * begun again over a change that redraws nothing. The page is watched apart
+ * from it: stepping to another page keeps the length, see [usePageFit].
  */
 const shellRoot = ref<HTMLElement | null>(null)
 const fitPages = computed(() => dynamicPageSizesOn() && urlEntity.value !== null)
 const windowSize = ref(`${window.innerWidth}x${window.innerHeight}`)
 const fitKey = computed(() => {
   const query = router.currentRoute.value.query
-  const named = [PARAM_ENTITY, PARAM_VIEW, PARAM_EXPR, PARAM_SORT, PARAM_DIR, PARAM_PAGE].map(
+  const named = [PARAM_ENTITY, PARAM_VIEW, PARAM_EXPR, PARAM_SORT, PARAM_DIR].map(
     (param) => String(query[param] ?? '')
   )
   return `${named.join('|')}@${windowSize.value}`
@@ -291,7 +292,8 @@ const fitView = computed(() => {
   const query = router.currentRoute.value.query
   return `${String(query[PARAM_ENTITY] ?? '')}|${String(query[PARAM_VIEW] ?? '')}`
 })
-const pageLimit = usePageFit(shellRoot, fitPages, fitKey, fitView)
+const fitPage = computed(() => String(router.currentRoute.value.query[PARAM_PAGE] ?? ''))
+const pageLimit = usePageFit(shellRoot, fitPages, fitKey, fitView, fitPage)
 
 function noteWindowSize() {
   windowSize.value = `${window.innerWidth}x${window.innerHeight}`

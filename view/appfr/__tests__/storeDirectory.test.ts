@@ -52,7 +52,7 @@ vi.mock('../../../model', async () => {
 })
 
 const {
-  catalogSource
+  catalogSource, forgetScannedRows
 } = await import('../catalogSource')
 const {
   catalogSchema
@@ -531,6 +531,9 @@ describe('a seller\'s own lots', () => {
       }
     ])
     db.close()
+    // Written behind the source's back, where a seller's front landing would
+    // have told it — so the lots table walked before this is not its answer.
+    forgetScannedRows()
   })
 
   it('reads the seller through the index rather than filtering every lot', async () => {

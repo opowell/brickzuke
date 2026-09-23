@@ -86,6 +86,11 @@ export interface FitState {
   ceiling?: number
   /** Passes made against this key. */
   steps: number
+  /**
+   * Set once somebody pages: the length stands as it was fitted, whatever
+   * the page after it would fit — see [usePageFit].
+   */
+  held?: boolean
 }
 
 /**
@@ -97,7 +102,7 @@ export interface FitState {
  * to ask for, however much room there is.
  */
 export function nextLimit(measured: Measured, state: FitState): number | undefined {
-  if (measured.rendered === 0 || measured.rendered > state.limit) {
+  if (state.held || measured.rendered === 0 || measured.rendered > state.limit) {
     return undefined
   }
   if (state.steps >= MOST_STEPS) {
@@ -173,7 +178,13 @@ export function measureResults(scroller: HTMLElement): Measured | undefined {
  *
  * `key` names what the fit is of: the query and the window. A change to it is
  * a new page to fit from scratch, and what the last one learned about how many
- * rows fit is let go. A change to the limit itself is not one — the rows
+ * rows fit is let go. `page` is not part of it: a page is a cut of the query
+ * `limit` rows long, so a length fitted afresh for each page — eleven rows
+ * here, twelve on the next, where a remark wraps on one and not the other —
+ * moved where every page starts, and the page count with it, on every step,
+ * and could skip a row or show one twice between two pages. So a step to
+ * another page holds the length the query was fitted to, and the page scrolls
+ * a little or leaves a little room instead. A change to the limit itself is not one — the rows
  * redraw, and the ceiling carries over, which is what keeps a grow and a trim
  * from trading places for ever. `view` names what is about to be drawn — the
  * type and the view, as the URL has them — which is what a page's length is
@@ -189,7 +200,8 @@ export function usePageFit(
   root: Ref<HTMLElement | null>,
   on: Ref<boolean>,
   key: Ref<string>,
-  view: Ref<string>
+  view: Ref<string>,
+  page: Ref<unknown>
 ): Ref<number> {
   const limit = ref(DEFAULT_LIMIT)
   const state: FitState = {
@@ -268,6 +280,7 @@ export function usePageFit(
   function reset() {
     state.ceiling = undefined
     state.steps = 0
+    state.held = false
     // Asked for at the length this view fitted to last time, before the
     // query runs, so the common case is no re-run at all.
     const known = fitted.get(view.value)
@@ -314,11 +327,20 @@ export function usePageFit(
       stop()
       state.ceiling = undefined
       state.steps = 0
+      state.held = false
       set(DEFAULT_LIMIT, false)
     }
   })
 
-  watch(key, reset)
+  // Together, so a new query that also went back to page one is a new fit
+  // rather than a held one.
+  watch([key, page], ([nextKey], [lastKey]) => {
+    if (nextKey !== lastKey) {
+      reset()
+    } else {
+      state.held = true
+    }
+  })
 
   onMounted(() => {
     if (on.value) {

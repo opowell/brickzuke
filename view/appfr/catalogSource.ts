@@ -15,6 +15,7 @@ import type {DataSource,
   QueryRequest,
   QueryResult,
   QuerySink,
+  QueryUpdate,
   ShellRow,
   Term} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
@@ -59,7 +60,8 @@ import {readAllStoreLots,
   readStoreLots,
   readStoreLotsOf,
   storeLotsFill,
-  storeLotsFor} from './storeLotsFetch'
+  storeLotsFor,
+  storeScopeVersion} from './storeLotsFetch'
 import type { StoredStoreLot } from '../stores/bricklink/store-front-page'
 import { legoLotsOf, legoSeller } from './legoLotsFetch'
 import { readStorePolicies, storePoliciesFor, storePolicyFor } from './storePolicyFetch'
@@ -72,7 +74,7 @@ import {cartLineRows,
   shopStoreRows,
   userInventoryLineRows,
   userItemRows} from './userRows'
-import { cartQuantityOf } from './activeCart'
+import { activeCartLines, cartQuantityOf } from './activeCart'
 import {LOT_JOINED,
   forgetReach,
   provideLots,
@@ -84,7 +86,7 @@ import {LOT_JOINED,
   type Reach,
   type Tally} from './reach'
 import { ITEM_FIELDS } from './itemFields'
-import { modifiedPrice, priceModifierOf } from './priceModifiers'
+import { modifiedPrice, priceModifierOf, priceModifiers } from './priceModifiers'
 import {RATIO,
   lowestReferences,
   percentileReferences,
@@ -274,15 +276,27 @@ function sortValue(row: ShellRow, key: string): string | number {
  * sorting by it came to find.
  */
 function goesBefore(a: ShellRow, b: ShellRow, sort: string, desc: boolean): boolean {
-  if (sort === RATIO) {
-    const blankA = typeof a.fields[RATIO] !== 'number'
-    const blankB = typeof b.fields[RATIO] !== 'number'
-    if (blankA || blankB) {
-      return !blankA && blankB
-    }
+  return keyBefore(sortKey(a, sort), sortKey(b, sort), desc)
+}
+
+/**
+ * What a row is ordered by, taken off it — so an order can be held as the
+ * keys alone, without the rows: see [LotOrder]. Null is a blank ratio.
+ */
+type SortKey = string | number | null
+
+function sortKey(row: ShellRow, sort: string): SortKey {
+  if (sort === RATIO && typeof row.fields[RATIO] !== 'number') {
+    return null
   }
-  const left = sortValue(a, sort)
-  const right = sortValue(b, sort)
+  return sortValue(row, sort)
+}
+
+/** [goesBefore], over two rows' keys. */
+function keyBefore(left: SortKey, right: SortKey, desc: boolean): boolean {
+  if (left === null || right === null) {
+    return left !== null && right === null
+  }
   return desc ? left > right : left < right
 }
 
@@ -1094,9 +1108,17 @@ const LOT_CHUNK = 5_000
  * whose query has moved on says no. It may take its time answering, and the
  * join's walk does, to let everything else a turn between chunks — see
  * [reach]. Returns how many were handed over.
+ *
+ * Each chunk comes with the lots its rows were made from, one for one, and
+ * the directory that made them — what [walkLots] holds an order by in place
+ * of the rows.
  */
 export async function eachLotRows(
-  visit: (rows: ShellRow[]) => boolean | Promise<boolean>
+  visit: (
+    rows: ShellRow[],
+    lots: readonly (StoreInventory | StoredStoreLot)[],
+    directory: LotDirectory
+  ) => boolean | Promise<boolean>
 ): Promise<number> {
   let seen = 0
   const directory = await lotDirectory()
@@ -1107,7 +1129,7 @@ export async function eachLotRows(
       await categoriesBehind(db, directory, held.map((lot) => `${lot.itemType}-${lot.itemNumber}`))
       const rows = held.map((lot) => toStoreInventoryRow(lot, directory))
       seen += rows.length
-      if (!(await visit(rows))) {
+      if (!(await visit(rows, held, directory))) {
         return seen
       }
     }
@@ -1120,7 +1142,7 @@ export async function eachLotRows(
       await categoriesBehind(db, directory, batch.map((lot) => lot.record))
       const rows = batch.map((lot) => toStoreLotRow(lot, directory))
       seen += rows.length
-      if (!(await visit(rows)) || batch.length < LOT_CHUNK) {
+      if (!(await visit(rows, batch, directory)) || batch.length < LOT_CHUNK) {
         return seen
       }
       range = IDBKeyRange.lowerBound(batch[batch.length - 1].id, true)
@@ -2316,10 +2338,14 @@ export async function yearCount(report?: YearProgress): Promise<number> {
   return (await yearRows(everything, true, report)).length
 }
 
-/** Drops the held years, for when an update run has rewritten the catalogue. */
+/**
+ * Drops the held years, for when an update run has rewritten the catalogue —
+ * and the lots' held orders, whose categories it may have moved.
+ */
 export function forgetScannedRows() {
   years.clear()
   regionByCountry = undefined
+  heldOrders.clear()
 }
 
 /**
@@ -2853,65 +2879,428 @@ export async function matchingRows(request: QueryRequest): Promise<ShellRow[]> {
  * the first rows are up a few round trips in, and the order settles as the
  * rest arrives. What is on the page is only ever rows the query matches; what
  * changes as the walk goes on is which of them sort into it.
+ *
+ * That walk is taken once per query, not once per page. It notes every lot
+ * the query matches as it goes, sorts them when it is done and holds that
+ * order — see [LotOrder] — so the next page, and the one after, is a cut of
+ * it and a read of the few lots on it: the count stays where it settled and
+ * nothing is walked again. A page asked for while the walk is still going
+ * waits for that walk rather than starting another, and says the count as it
+ * climbs meanwhile.
  */
 function streamLots(request: QueryRequest, sink: QuerySink): () => void {
   let cancelled = false
-  const matches = matcherBesides(request, 'record', 'store')
-  const rated = asksRatio(request) ? ratioMatcher(request, matches, ['record', 'store']) : matches
-  const inRange = facetMatcher(request)
-  const page = pageOf(request)
   const open = () => !cancelled && sink.open
   void (async () => {
     try {
       await directoryForRegion(request)
-      const ratios = await lotRatios(request, matches, inRange, open)
-      if (!open()) {
-        return
+      const key = orderKey(request)
+      const held = heldOrder(key, request)
+      const order = held ?? (await walkedOrder(key, request, sink, open))
+      if (order && open()) {
+        sink.set(await pageFrom(order, request))
+        sink.close()
       }
-      await eachLotRows((rows) => {
-        if (!open()) {
-          return false
-        }
-        let changed = false
-        for (const lot of rows) {
-          const row = ratios.references ? withRatio(lot, ratios.references) : lot
-          if ((ratios.references ? rated(row) : matches(row)) && inRange(row)) {
-            ratios.spread?.note(row.fields)
-            if (page.take(row)) {
-              changed = true
-            }
-          }
-        }
-        // A chunk sorting wholly past the end of the page changes the count
-        // and nothing that is on screen.
-        sink.set(
-          changed
-            ? {
-              rows: page.rows(),
-              total: page.total()
-            }
-            : {
-              total: page.total()
-            }
-        )
-        return true
-      })
-      // The percentile, where it was left to the end: the page is the page
-      // either way, and the ratios go on the rows on it.
-      if (ratios.spread && open()) {
-        const references = ratios.spread.references(referencePercentile.value)
-        sink.set({
-          rows: page.rows().map((row) => withRatio(row, references)),
-          total: page.total()
-        })
+      if (held) {
+        checkOrderSoon(held)
       }
-      sink.close()
     } catch (thrown) {
       sink.fail(thrown)
     }
   })()
   return () => {
     cancelled = true
+  }
+}
+
+/**
+ * The order a walk arrives at: the matching lots, sorted, from which any page
+ * of the query is a cut.
+ *
+ * Held as the lots' addresses rather than their rows — an item page's lot as
+ * itself, being in memory already, and a stored one by its id — because the
+ * un-narrowed table is six hundred thousand lots, and six hundred thousand
+ * rows is the out-of-memory [eachLot] is there to avoid. A page's rows are
+ * made again from the few lots on it, which also keeps what they show — a
+ * cart quantity, a price with its factor — as current as any other read.
+ */
+interface LotOrder {
+  key: string
+  lots: LotAddress[]
+  /** What there was to walk when the walk began — see [lotsCounted]. */
+  counted: string
+  /** A [checkOrder] under way. */
+  checking?: Promise<void>
+  /** The directory the walk made its rows with, categories and all. */
+  directory: LotDirectory
+  /** The price ratio's reference, where the table carries one. */
+  references?: ReadonlyMap<string, number>
+  /**
+   * The factors and the cart the order was sorted and matched under, where
+   * the query reads them — see [orderKey].
+   */
+  modifiers?: unknown
+  cart?: unknown
+}
+
+/** An item page's lot, or a stored lot's id. */
+type LotAddress = StoreInventory | string
+
+/**
+ * The last few orders walked, newest last — one sort and the one before it,
+ * so going back to a sort is not a walk.
+ */
+const heldOrders = new Map<string, LotOrder>()
+
+/**
+ * How many lots the held orders may address between them — an un-narrowed
+ * table and a narrowed one or two, but not three orders of every lot there
+ * is. The newest is held whatever its size.
+ */
+const HELD_LOTS = 1_000_000
+
+/**
+ * What an order depends on besides the page: the query's terms and sort, the
+ * reference the ratio is taken against, and what there is to walk as far as
+ * this tab can tell without reading — the lots its item pages put in memory,
+ * and the pages of sellers' fronts it has stored. Anything else that moves
+ * the lots is caught after the page is up, see [checkOrder].
+ *
+ * The factors and the cart are held beside the order rather than put in the
+ * key, and only where the query sorts or filters by what they make: a line
+ * put in the cart from this very table would otherwise be a walk on the next
+ * page.
+ */
+function orderKey(request: QueryRequest): string {
+  return JSON.stringify([
+    request.query.expr,
+    request.query.facets ?? {},
+    request.query.sort,
+    request.query.dir,
+    referencePriceChosen(),
+    referencePercentile.value,
+    referenceStore.value,
+    readStoreInventories().length,
+    storeScopeVersion.value
+  ])
+}
+
+/**
+ * The lots stored, and the sellers and countries that say where a lot is
+ * from, counted — what a held order is checked against.
+ *
+ * Not part of the key, which the page waits on: counting six hundred thousand
+ * lots is a quarter of a second, the whole of what a page cut from a held
+ * order costs otherwise. And the key cannot do without the count by keeping
+ * track of the writes instead, since not every write is this tab's: LEGO's
+ * lots land by a way of their own, and another tab of brickzuke fetching a
+ * seller writes to the same store.
+ */
+function lotsCounted(): Promise<string> {
+  // One count for everybody asking at once: a walk asks at its start and
+  // again for its percentiles, and two counts at once take twice as long.
+  counting ??= (async () => {
+    const db = await getDbConnection()
+    try {
+      return JSON.stringify(
+        await Promise.all([
+          count(db, dbStores.STORE_LOTS),
+          count(db, dbStores.BRICK_LINK_STORES),
+          count(db, dbStores.STORE_COUNTRIES)
+        ])
+      )
+    } finally {
+      db.close()
+    }
+  })().finally(() => {
+    counting = undefined
+  })
+  return counting
+}
+
+let counting: Promise<string> | undefined
+
+/**
+ * [checkOrder], once the paging has stopped for a moment.
+ *
+ * Not straight after the page: IndexedDB puts every other read behind a
+ * count, the few a page cut from the order makes included, so a count begun
+ * as one page went up was the quarter of a second the next page waited.
+ */
+function checkOrderSoon(order: LotOrder) {
+  clearTimeout(checkLater)
+  checkLater = setTimeout(() => void checkOrder(order), CHECK_AFTER_MS)
+}
+
+let checkLater: ReturnType<typeof setTimeout> | undefined
+
+/** How long the paging has to have stopped for before [checkOrderSoon] counts. */
+export const CHECK_AFTER_MS = 1_000
+
+/**
+ * Lets an order go once what it was walked over has changed — after the page
+ * cut from it is up, so the page does not wait on the count. The page just
+ * drawn may be one landing short; the next is walked afresh.
+ */
+function checkOrder(order: LotOrder): Promise<void> {
+  order.checking ??= lotsCounted()
+    .then((counted) => {
+      if (counted !== order.counted && heldOrders.get(order.key) === order) {
+        heldOrders.delete(order.key)
+      }
+    })
+    .finally(() => {
+      order.checking = undefined
+    })
+  return order.checking
+}
+
+/** Whether the query sorts or filters by `field`. */
+function readsField(request: QueryRequest, field: string): boolean {
+  return request.query.sort === field || references(request.query.expr, field)
+}
+
+/** The held order for this key, where it still holds. */
+function heldOrder(key: string, request: QueryRequest): LotOrder | undefined {
+  const order = heldOrders.get(key)
+  if (!order) {
+    return undefined
+  }
+  if (
+    (readsField(request, 'modPrice') && order.modifiers !== priceModifiers.value) ||
+    (readsField(request, 'cartQuantity') && order.cart !== activeCartLines.value)
+  ) {
+    heldOrders.delete(key)
+    return undefined
+  }
+  // Newest last, so the oldest is the one let go.
+  heldOrders.delete(key)
+  heldOrders.set(key, order)
+  return order
+}
+
+function holdOrder(order: LotOrder) {
+  heldOrders.set(order.key, order)
+  let held = [...heldOrders.values()].reduce((sum, one) => sum + one.lots.length, 0)
+  for (const [key, oldest] of heldOrders) {
+    if (held <= HELD_LOTS || oldest === order) {
+      break
+    }
+    heldOrders.delete(key)
+    held -= oldest.lots.length
+  }
+}
+
+/**
+ * A walk under way, and who is waiting on it.
+ *
+ * `watchers` are the requests that want to hear of it as it goes: the one
+ * that started it draws its page from each chunk, and one that came after —
+ * the next page, or the same page refitted — hears the count. A walk goes on
+ * after its own request has moved on, which is what has the next page ready
+ * when it is asked for; it is dropped only for another query's walk, and
+ * only once nobody is watching it.
+ */
+interface LotWalk {
+  seen: number
+  stopped: boolean
+  watchers: Set<WalkWatcher>
+  done: Promise<LotOrder | undefined>
+}
+
+interface WalkWatcher {
+  open(): boolean
+  /** The matching rows of one chunk, and the count so far. */
+  chunk(rows: readonly ShellRow[], seen: number): void
+}
+
+const walks = new Map<string, LotWalk>()
+
+/**
+ * The order for this key once a walk has it — this request's own walk, drawn
+ * a page at a time as before, or the one already going for the same key.
+ * Nothing where the request moved on first.
+ */
+async function walkedOrder(
+  key: string,
+  request: QueryRequest,
+  sink: QuerySink,
+  open: () => boolean
+): Promise<LotOrder | undefined> {
+  const going = walks.get(key)
+  const walk = going ?? walkLots(key, request)
+  const watcher: WalkWatcher = going
+    ? {
+      open,
+      chunk: (_rows, seen) => sink.set({
+        total: seen
+      })
+    }
+    : pageWatcher(request, sink, open)
+  walk.watchers.add(watcher)
+  try {
+    const order = await walk.done
+    // Stopped for another query while this one was still asking — which a
+    // watcher still open prevents, so this is the rare case: walk again.
+    if (!order && open()) {
+      return walkedOrder(key, request, sink, open)
+    }
+    return order
+  } finally {
+    walk.watchers.delete(watcher)
+  }
+}
+
+/** The page drawn as a walk goes — see [streamLots]. */
+function pageWatcher(request: QueryRequest, sink: QuerySink, open: () => boolean): WalkWatcher {
+  const page = pageOf(request)
+  return {
+    open,
+    chunk(rows, seen) {
+      let changed = false
+      for (const row of rows) {
+        if (page.take(row)) {
+          changed = true
+        }
+      }
+      // A chunk sorting wholly past the end of the page changes the count
+      // and nothing that is on screen.
+      sink.set(
+        changed
+          ? {
+            rows: page.rows(),
+            total: seen
+          }
+          : {
+            total: seen
+          }
+      )
+    }
+  }
+}
+
+/**
+ * One walk over every lot, for one key: the matching lots noted as they go
+ * by and handed to whoever is watching, then sorted into the order held.
+ *
+ * Ties go the way [pageOf] puts them — the lot walked later first — so the
+ * page drawn during the walk and the same page cut from the order agree.
+ */
+function walkLots(key: string, request: QueryRequest): LotWalk {
+  // Another query's walk that nobody is waiting for any more is reading the
+  // store for no one, and ahead of this one.
+  for (const [other, walk] of walks) {
+    if (![...walk.watchers].some((watcher) => watcher.open())) {
+      walk.stopped = true
+      walks.delete(other)
+    }
+  }
+  const walk: LotWalk = {
+    seen: 0,
+    stopped: false,
+    watchers: new Set(),
+    done: Promise.resolve(undefined)
+  }
+  const going = () => !walk.stopped
+  walk.done = (async () => {
+    // Before the first lot is read, so a lot landing during the walk is a
+    // difference the check finds.
+    const counted = lotsCounted()
+    const matches = matcherBesides(request, 'record', 'store')
+    const rated = asksRatio(request) ? ratioMatcher(request, matches, ['record', 'store']) : matches
+    const inRange = facetMatcher(request)
+    const sort = request.query.sort
+    const ratios = await lotRatios(request, matches, inRange, going)
+    if (!going()) {
+      return undefined
+    }
+    const found: LotAddress[] = []
+    const keys: SortKey[] = []
+    let directory: LotDirectory | undefined
+    await eachLotRows((rows, lots, made) => {
+      if (!going()) {
+        return false
+      }
+      directory = made
+      const kept: ShellRow[] = []
+      rows.forEach((lot, at) => {
+        const row = ratios.references ? withRatio(lot, ratios.references) : lot
+        if ((ratios.references ? rated(row) : matches(row)) && inRange(row)) {
+          ratios.spread?.note(row.fields)
+          const source = lots[at]
+          found.push('invId' in source ? source : source.id)
+          keys.push(sortKey(row, sort))
+          kept.push(row)
+        }
+      })
+      walk.seen += kept.length
+      for (const watcher of walk.watchers) {
+        if (watcher.open()) {
+          watcher.chunk(kept, walk.seen)
+        }
+      }
+      return true
+    })
+    if (!going()) {
+      return undefined
+    }
+    const desc = request.query.dir === 'desc'
+    const at = Array.from(found, (_lot, index) => index)
+    at.sort((a, b) =>
+      keyBefore(keys[a], keys[b], desc) ? -1 : keyBefore(keys[b], keys[a], desc) ? 1 : b - a
+    )
+    const order: LotOrder = {
+      key,
+      lots: at.map((index) => found[index]),
+      counted: await counted,
+      directory: directory ?? (await lotDirectory()),
+      references: ratios.references ?? ratios.spread?.references(referencePercentile.value),
+      modifiers: priceModifiers.value,
+      cart: activeCartLines.value
+    }
+    holdOrder(order)
+    return order
+  })().finally(() => {
+    if (walks.get(key) === walk) {
+      walks.delete(key)
+    }
+  })
+  walks.set(key, walk)
+  return walk
+}
+
+/**
+ * The page a request asks for, cut from an order: the lots on it read by id
+ * and made rows again, with the ratio on them where the table has one.
+ */
+async function pageFrom(order: LotOrder, request: QueryRequest): Promise<QueryUpdate> {
+  const on = order.lots.slice(request.offset, request.offset + request.limit)
+  const ids = on.filter((lot): lot is string => typeof lot === 'string')
+  const stored = new Map<string, StoredStoreLot>()
+  if (ids.length) {
+    const db = await getDbConnection()
+    try {
+      const store = db.transaction(dbStores.STORE_LOTS.name).store
+      const lots = await Promise.all(ids.map((id) => store.get(id) as Promise<StoredStoreLot | undefined>))
+      lots.forEach((lot) => lot && stored.set(lot.id, lot))
+      // Already looked up by the walk, bar a record some later read added.
+      await categoriesBehind(db, order.directory, [...stored.values()].map((lot) => lot.record))
+    } finally {
+      db.close()
+    }
+  }
+  const rows = on.flatMap((lot) => {
+    if (typeof lot !== 'string') {
+      return [toStoreInventoryRow(lot, order.directory)]
+    }
+    const read = stored.get(lot)
+    // Gone since the walk — a seller's front re-read under the same count.
+    return read ? [toStoreLotRow(read, order.directory)] : []
+  })
+  const references = order.references
+  return {
+    rows: references ? rows.map((row) => withRatio(row, references)) : rows,
+    total: order.lots.length
   }
 }
 
@@ -3042,18 +3431,11 @@ let heldPercentiles: { key: string; references: ReadonlyMap<string, number> } | 
  * of their lots.
  */
 async function percentileKey(request: QueryRequest): Promise<string> {
-  const db = await getDbConnection()
-  let stored: number
-  try {
-    stored = await count(db, dbStores.STORE_LOTS)
-  } finally {
-    db.close()
-  }
   return JSON.stringify([
     request.query.expr,
     request.query.facets ?? {},
     referencePercentile.value,
-    stored,
+    await lotsCounted(),
     readStoreInventories().length
   ])
 }
