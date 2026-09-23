@@ -2171,7 +2171,13 @@ function yearRows(
   // free. Narrowed, the pass is the answer and there is no other — the items
   // card beside it walks the same catalogue under the same terms — so it is
   // made whoever asks, and held for the next.
-  if (!fetching && !expr && !years.has(expr)) {
+  //
+  // Narrowed is the query and not only its item terms. `region:"Europe"`
+  // leaves no term an item answers, so the pass it wants is the whole
+  // catalogue's — but the join narrows that to the years a European seller
+  // reaches, and handed nothing to narrow it read nought wherever the home
+  // screen had not been through first to hold the pass.
+  if (!fetching && !request.query.expr.trim() && !years.has(expr)) {
     return Promise.resolve([])
   }
   // The progress goes to whoever starts the pass and nobody else: it is one

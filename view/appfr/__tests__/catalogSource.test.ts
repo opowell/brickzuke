@@ -27,7 +27,7 @@ vi.mock('../../../model', async () => {
 })
 
 const {
-  catalogSource 
+  catalogSource, forgetScannedRows 
 } = await import('../catalogSource')
 const {
   catalogSchema 
@@ -512,6 +512,33 @@ describe('years', () => {
     await settle(narrowed.state)
     expect(narrowed.state.total.value).toBe(84)
     narrowed.scope.stop()
+  }, 60_000)
+
+  it('counts the years under a term only the lots answer, with no pass held', async () => {
+    // The type menu's count, on a table opened straight from its URL: the
+    // home screen never ran, so nothing holds the catalogue's years. A term
+    // no item answers — `region:` — leaves the pass un-narrowed, and a
+    // read-only query took that for the home card's case and read nought.
+    // No lot is stored here, so the join narrows nothing and every year
+    // stands.
+    forgetScannedRows()
+    const entity = catalogSchema.value.entities.find((candidate) => candidate.key === 'years')!
+    const answered = await catalogSource.query({
+      query: {
+        entity: 'years',
+        view: 'table',
+        sort: 'name',
+        dir: 'asc',
+        expr: 'region:"Europe"',
+        facets: {},
+        page: 1
+      },
+      schema: catalogSchema.value,
+      entity,
+      limit: 0,
+      offset: 0
+    })
+    expect(answered.total).toBe(60)
   }, 60_000)
 
   it('holds a year as a number, so the column sorts as years', async () => {
