@@ -264,13 +264,13 @@ function addTerms(base: string, expr: string): string {
  */
 function openWith(entity: string | null, expr: string, options: PressOptions = {}) {
   const params = new URLSearchParams(window.location.search)
+  const kept = carriedTerms(params.get(PARAM_EXPR) ?? '', params.get(PARAM_ENTITY))
   if (entity === null) {
     params.delete(PARAM_ENTITY)
   } else {
     params.set(PARAM_ENTITY, entity)
   }
   const stated = options.exclude ? excludingTerms(expr) : expr
-  const kept = recordTerms(params.get(PARAM_EXPR) ?? '')
   params.set(PARAM_EXPR, entity === null ? besideTerms(kept, stated) : addTerms(kept, stated))
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
@@ -302,6 +302,72 @@ function recordTerms(expr: string): string {
       )
     )
   )
+}
+
+/**
+ * The terms of an expression that go on meaning the same thing on another
+ * type's table: the record terms, and every term the type being left carried
+ * no field for.
+ *
+ * The second kind is what the lots answered. A countries table under
+ * `quantity>100` has no quantity of its own, so the term was put to the lots
+ * and the countries read off the ones that survived — see `joined` — and the
+ * stores table on the far side reads it the same way. Dropping it was the
+ * Stores cell saying 47 and opening 153.
+ *
+ * What the type answered itself is still dropped: `name:"brick"` asked of
+ * the items is a question about an item's name, and carried to the countries
+ * it would be put to *their* names instead. So are bare words, which search
+ * whatever the table draws.
+ *
+ * The type's vocabulary is what its schema states — columns, facets, scope —
+ * which is the fallback `vocabularyOf` in reach.ts reads when it has no rows.
+ */
+function carriedTerms(expr: string, fromKey: string | null): string {
+  if (!expr.trim()) {
+    return ''
+  }
+  const from = fromKey ? catalogSchema.value.entities.find((entity) => entity.key === fromKey) : undefined
+  const own = fieldsOf(from)
+  return formatExpression(
+    parseExpression(expr).map((group) =>
+      group.filter(
+        (term) =>
+          term.kind === 'field' &&
+          (Boolean(scopedEntity(catalogSchema.value, term.field)) ||
+            !own.has(term.field.toLowerCase()))
+      )
+    )
+  )
+}
+
+/**
+ * Every field a type states it answers. Nothing for `Everything`, which
+ * answers nothing of its own: whatever it was narrowed by, a lot answered.
+ */
+function fieldsOf(entity: EntitySchema | undefined): Set<string> {
+  const fields = new Set<string>()
+  if (!entity) {
+    return fields
+  }
+  for (const column of entity.columns ?? []) {
+    for (const field of [column.key, column.field, column.sort]) {
+      if (field) {
+        fields.add(field.toLowerCase())
+      }
+    }
+  }
+  for (const facet of entity.facets ?? []) {
+    fields.add(facet.key.toLowerCase())
+  }
+  for (const sort of entity.sorts ?? []) {
+    fields.add(sort.key.toLowerCase())
+  }
+  if (entity.scope) {
+    fields.add(entity.scope.toLowerCase())
+  }
+  fields.add('id')
+  return fields
 }
 
 /**

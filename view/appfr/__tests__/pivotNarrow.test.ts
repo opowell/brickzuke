@@ -37,6 +37,7 @@ vi.mock('../../../model', async () => {
 
 const {
   categoryColumns,
+  countryColumns,
   itemInventoryColumns,
   itemTypeColumns
 } = await import('../catalogSchema')
@@ -46,11 +47,17 @@ function columnOf(columns: ColumnDef[], key: string): ColumnDef {
 }
 
 /** Starts the route on `expr`, presses one cell, and reads back where it led. */
-async function press(columns: ColumnDef[], key: string, row: ShellRow, expr: string) {
+async function press(
+  columns: ColumnDef[],
+  key: string,
+  row: ShellRow,
+  expr: string,
+  from = 'itemTypes'
+) {
   await router.replace({
     path: '/',
     query: {
-      [PARAM_ENTITY]: 'itemTypes',
+      [PARAM_ENTITY]: from,
       [PARAM_EXPR]: expr
     }
   })
@@ -171,6 +178,47 @@ describe('pressing a cell that pivots to a different table', () => {
     expect(await press(itemTypeColumns, 'name', itemTypeRow, 'store:"Bunte Steinewelt" plate')).toEqual({
       entity: undefined,
       expr: 'store:"Bunte Steinewelt" type:Part'
+    })
+  })
+
+  it('keeps a term the lots answered, pivoting from a country to its sellers', async () => {
+    // The countries table has no quantity: `quantity>100` was put to the lots,
+    // and the 47 beside Austria is its sellers with such a lot. The sellers'
+    // table reads the term the same way, so it has to arrive there.
+    const austria: ShellRow = {
+      id: 'AT',
+      entityKey: 'countries',
+      entityLabel: 'Countries',
+      fields: {
+        country: 'AT',
+        name: 'Austria',
+        region: 'Europe',
+        stores: 47
+      }
+    }
+    expect(
+      await press(countryColumns, 'stores', austria, 'region:Europe quantity>100', 'countries')
+    ).toEqual({
+      entity: 'stores',
+      expr: 'region:Europe quantity>100 country:AT'
+    })
+  })
+
+  it('drops a term the table being left answered itself', async () => {
+    // `name` is a country's own name here, and would be a seller's name there.
+    const austria: ShellRow = {
+      id: 'AT',
+      entityKey: 'countries',
+      entityLabel: 'Countries',
+      fields: {
+        country: 'AT',
+        name: 'Austria',
+        stores: 153
+      }
+    }
+    expect(await press(countryColumns, 'stores', austria, 'name:Aus quantity>100', 'countries')).toEqual({
+      entity: 'stores',
+      expr: 'quantity>100 country:AT'
     })
   })
 })
