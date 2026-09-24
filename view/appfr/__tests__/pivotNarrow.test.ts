@@ -39,7 +39,8 @@ const {
   categoryColumns,
   countryColumns,
   itemInventoryColumns,
-  itemTypeColumns
+  itemTypeColumns,
+  storeInventoryColumns
 } = await import('../catalogSchema')
 
 function columnOf(columns: ColumnDef[], key: string): ColumnDef {
@@ -219,6 +220,27 @@ describe('pressing a cell that pivots to a different table', () => {
     expect(await press(countryColumns, 'stores', austria, 'name:Aus quantity>100', 'countries')).toEqual({
       entity: 'stores',
       expr: 'quantity>100 country:AT'
+    })
+  })
+
+  it('keeps a lot\'s own term, pivoting off the lots', async () => {
+    // A lot's quantity is the lots' own field, and the one every other type
+    // is read off through the join — so it means the same thing everywhere.
+    const lot: ShellRow = {
+      id: '1',
+      entityKey: 'inventories',
+      entityLabel: 'Store inventories',
+      fields: {
+        type: 'P',
+        itemId: '4073',
+        colorid: 11
+      }
+    }
+    expect(
+      await press(storeInventoryColumns, 'image', lot, 'quantity>100 store:jgutzwar97', 'inventories')
+    ).toEqual({
+      entity: undefined,
+      expr: 'quantity>100 store:jgutzwar97 record:P-4073 colorid:11'
     })
   })
 })

@@ -300,6 +300,9 @@ function openWith(entity: string | null, expr: string, options: PressOptions = {
  *
  * The type's vocabulary is what its schema states — columns, facets, scope —
  * which is the fallback `vocabularyOf` in reach.ts reads when it has no rows.
+ * Store inventories has none worth dropping: its rows are lots, the rows every
+ * other type is read off, so `quantity>100` there is the same question on
+ * every table the join reaches.
  *
  * A group left with nothing in it is dropped rather than kept, which
  * `formatExpression` does: an alternative with no terms matches every row, so
@@ -309,7 +312,10 @@ function carriedTerms(expr: string, fromKey: string | null): string {
   if (!expr.trim()) {
     return ''
   }
-  const from = fromKey ? catalogSchema.value.entities.find((entity) => entity.key === fromKey) : undefined
+  const from =
+    fromKey && fromKey !== 'inventories'
+      ? catalogSchema.value.entities.find((entity) => entity.key === fromKey)
+      : undefined
   const own = fieldsOf(from)
   return formatExpression(
     parseExpression(expr).map((group) =>
@@ -1643,7 +1649,11 @@ export const storeInventoryColumns: ColumnDef[] = [
     width: '280px',
     sort: 'itemName',
     value: (row) => row.fields.itemName,
-    click: narrowToItem
+    // The item's lots among the ones on screen, the way Store does for the
+    // seller: every colour of it, with the rest of the query still standing.
+    // Beside `store:` a record is what fetches the lots and the store narrows
+    // them, so the answer is this seller's lots of the item.
+    click: (row, options) => narrowBy('record', String(row.fields.record ?? ''), options)
   },
   {
     key: 'categoryName',

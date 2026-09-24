@@ -138,4 +138,32 @@ describe('pressing a related-entity cell a row already carries the field for', (
       expr: 'type:P id:21674 region:Europe store:"A brick per day"'
     })
   })
+
+  it('narrows Store inventories by Item without leaving the seller\'s lots', async () => {
+    // Every colour of the item this seller has, with the rest of the query —
+    // `quantity>100` included — still standing.
+    const row: ShellRow = {
+      id: '1',
+      entityKey: 'inventories',
+      entityLabel: 'Store inventories',
+      fields: {
+        record: 'P-4073',
+        type: 'P',
+        itemId: '4073',
+        itemName: 'Plate, Round 1 x 1'
+      }
+    }
+    expect(
+      await press(
+        'inventories',
+        storeInventoryColumns,
+        'item',
+        row,
+        'region:Europe quantity>100 country:AT store:jgutzwar97'
+      )
+    ).toEqual({
+      entity: 'inventories',
+      expr: 'region:Europe quantity>100 country:AT store:jgutzwar97 record:"P-4073"'
+    })
+  })
 })
