@@ -159,21 +159,23 @@ describe('pressing a record on the home screen', () => {
     expect(landed().expr).toBe('-category:5')
   })
 
-  it('drops a question that was asked of another type', async () => {
+  it('keeps a question the card counted by', async () => {
     await onHome('name:"brick"')
     openType('countries')
     await flushPromises()
-    // `name` is no type's scope, so this is a question about a value rather
-    // than a reference to a record — and asked of the countries it finds
-    // nothing. An expression belongs to the type it was written against.
+    // The countries card answered `name` off the countries' own names, and
+    // the table reads it the same way — so the heading opens what it counted.
     expect(landed().entity).toBe('countries')
-    expect(landed().expr).toBeUndefined()
+    expect(landed().expr).toBe('name:brick')
   })
 
-  it('keeps the record and drops the question when both are in force', async () => {
-    await onHome('category:"5" name:"brick"')
-    openType('items')
+  it('keeps a term the lots answered', async () => {
+    await onHome('region:"Europe" quantity>100')
+    openType('countries')
     await flushPromises()
-    expect(landed().expr).toBe('category:5')
+    // A country has no quantity: the card put the term to the lots, and
+    // `Countries 23` opening all forty was the heading contradicting it.
+    expect(landed().entity).toBe('countries')
+    expect(landed().expr).toBe('region:Europe quantity>100')
   })
 })

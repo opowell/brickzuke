@@ -278,36 +278,14 @@ function openWith(entity: string | null, expr: string, options: PressOptions = {
 }
 
 /**
- * The terms of an expression that name a record, which are the ones that go on
- * meaning something against another type.
- *
- * `region:"Europe"` is a reference: brickzuke puts the field on a country, a
- * seller and a lot so that the one term reaches all three — see `toStoreRow`.
- * `name:"brick"` is not; it is a question about a value, and asked of the
- * countries it finds nothing. `scopedEntity` is the difference, a field being a
- * reference exactly where some type declares it as its `scope`.
- *
- * A group left with nothing in it is dropped rather than kept, which
- * `formatExpression` does: an alternative with no terms matches every row, so
- * keeping it would widen the query rather than carry part of it over.
- */
-function recordTerms(expr: string): string {
-  if (!expr.trim()) {
-    return ''
-  }
-  return formatExpression(
-    parseExpression(expr).map((group) =>
-      group.filter(
-        (term) => term.kind === 'field' && Boolean(scopedEntity(catalogSchema.value, term.field))
-      )
-    )
-  )
-}
-
-/**
  * The terms of an expression that go on meaning the same thing on another
  * type's table: the record terms, and every term the type being left carried
  * no field for.
+ *
+ * A record term is a reference: brickzuke puts `region` on a country, a
+ * seller and a lot so that `region:"Europe"` reaches all three — see
+ * `toStoreRow`. `scopedEntity` tells one apart, a field being a reference
+ * exactly where some type declares it as its `scope`.
  *
  * The second kind is what the lots answered. A countries table under
  * `quantity>100` has no quantity of its own, so the term was put to the lots
@@ -322,6 +300,10 @@ function recordTerms(expr: string): string {
  *
  * The type's vocabulary is what its schema states — columns, facets, scope —
  * which is the fallback `vocabularyOf` in reach.ts reads when it has no rows.
+ *
+ * A group left with nothing in it is dropped rather than kept, which
+ * `formatExpression` does: an alternative with no terms matches every row, so
+ * keeping it would widen the query rather than carry part of it over.
  */
 function carriedTerms(expr: string, fromKey: string | null): string {
   if (!expr.trim()) {
@@ -378,22 +360,17 @@ function fieldsOf(entity: EntitySchema | undefined): Set<string> {
  * type on the far side declares its own, and the shell falls back to it when
  * the URL names none.
  *
- * What it keeps is the record the screen is narrowed to. This used to clear the
- * expression outright, on the argument that an expression belongs to the type
- * it was written against — true of the questions someone types, and false of a
- * record: since the home screen's tiles narrow rather than pivot, `Europe` is
- * how a reader gets *to* this wall, and a card reading `Countries 29` that
- * opened all forty of them contradicted the number it was pressed by.
+ * What it keeps is the whole query, because the whole query is what the card
+ * counted: its type answered the terms it has fields for, and the lots
+ * answered the rest — see `joined`. The table on the far side reads the same
+ * expression the same way, so it opens on the rows the card's number counted.
+ * Keeping only the record terms had `Countries 23` under `quantity>100` open
+ * all forty of them, the contradiction a card that cleared the query entirely
+ * used to make under `Europe`.
  */
 export function openType(entity: string) {
   const params = new URLSearchParams(window.location.search)
   params.set(PARAM_ENTITY, entity)
-  const kept = recordTerms(params.get(PARAM_EXPR) ?? '')
-  if (kept) {
-    params.set(PARAM_EXPR, kept)
-  } else {
-    params.delete(PARAM_EXPR)
-  }
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
@@ -589,7 +566,7 @@ export const itemColumns: ColumnDef[] = [
    *
    * Pressing the number opens that record's own lots, on the `inventories`
    * table — `store:` and every other term this query carries still narrows
-   * it, `openWith`'s own `recordTerms` being what carries them across.
+   * it, `openWith`'s own `carriedTerms` being what carries them across.
    */
   {
     key: 'storeInventory',
