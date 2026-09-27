@@ -541,6 +541,28 @@ describe('years', () => {
     expect(answered.total).toBe(60)
   }, 60_000)
 
+  it('stops scanning for a count the picker has called off', async () => {
+    // The type picker counts every type as it opens, and a picker opened and
+    // closed again is not waiting for the items scan any more — each open
+    // used to leave one more pass over the catalogue running behind it.
+    const count = (signal?: AbortSignal) =>
+      catalogSource.query({
+        ...request(),
+        query: {
+          ...request().query,
+          expr: 'type:"S"'
+        },
+        limit: 0,
+        signal
+      })
+    expect((await count()).total).toBe(SEEDED / 2)
+    const abandoned = new AbortController()
+    const asked = count(abandoned.signal)
+    abandoned.abort()
+    expect((await asked).total).toBeLessThan(SEEDED / 2)
+    expect((await count(AbortSignal.abort())).total).toBe(0)
+  }, 60_000)
+
   it('holds a year as a number, so the column sorts as years', async () => {
     const {
       state, scope 

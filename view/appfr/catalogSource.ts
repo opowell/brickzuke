@@ -398,7 +398,8 @@ function references(expr: string, field: string): boolean {
 async function scan(
   db: IDBPDatabase,
   request: QueryRequest,
-  emit: (row: ShellRow) => boolean
+  emit: (row: ShellRow) => boolean,
+  stopped: () => boolean = () => false
 ): Promise<void> {
   const index = indices.BRICK_LINK_ITEMS_BY_ITEM_ID
   const expr = request.query.expr
@@ -467,6 +468,10 @@ async function scan(
       // The final group of a full batch may continue into the next one, so it
       // is left for the next pass to read whole.
       if (!complete && key === lastKey) break
+      // Asked on every row, not only on the ones that match: a narrow query
+      // emits a handful out of two hundred thousand, and a count nobody is
+      // waiting for any more should not walk the rest to find them.
+      if (stopped()) return
       const row = toRow(key, batch.slice(at, end), expr)
       if (matches(row) && !emit(row)) return
       emitted++
@@ -3322,8 +3327,16 @@ function countLots(request: QueryRequest): Promise<number> {
   return new Promise((resolve, reject) => {
     let total = 0
     let told = 0
+    // Called off, the count stops listening and settles on what it has: the
+    // shell throws the answer away. The walk it rode on is let go once
+    // nobody else is watching it either — see [walkLots].
+    request.signal?.addEventListener('abort', () => resolve(total), {
+      once: true
+    })
     streamLots(request, {
-      open: true,
+      get open() {
+        return !request.signal?.aborted
+      },
       insert() {},
       set(update) {
         if (update.total === undefined) {
@@ -3516,10 +3529,17 @@ export const catalogSource: DataSource = {
     const db = await getDbConnection()
     const page = pageOf(request)
     try {
-      await scan(db, request, (row) => {
-        page.take(row)
-        return true
-      })
+      // A count for a picker that has closed is thrown away by the shell, so
+      // the scan stops where it is — see `QueryRequest.signal`.
+      await scan(
+        db,
+        request,
+        (row) => {
+          page.take(row)
+          return true
+        },
+        () => request.signal?.aborted ?? false
+      )
     } finally {
       // An open connection blocks the next version change, and IndexedDB does
       // not time out waiting for one — a leak here is an upgrade that never
