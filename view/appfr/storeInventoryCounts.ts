@@ -149,12 +149,26 @@ watch(storeScopeVersion, () => {
   }, 500)
 })
 
-/** The terms of a query that say which stores it reaches. */
+/**
+ * The terms of a query that say which stores it reaches.
+ *
+ * Kept for the last expression asked about: a scan asks once for every row
+ * it makes, two hundred thousand times over the same query, and parsing it
+ * each time was most of what opening the type picker cost.
+ */
 function storeTerms(expr: string): Term[][] {
-  return parseExpression(expr).map((group) =>
-    group.filter((term) => term.kind === 'field' && !ITEM_FIELDS.has(term.field))
-  )
+  if (parsed?.expr !== expr) {
+    parsed = {
+      expr,
+      terms: parseExpression(expr).map((group) =>
+        group.filter((term) => term.kind === 'field' && !ITEM_FIELDS.has(term.field))
+      )
+    }
+  }
+  return parsed.terms
 }
+
+let parsed: { expr: string; terms: Term[][] } | undefined
 
 /**
  * How many of a record the stores a query reaches have on offer — or nothing

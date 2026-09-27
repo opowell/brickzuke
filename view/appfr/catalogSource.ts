@@ -20,6 +20,7 @@ import type {DataSource,
   Term} from 'header-content-layout'
 import type { IDBPDatabase } from 'idb'
 import { fillPages } from './pageFill'
+import { backgroundTurn, maybeYield } from './yieldToInput'
 import type { Fill } from './pageFill'
 import { count, get, getAll, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
@@ -449,7 +450,6 @@ async function scan(
   // Records with no `bzItemId` are not in the index at all, which is the same
   // exclusion model.ts makes by hand.
   let range: IDBKeyRange | null = null
-  let scanned = 0
 
   for (;;) {
     const batch = (await getAllFromIndex<JoinedItem>(db, index, range, BATCH)) ?? []
@@ -471,7 +471,9 @@ async function scan(
       if (matches(row) && !emit(row)) return
       emitted++
       at = end
-      if (++scanned % BATCH === 0) await new Promise((resolve) => setTimeout(resolve, 0))
+      // On the clock rather than every thousand rows: what a row costs to
+      // make is not a number this loop controls — see [yieldToInput].
+      await maybeYield()
     }
 
     if (complete) return
@@ -3707,12 +3709,32 @@ function streamHeld(
       total: rows.length
     })
   }
-  const unwatch = fill && watch(fill.version, () => void push())
+  /*
+   * A page landing is a reason to read again, not a reason to read now. The
+   * read makes a row of every lot the item has — thousands, a few pages in —
+   * and pages land while somebody is using the screen. So the read waits for
+   * the page to be idle, and every page that lands meanwhile rides on the
+   * one read already asked for rather than queueing one each — see
+   * [backgroundTurn]. One at a time, so an older read cannot finish last.
+   */
+  let settled: Promise<void> = Promise.resolve()
+  let asked = false
+  const pushSoon = () => {
+    if (asked) return
+    asked = true
+    settled = settled.then(async () => {
+      await backgroundTurn()
+      asked = false
+      await push().catch(() => undefined)
+    })
+  }
+  const unwatch = fill && watch(fill.version, pushSoon)
   void (async () => {
     try {
       await push()
       if (fill && !cancelled && sink.open) {
         await fill.run()
+        await settled
         await push()
       }
       sink.close()

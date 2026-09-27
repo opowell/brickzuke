@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { markRaw } from 'vue'
 import {Call,
   makeJsonCall,
   makeTextCall,
@@ -338,6 +339,12 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
           colorId: i.idColor,
         }
       })
+      // Kept raw: the maps are reactive by key, which is all anything watches
+      // them for, and a reactive list of lots is a proxy made per lot on every
+      // read and — in development — a walk over every lot held, on every page
+      // that lands, by the devtools' deep subscription to this store. That
+      // walk grows by a page each time and runs before the page can paint.
+      markRaw(storeInventories)
       const ask = detail.request.extraParams?.lots
       if (ask !== undefined) {
         const key = String(ask)
@@ -350,7 +357,7 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
         for (const lot of storeInventories) {
           seen.set(lot.invId, lot)
         }
-        this.narrowedLotsMap.set(key, [...seen.values()])
+        this.narrowedLotsMap.set(key, markRaw([...seen.values()]))
         this.narrowedLotsScope.set(key, {
           total: detail.response.total_count ?? storeInventories.length,
           pages: Math.max(page, this.narrowedLotsScope.get(key)?.pages ?? 0),
