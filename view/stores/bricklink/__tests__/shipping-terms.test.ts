@@ -24,6 +24,7 @@ import BRICKTROPOLIS from './fixtures/storePolicy-Brick_OnTheRed.json'
 import MARVLIN from './fixtures/storePolicy-MarVLin.json'
 import GARRETT from './fixtures/storePolicy-garrett19.json'
 import MURAUER from './fixtures/storePolicy-murauer77.json'
+import BRICK8 from './fixtures/storePolicy-Brick8.json'
 
 function ratesOf(policy: { sellerTermsShipping: string; acceptedCurrencies: { code: string }[] }): ShippingCost[] {
   return parseShippingCosts(termsText(policy.sellerTermsShipping), {
@@ -421,5 +422,35 @@ describe('what a line has to say to be read at all', () => {
   it('says nothing about terms that only ask for a quote', () => {
     expect(parseShippingCosts(termsText('<p>Please ask for a shipping quote.</p>'))).toEqual([])
     expect(parseShippingCosts('')).toEqual([])
+  })
+})
+
+describe('a seller who styles their terms', () => {
+  // Brick8's terms open with a `<style>` block: forty lines of CSS that read,
+  // as text, like a heading with a rate under it.
+  it('leaves the style sheet out of the text', () => {
+    const text = termsText(BRICK8.sellerTermsShipping)
+    expect(text).not.toContain('{')
+    expect(text).not.toContain('max-width')
+    expect(text).toContain('Registered mail (EU) up to 400 g: 10,99 €')
+  })
+
+  it('reads no rate out of the style sheet', () => {
+    const rates = ratesOf(BRICK8)
+    expect(rates.length).toBeGreaterThan(0)
+    expect(rates.some((rate) => /[{}]|max-width|shipping-wrap/.test(rate.source))).toBe(false)
+    expect(rates.some((rate) => /shipping-wrap/.test(rate.label ?? ''))).toBe(false)
+  })
+
+  it('reads none out of terms stored with the style sheet in them, either', () => {
+    // As the text was kept before the style sheet was left out of it: the
+    // rules on one line, and a rate after them.
+    const stored =
+      '*.shipping-wrap { max-width: 1100.0px; margin: 0 auto; } h1 { margin: 0.1em 0 0.3em; } ' +
+      '*.meta { background: rgb(255,255,255); } Countries without their own rates use the standard rates: Parcel €49.99\n' +
+      'Registered mail worldwide up to 700 g: 19,99 €'
+    const rates = parseShippingCosts(stored)
+    expect(rates.some((rate) => /[{}]|max-width|shipping-wrap/.test(`${rate.source} ${rate.label ?? ''}`))).toBe(false)
+    expect(rates.map((rate) => rate.cost)).toContain(19.99)
   })
 })

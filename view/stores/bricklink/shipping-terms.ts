@@ -94,6 +94,35 @@ function decode(text: string): string {
   })
 }
 
+/** The parts of a page's markup that are never shown: style sheets, scripts and comments. */
+const UNSEEN = /<style\b[\s\S]*?<\/style\s*>|<script\b[\s\S]*?<\/script\s*>|<!--[\s\S]*?-->/giu
+
+/**
+ * A style rule as it reads once its tags are gone — `*.meta { padding: 12px; }`
+ * — with the selector before it. A declaration has a colon in it, which is what
+ * tells a rule from a seller's `{EU}` aside.
+ */
+const STYLE_RULE = /[^\n{}]*\{[^{}]*:[^{}]*\}/gu
+
+/**
+ * The text with any style rules taken out of it.
+ *
+ * For terms kept as text before [termsText] left style sheets out of it: one
+ * seller's opened with forty lines of CSS, which read as a heading with a rate
+ * under it — `*.shipping-wrap { max-width: 1100.0px …` at €49.99.
+ */
+export function withoutStyleRules(text: string): string {
+  if (!text.includes('{')) {
+    return text
+  }
+  return text
+    .replace(STYLE_RULE, ' ')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 /**
  * The terms as text, one line per block, blank lines dropped.
  *
@@ -102,10 +131,12 @@ function decode(text: string): string {
  * a paragraph.
  */
 export function termsText(html: string | null | undefined): string {
-  // Whitespace first: a newline in the HTML source is the seller's editor
-  // wrapping a paragraph, and only a block tag is a line.
-  const flat = String(html ?? '').replace(/\s+/g, ' ')
-  return decode(flat.replace(BREAKS, '\n').replace(CELLS, ' ').replace(TAGS, ' '))
+  // What is in the markup and never on the page first — a seller's style
+  // sheet, a script, a comment: the tags go below, and their contents would
+  // stay behind as text. Then whitespace: a newline in the HTML source is the
+  // seller's editor wrapping a paragraph, and only a block tag is a line.
+  const flat = String(html ?? '').replace(UNSEEN, ' ').replace(/\s+/g, ' ')
+  return withoutStyleRules(decode(flat.replace(BREAKS, '\n').replace(CELLS, ' ').replace(TAGS, ' ')))
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
@@ -455,6 +486,7 @@ function labelOf(lead: string): string | undefined {
  * read are an empty answer.
  */
 export function parseShippingCosts(terms: string, context: TermsContext = {}): ShippingCost[] {
+  terms = withoutStyleRules(terms)
   const out: ShippingCost[] = []
   let destination: string | undefined
   for (const line of terms.split('\n')) {

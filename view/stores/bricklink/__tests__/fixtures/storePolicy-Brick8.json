@@ -1,0 +1,275 @@
+{
+  "sellerTerms": "",
+  "sellerTermsShipping": "<div class=\"shipping-wrap\"> <style\n  type=\"text/css\">*.shipping-wrap {\n\tmax-width: 1100.0px;\n\tmargin: 0 auto;\n\tpadding: 24.0px;\n\tfont-family: system-ui , Segoe UI , Roboto , Inter , Arial;\n}\nh1 {\n\tmargin: 0.1em 0 0.3em;\n}\nh2 {\n\tmargin: 26.0px 0 12.0px;\n}\n*.meta {\n\tbackground: rgb(255,255,255);\n\tborder: 1.0px solid rgb(233,237,243);\n\tborder-left: 6.0px solid rgb(108,140,255);\n\tpadding: 12.0px 14.0px;\n\tmargin: 0 0 14.0px;\n}\n*.continent {\n\tmargin: 18.0px 0 28.0px;\n}\n*.country-list {\n\tlist-style: none;\n\tmargin: 0;\n\tpadding: 0;\n}\n*.country {\n\tbackground: rgb(255,255,255);\n\tborder: 1.0px solid rgb(233,237,243);\n\tpadding: 12.0px;\n}\n*.country-header {\n\tmargin-bottom: 6.0px;\n}\n*.flag {\n\tfont-size: 20.0px;\n\tline-height: 1;\n}\n*.name {\n\tfont-weight: 600;\n}\n*.rates {\n\tmargin: 6.0px 0 0 28.0px;\n\tpadding: 0;\n}\n*.rates li {\n\tmargin: 3.0px 0;\n}\n*.muted {\n\tcolor: rgb(85,85,85);\n}\n</style>\n    <div style=\"background: rgb(255,255,255);border: 1.0px solid rgb(233,237,243);border-left: 6.0px solid rgb(108,140,255);padding: 12.0px 14.0px;margin-bottom: 14.0px;font-family: system-ui , Segoe UI , Roboto , Inter , Arial , sans-serif;\">\n    <strong>Sorting note:</strong> The list is grouped by\n    <b>continents</b> (top-level sorting) and alphabetically within each\n    continent. Countries without their own special rates use the\n      <b>standard rates</b>: Registered (up to 700 g) <b>€19.99</b> and\n    Parcel <b>€49.99</b>.</div>  <h1>Shipping rates by country</h1>  <p\n    class=\"muted\">Country names shown in their own language (Latin\n    script). D-A-CH in German, others in English.</p>    <h2>Europe</h2>\n    <ul class=\"country-list\">  <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇦🇩</span>\n        <span class=\"name\">Andorra</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇧🇪</span>\n        <span class=\"name\">België</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>13,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇧🇬</span>\n        <span class=\"name\">Bulgaria</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>13,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇿</span>\n        <span class=\"name\">Česko</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>8,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇩🇰</span>\n        <span class=\"name\">Danmark</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>15,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇩🇪</span>\n        <span class=\"name\">Deutschland</span></div>   <ul class=\"rates\">\n          <li>Paket: <strong>8,99 €</strong></li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇪🇪</span>\n        <span class=\"name\">Eesti</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>15,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇮🇪</span>\n        <span class=\"name\">Éire</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>17,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇬🇷</span>\n        <span class=\"name\">Ellada</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>13,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇪🇸</span>\n        <span class=\"name\">España</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>15,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇫🇷</span>\n        <span class=\"name\">France</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>16,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇭🇷</span>\n        <span class=\"name\">Hrvatska</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>12,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇮🇸</span>\n        <span class=\"name\">Ísland</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇮🇹</span>\n        <span class=\"name\">Italia</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>15,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇾</span>\n        <span class=\"name\">Kypros</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇱🇻</span>\n        <span class=\"name\">Latvija</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>12,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇱🇹</span>\n        <span class=\"name\">Lietuva</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>12,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇱🇺</span>\n        <span class=\"name\">Lëtzebuerg</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (EU base): 19,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇭🇺</span>\n        <span class=\"name\">Magyarország</span></div>   <ul\n        class=\"rates\">   <li>Registered mail (EU) up to 400 g:\n        10,99 €</li>   <li>Registered mail (EU) up to 800 g:\n        12,99 €</li>   <li>Parcels (special, flat):\n        <strong>10,99 €</strong></li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇲🇹</span>\n        <span class=\"name\">Malta</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (EU base): 19,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇳🇱</span>\n        <span class=\"name\">Nederland</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>13,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇳🇴</span>\n        <span class=\"name\">Norge</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇦🇹</span>\n        <span class=\"name\">Österreich</span></div>   <ul class=\"rates\">\n          <li>Einschreiben (EU) bis 400 g: 10,99 €</li>\n          <li>Einschreiben (EU) bis 800 g: 12,99 €</li>   <li>Paket\n          (Spezial, pauschal): <strong>9,99 €</strong></li>  </ul>\n    </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇵🇱</span>\n        <span class=\"name\">Polska</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>8,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇵🇹</span>\n        <span class=\"name\">Portugal</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>13,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇷🇴</span>\n        <span class=\"name\">România</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>12,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇭</span>\n        <span class=\"name\">Schweiz</span></div>   <ul class=\"rates\">\n          <li>Paket (Spezial, pauschal): <strong>15,99 €</strong></li>\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇸🇰</span>\n        <span class=\"name\">Slovensko</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>9,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇸🇮</span>\n        <span class=\"name\">Slovenija</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (special, flat): <strong>11,99 €</strong></li>\n      </ul>  </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇫🇮</span>\n        <span class=\"name\">Suomi</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (EU base): 19,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇸🇪</span>\n        <span class=\"name\">Sverige</span></div>   <ul class=\"rates\">\n          <li>Registered mail (EU) up to 400 g: 10,99 €</li>\n          <li>Registered mail (EU) up to 800 g: 12,99 €</li>\n          <li>Parcels (EU base): 19,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇬🇧</span>\n        <span class=\"name\">United Kingdom</span></div>   <ul\n        class=\"rates\">   <li>Registered mail worldwide up to 700 g:\n        19,99 €</li>   <li>Parcel (Worldwide base): 49,99 €</li>  </ul>\n    </li>    <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇺🇦</span>\n        <span class=\"name\">Ukraina</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 5,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 6,99 €</li>   <li>Tracked parcel — up to\n          500 g: 7,99 €</li>   <li>Tracked parcel — up to 750 g:\n        8,99 €</li>   <li>Tracked parcel — up to 1,000 g: 9,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 10,99 €</li>   <li>Package\n          — up to 2,600 g: 12,99 €</li>   <li>Package — up to 3,600 g:\n        15,99 €</li>   <li>Package — up to 4,600 g: 19,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li> </ul>\n  <h2>Asia</h2>  <ul class=\"country-list\">  <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇦🇪</span>\n        <span class=\"name\">Al-Imarat</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇰🇼</span>\n        <span class=\"name\">Al-Kuwayt</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇸🇦</span>\n        <span class=\"name\">Al-Saudiyah</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇯🇴</span>\n        <span class=\"name\">Al-Urdun</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇮🇳</span>\n        <span class=\"name\">Bharat</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 6,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 8,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇰🇷</span>\n        <span class=\"name\">Daehanminguk</span></div>   <ul\n        class=\"rates\">   <li>Tracked parcel — up to 150 g: 6,99 €</li>\n          <li>Tracked parcel — up to 350 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 500 g: 11,99 €</li>   <li>Tracked parcel — up\n          to 750 g: 13,99 €</li>   <li>Tracked parcel — up to 1,000 g:\n        14,99 €</li>   <li>Tracked parcel — up to 1,600 g: 19,99 €</li>\n          <li>Package — up to 2,600 g: 26,99 €</li>   <li>Package — up\n          to 3,600 g: 34,99 €</li>   <li>Package — up to 4,600 g:\n        42,99 €</li>   <li>Package — over: 49,99 €</li>  </ul>  </li>\n      <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇭🇰</span>\n        <span class=\"name\">Hong Kong</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 6,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 8,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇮🇩</span>\n        <span class=\"name\">Indonesia</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇯🇵</span>\n        <span class=\"name\">Nihon</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 6,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 8,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇴🇲</span>\n        <span class=\"name\">Oman</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇵🇭</span>\n        <span class=\"name\">Pilipinas</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇶🇦</span>\n        <span class=\"name\">Qatar</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇸🇬</span>\n        <span class=\"name\">Singapore</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 6,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 8,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇹🇼</span>\n        <span class=\"name\">Taiwan</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 6,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 8,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇹🇭</span>\n        <span class=\"name\">Thailand</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇻🇳</span>\n        <span class=\"name\">Việt Nam</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇮🇱</span>\n        <span class=\"name\">Yisrael</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 10,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 17,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇳</span>\n        <span class=\"name\">Zhongguo</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li> </ul>\n  <h2>Americas</h2>  <ul class=\"country-list\">  <li class=\"country\">\n        <div class=\"country-header\">\n        <span class=\"flag\">🇦🇷</span>\n        <span class=\"name\">Argentina</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 10,99 €</li>   <li>Tracked parcel — up\n          to 500 g: 12,99 €</li>   <li>Tracked parcel — up to 750 g:\n        15,99 €</li>   <li>Tracked parcel — up to 1,000 g: 18,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 29,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇧🇴</span>\n        <span class=\"name\">Bolivia</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇧🇷</span>\n        <span class=\"name\">Brasil</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 7,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇦</span>\n        <span class=\"name\">Canada</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 7,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇱</span>\n        <span class=\"name\">Chile</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 10,99 €</li>   <li>Tracked parcel — up\n          to 500 g: 12,99 €</li>   <li>Tracked parcel — up to 750 g:\n        15,99 €</li>   <li>Tracked parcel — up to 1,000 g: 18,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 29,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇨🇴</span>\n        <span class=\"name\">Colombia</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 8,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 10,99 €</li>   <li>Tracked parcel — up\n          to 500 g: 12,99 €</li>   <li>Tracked parcel — up to 750 g:\n        15,99 €</li>   <li>Tracked parcel — up to 1,000 g: 18,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 29,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇲🇽</span>\n        <span class=\"name\">México</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 7,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        13,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇵🇪</span>\n        <span class=\"name\">Perú</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇵🇷</span>\n        <span class=\"name\">Puerto Rico</span></div>   <ul class=\"rates\">\n          <li>Tracked parcel — up to 150 g: 7,99 €</li>   <li>Tracked\n          parcel — up to 350 g: 9,99 €</li>   <li>Tracked parcel — up to\n          500 g: 11,99 €</li>   <li>Tracked parcel — up to 750 g:\n        12,99 €</li>   <li>Tracked parcel — up to 1,000 g: 14,99 €</li>\n          <li>Tracked parcel — up to 1,600 g: 19,99 €</li>   <li>Package\n          — up to 2,600 g: 26,99 €</li>   <li>Package — up to 3,600 g:\n        34,99 €</li>   <li>Package — up to 4,600 g: 42,99 €</li>\n          <li>Package — over: 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇺🇸</span>\n        <span class=\"name\">United States</span></div>   <ul\n        class=\"rates\">   <li>Tracked parcel — up to 150 g: 7,99 €</li>\n          <li>Tracked parcel — up to 350 g: 9,99 €</li>   <li>Tracked\n          parcel — up to 500 g: 11,99 €</li>   <li>Tracked parcel — up\n          to 750 g: 12,99 €</li>   <li>Tracked parcel — up to 1,000 g:\n        14,99 €</li>   <li>Tracked parcel — up to 1,600 g: 19,99 €</li>\n          <li>Package — up to 2,600 g: 26,99 €</li>   <li>Package — up\n          to 3,600 g: 34,99 €</li>   <li>Package — up to 4,600 g:\n        42,99 €</li>   <li>Package — over: 49,99 €</li>  </ul>  </li>\n      <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇺🇾</span>\n        <span class=\"name\">Uruguay</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li> </ul>\n  <h2>Africa</h2>  <ul class=\"country-list\">  <li class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇲🇦</span>\n        <span class=\"name\">Maroc</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇪🇬</span>\n        <span class=\"name\">Misr</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇳🇬</span>\n        <span class=\"name\">Nigeria</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇿🇦</span>\n        <span class=\"name\">Suid-Afrika</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇹🇳</span>\n        <span class=\"name\">Tunisie</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li> </ul>\n  <h2>Oceania</h2>  <ul class=\"country-list\">  <li class=\"country\">\n        <div class=\"country-header\">\n        <span class=\"flag\">🇦🇺</span>\n        <span class=\"name\">Australia</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li>    <li\n      class=\"country\">  <div class=\"country-header\">\n        <span class=\"flag\">🇳🇿</span>\n        <span class=\"name\">Aotearoa</span></div>   <ul class=\"rates\">\n          <li>Registered mail worldwide up to 700 g: 19,99 €</li>\n          <li>Parcel (Worldwide base): 49,99 €</li>  </ul>  </li> </ul>  </div>\n",
+  "hasVAT": false,
+  "acceptedCurrencies": [
+    {
+      "id": 2,
+      "code": "EUR",
+      "name": "Euro",
+      "note": null
+    },
+    {
+      "id": 1,
+      "code": "USD",
+      "name": "US Dollar",
+      "note": null
+    }
+  ],
+  "pmtMethods": [
+    {
+      "countryID": "DE",
+      "methods": [
+        {
+          "id": 26,
+          "name": "Credit/Debit (Powered by Stripe)",
+          "note": null,
+          "onSite": true
+        },
+        {
+          "id": 27,
+          "name": "PayPal (Onsite)",
+          "note": "Bei Überweisung (Iban) und einem Warenwert ab 100 € gewähren wir 1 % Cashback auf den Warenwert als Coupon mit 12 Monaten Gültigkeit.",
+          "onSite": true
+        },
+        {
+          "id": 5,
+          "name": "Cash (no COD)",
+          "note": "Cash on Pickup in 46145 Oberhausen",
+          "onSite": false
+        },
+        {
+          "id": 18,
+          "name": "IBAN",
+          "note": "Überweisung",
+          "onSite": false
+        }
+      ]
+    },
+    {
+      "countryID": "I",
+      "methods": [
+        {
+          "id": 26,
+          "name": "Credit/Debit (Powered by Stripe)",
+          "note": null,
+          "onSite": true
+        },
+        {
+          "id": 27,
+          "name": "PayPal (Onsite)",
+          "note": "For buyers inside European Union we offer 1% cashback on goods value as coupon (valid 12 months) if you are using IBAN as payment method and order volume is higher than 100 €.",
+          "onSite": true
+        },
+        {
+          "id": 18,
+          "name": "IBAN",
+          "note": "Bank-Transfer - for EU-countries only",
+          "onSite": false
+        }
+      ]
+    }
+  ],
+  "shipCountries": [],
+  "shipMethods": [
+    {
+      "id": 169282,
+      "name": "Custom Shipping",
+      "note": "Only use this option, if you received a bypass password from us.",
+      "shipsTo": "B"
+    },
+    {
+      "id": 284295,
+      "name": "Selbstabholung/Self pick-up",
+      "note": "Selbstabholung ist möglich Mo-Fr. 8-16:30 Uhr, sowie Sa 10-14 Uhr",
+      "shipsTo": "D"
+    },
+    {
+      "id": 124485,
+      "name": "Versand Deutschland DHL Paket",
+      "note": "Paketversand innerhalb Deutschlands",
+      "shipsTo": "D"
+    },
+    {
+      "id": 324027,
+      "name": "Versand Deutschland Kleinpaket",
+      "note": "Kleinpaketversand innerhalb Deutschlands",
+      "shipsTo": "D"
+    },
+    {
+      "id": 347832,
+      "name": "Shipping rate  Cyprus/Israel/Jordan/Kuwait/Lebanon/Oman/Qatar/Saudi Arabia/Turkey/UAE- Package",
+      "note": "Tracked package - Cyprus, Israel, Jordan, Kuwait, Libanon, Oman, Qatar,\nSaudi Arabia, Turkey, UAE No sealed sets!\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347831,
+      "name": "Shipping rate Argentina / Chile / ColombiaTracked parcel",
+      "note": "Tracked parcel - Argentina, Chile, Colombia No sealed sets!",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347830,
+      "name": "Shipping rate Argentina, Chile, Colombia- Package",
+      "note": "Tracked package - Argentina, Chile, Colombia No sealed sets!\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 173229,
+      "name": "Shipping rate AT SK",
+      "note": null,
+      "shipsTo": "I"
+    },
+    {
+      "id": 173230,
+      "name": "Shipping rate BE BG GR NL PT",
+      "note": null,
+      "shipsTo": "I"
+    },
+    {
+      "id": 347827,
+      "name": "Shipping rate Brazil - Package",
+      "note": "Tracked package - Brazil No sealed sets!\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347828,
+      "name": "Shipping rate Brazil Tracked parcel",
+      "note": "Tracked parcel - Brazil    No sealed sets!",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347806,
+      "name": "Shipping rate Canada / Mexico - Package",
+      "note": "Tracked package - Canada / Mexico No sealed sets!\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347804,
+      "name": "Shipping rate Canada/Mexico Tracked parcel",
+      "note": "Tracked parcel - Canada / Mexico   No sealed sets!",
+      "shipsTo": "I"
+    },
+    {
+      "id": 173234,
+      "name": "Shipping rate CH DK EE ES IT",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347833,
+      "name": "Shipping rate Cyprus/Israel/Jordan/Kuwait/Lebanon/Oman/Qatar/Saudi Arabia/Turkey/UAE - Tracked parcel",
+      "note": "Tracked parcel - Cyprus, Israel, Jordan, Kuwait, Libanon, Oman, Qatar,\nSaudi Arabia, Turkey, UAE No sealed sets!",
+      "shipsTo": "I"
+    },
+    {
+      "id": 173235,
+      "name": "Shipping rate CZ PL",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 284284,
+      "name": "Shipping rate Europe - registered letter",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 124486,
+      "name": "Shipping rate European Union/Europe",
+      "note": null,
+      "shipsTo": "I"
+    },
+    {
+      "id": 275572,
+      "name": "Shipping rate FR",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347825,
+      "name": "Shipping rate Hong Kong/Japan/Singapore/South Korea/Taiwan - Package",
+      "note": "Tracked package - Hong Kong / India / Japan / Singapore / South Korea /\nTaiwan  No sealed sets!\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347808,
+      "name": "Shipping rate HongKong/Japan/South Korea/Taiwan Tracked parcel",
+      "note": "Tracked parcel - HongKong / India / Japan / Singapore / South Korea\n/Taiwan No sealed sets!",
+      "shipsTo": "I"
+    },
+    {
+      "id": 284294,
+      "name": "Shipping rate HR LT LV RO",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 173237,
+      "name": "Shipping rate HU",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 284293,
+      "name": "Shipping rate IE",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 173233,
+      "name": "Shipping rate SI",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347834,
+      "name": "Shipping rate Ukraine - Package",
+      "note": "Tracked package - Ukraine  No sealed sets!\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 347835,
+      "name": "Shipping rate Ukraine Tracked parcel",
+      "note": "Tracked parcel - Ukraine No sealed sets!",
+      "shipsTo": "I"
+    },
+    {
+      "id": 327097,
+      "name": "Shipping rate US - Package",
+      "note": "Tracked package - US    No sealed sets!  Additional charge due to US\nimport duties: duties: 15 % of order value are added to the payment fee\n",
+      "shipsTo": "I"
+    },
+    {
+      "id": 327095,
+      "name": "Shipping rate US Tracked parcel",
+      "note": "Tracked parcel - US  No sealed sets!  Additional charge due to US import\nduties:15 % of order value are added to the payment fee",
+      "shipsTo": "I"
+    },
+    {
+      "id": 284298,
+      "name": "Worldwide",
+      "note": "",
+      "shipsTo": "I"
+    },
+    {
+      "id": 124487,
+      "name": "Worldwide - registered letter",
+      "note": null,
+      "shipsTo": "I"
+    }
+  ],
+  "storeTermChanges": [],
+  "storeTermShippingChanges": [
+    {
+      "id": 1166974,
+      "logDate": "5 Oct 2025 08:05",
+      "tsDate": 1759665959310
+    },
+    {
+      "id": 1166970,
+      "logDate": "5 Oct 2025 07:58",
+      "tsDate": 1759665511787
+    }
+  ]
+}
