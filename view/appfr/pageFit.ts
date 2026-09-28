@@ -32,7 +32,10 @@
 import type { Ref } from 'vue'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-/** The shell's own default, kept wherever the page is not fitted. */
+/**
+ * The shell's own default: where a fitted page starts from, the preview's
+ * page, and the page size setting's value until somebody sets it.
+ */
 export const DEFAULT_LIMIT = 50
 
 /**
@@ -174,7 +177,8 @@ export function measureResults(scroller: HTMLElement): Measured | undefined {
 }
 
 /**
- * The page length for the shell under `root`, fitted while `on`.
+ * The page length for the shell under `root`, fitted while `on` and `fixed`
+ * rows long while not.
  *
  * `key` names what the fit is of: the query and the window. A change to it is
  * a new page to fit from scratch, and what the last one learned about how many
@@ -201,11 +205,12 @@ export function usePageFit(
   on: Ref<boolean>,
   key: Ref<string>,
   view: Ref<string>,
-  page: Ref<unknown>
+  page: Ref<unknown>,
+  fixed: Ref<number>
 ): Ref<number> {
-  const limit = ref(DEFAULT_LIMIT)
+  const limit = ref(on.value ? DEFAULT_LIMIT : fixed.value)
   const state: FitState = {
-    limit: DEFAULT_LIMIT,
+    limit: limit.value,
     steps: 0
   }
   /**
@@ -328,7 +333,13 @@ export function usePageFit(
       state.ceiling = undefined
       state.steps = 0
       state.held = false
-      set(DEFAULT_LIMIT, false)
+      set(fixed.value, false)
+    }
+  })
+
+  watch(fixed, (rows) => {
+    if (!on.value) {
+      set(rows, false)
     }
   })
 

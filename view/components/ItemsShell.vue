@@ -59,6 +59,7 @@ import { createRecordFor, deleteRecordsFor, shopPartsOf, userRevision } from '..
 import { cartSelection } from '../appfr/cartDraft'
 import {activeCart,
   dynamicPageSizesOn,
+  pageSizeChosen,
   referencePercentile,
   referencePrice,
   referenceStore} from '../appfr/settings'
@@ -182,9 +183,18 @@ onMounted(() => {
  * The expression goes in with the create because a detail type makes its record
  * under the one in the URL: a part added to an inventory has to go under the
  * inventory whose parts are on screen. See [userWrites].
+ *
+ * A new item is then opened on its own record — the one row, its name ready to
+ * be typed over — because the table it was made from would not show it.
  */
-function onCreate(entity: EntitySchema) {
-  void createRecordFor(entity, String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
+async function onCreate(entity: EntitySchema) {
+  const made = await createRecordFor(
+    entity,
+    String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
+  )
+  if (made) {
+    openOn(entity.key, 'record', made)
+  }
 }
 
 function onDelete(selection: Selection) {
@@ -279,8 +289,8 @@ const cartTicks = computed(() => urlEntity.value === 'inventories' && activeCart
 /**
  * How long a page is: as many rows as fill the window, read off what the shell
  * draws under this element — see [pageFit] — while the setting says so and a
- * type is on screen. The home screen draws no rows of the shell's, so there is
- * nothing to fit, and it keeps the shell's own fifty.
+ * type is on screen. Otherwise it is the page size setting's fixed length; the
+ * home screen draws no rows of the shell's, so there is nothing to fit.
  *
  * The key is the query and the window: a new one is a page fitted afresh, and
  * anything the last page learned about what fits is let go with it. Only what
@@ -303,7 +313,8 @@ const fitView = computed(() => {
   return `${String(query[PARAM_ENTITY] ?? '')}|${String(query[PARAM_VIEW] ?? '')}`
 })
 const fitPage = computed(() => String(router.currentRoute.value.query[PARAM_PAGE] ?? ''))
-const pageLimit = usePageFit(shellRoot, fitPages, fitKey, fitView, fitPage)
+const fixedLimit = computed(() => pageSizeChosen())
+const pageLimit = usePageFit(shellRoot, fitPages, fitKey, fitView, fitPage, fixedLimit)
 
 function noteWindowSize() {
   windowSize.value = `${window.innerWidth}x${window.innerHeight}`

@@ -24,7 +24,8 @@ import {createUserCategory,
 import {createUserItem,
   deleteUserItem,
   updateUserItem,
-  userItemIdOf} from '../../idb/userItem'
+  userItemIdOf,
+  userItemRecord} from '../../idb/userItem'
 import {addInventoryLine,
   removeInventoryLine,
   updateInventoryLine} from '../../idb/userInventory'
@@ -183,9 +184,19 @@ export function openedOwnSet(expr: string): string | undefined {
  * A detail type makes its record under the one in the URL, and makes nothing at
  * all when the URL names none: a line with no inventory is a line nothing can
  * ever show.
+ *
+ * A new item comes back as its record, for the press to open it on. It is one
+ * row among the catalogue's two hundred thousand, sorted wherever `New item`
+ * sorts, and made with no category, colour or record of BrickLink's — so under
+ * a query like `category:"8" record:"P-3062"` it matches nothing and is never
+ * on screen to be typed over, and the count on the bar, read under the same
+ * terms, does not move either.
  */
-export async function createRecordFor(entity: EntitySchema, expr: string): Promise<void> {
-  await writing(entity.key, async (db) => {
+export async function createRecordFor(
+  entity: EntitySchema,
+  expr: string
+): Promise<string | undefined> {
+  return writing(entity.key, async (db) => {
     switch (entity.key) {
       // The one catalogue type that can be added to: what is made is a
       // category of theirs, which is a row of that same table.
@@ -193,7 +204,7 @@ export async function createRecordFor(entity: EntitySchema, expr: string): Promi
         return void (await createUserCategory(db))
       // Likewise: a new item of theirs is a row of the catalogue's items.
       case 'items':
-        return void (await createUserItem(db))
+        return userItemRecord((await createUserItem(db)).id)
       case 'shopLists':
         return void (await createShopList(db))
       case 'carts':

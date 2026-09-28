@@ -576,3 +576,40 @@ describe('years', () => {
     scope.stop()
   }, 60_000)
 })
+
+/*
+ * A new item is opened on its own record once made — see `onCreate` in
+ * [ItemsShell]. Made with nothing of BrickLink's on it, it matches no query
+ * that narrows by category, colour or record, and sorts under `N` among
+ * thousands, so the address it is opened on has to find it and it alone.
+ */
+describe('a new item of theirs', () => {
+  it('is made as a record the items table finds on its own', async () => {
+    const {
+      createRecordFor
+    } = await import('../userWrites')
+    const record = await createRecordFor(itemsEntity(), 'category:"8" record:"P-3062"')
+    expect(record).toMatch(/^U-\d+$/)
+
+    const expr = `record:"${record}"`
+    const base = request()
+    const answered = await catalogSource.query({
+      ...base,
+      query: {
+        ...base.query,
+        expr
+      }
+    })
+    expect(answered.rows.map((row) => row.id)).toEqual([record])
+
+    const {
+      state, scope
+    } = runStream({
+      expr
+    })
+    await settle(state)
+    expect(state.rows.value.map((row) => row.id)).toEqual([record])
+    expect(state.total.value).toBe(1)
+    scope.stop()
+  }, 60_000)
+})

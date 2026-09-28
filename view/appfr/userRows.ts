@@ -121,6 +121,11 @@ export async function userItemRows(db: IDBPDatabase): Promise<ShellRow[]> {
         id: record,
         own: true,
         record,
+        // The records a catalogue row collapses, which is what `record:` on
+        // this table reaches an item through — see `OF_ITEM` in [reach]. One
+        // here, and without it `record:"U-3"` found nothing on the items
+        // table, which is where a new item is opened.
+        records: [record],
         name: `${item.name} (${record})`,
         ownName: item.name,
         type: 'U',

@@ -18,7 +18,8 @@ describe('the ship-to country', () => {
       'referencePrice',
       'referencePercentile',
       'referenceStore',
-      'dynamicPageSizes'
+      'dynamicPageSizes',
+      'pageSize'
     ])
   })
 
@@ -220,5 +221,23 @@ describe('the setting cell', () => {
     expect(wrapper.find('input[type="number"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('ms')
     wrapper.unmount()
+  })
+})
+
+describe('the page size', () => {
+  it('is a number of rows held to what a fitted page may ask for', async () => {
+    const {
+      pageSize, pageSizeChosen
+    } = await import('../settings')
+    expect(pageSizeChosen()).toBe(50)
+    setSetting('pageSize', 120)
+    expect(pageSizeChosen()).toBe(120)
+    setSetting('pageSize', 0)
+    expect(pageSizeChosen()).toBe(1)
+    setSetting('pageSize', 5_000)
+    expect(pageSizeChosen()).toBe(1_000)
+    // Whatever is stored by hand, the shell is asked for a length it can use.
+    pageSize.value = Number.NaN
+    expect(pageSizeChosen()).toBe(50)
   })
 })

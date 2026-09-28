@@ -18,6 +18,7 @@
  */
 import { useStorage } from '@vueuse/core'
 import type { Ref } from 'vue'
+import { DEFAULT_LIMIT, MOST_ROWS } from './pageFit'
 
 /**
  * How many sellers in a row may add nothing new before the reach fill decides
@@ -115,12 +116,12 @@ export function priceUnitsChosen(): PriceUnits {
 }
 
 /**
- * Whether a page is as long as the window is tall, or a fixed fifty rows.
+ * Whether a page is as long as the window is tall, or a fixed number of rows.
  *
  * On, a table, a list or a wall of pictures shows exactly the rows that fit
  * the results area, read off what is drawn — see [pageFit] — so nothing
  * scrolls but a wide table sideways, and turning the page is the only way
- * down. Off is the shell's own page: fifty rows whatever the window, and a
+ * down. Off is a fixed page: [pageSize] rows whatever the window, and a
  * scrollbar for the rest. A choice rather than a number because the number
  * is the point: it is one nobody should have to pick.
  */
@@ -129,6 +130,23 @@ export const dynamicPageSizes = useStorage('brickzuke-dynamic-page-sizes', 'on')
 /** Whether the page is fitted — anything but an explicit `off` is. */
 export function dynamicPageSizesOn(): boolean {
   return dynamicPageSizes.value !== 'off'
+}
+
+/**
+ * How many rows a page is while [dynamicPageSizes] is off — the shell's own
+ * fifty to begin with. For somebody who would rather scroll a long page than
+ * turn many short ones, or the other way about; while the page is fitted to
+ * the window it is not read at all.
+ */
+export const pageSize = useStorage('brickzuke-page-size', DEFAULT_LIMIT)
+
+/**
+ * The page size as a length the shell can be asked for: a whole number of
+ * rows in range, and fifty wherever what is stored is not a number at all.
+ */
+export function pageSizeChosen(): number {
+  const rows = Number(pageSize.value)
+  return Number.isFinite(rows) ? Math.min(MOST_ROWS, Math.max(1, Math.round(rows))) : DEFAULT_LIMIT
 }
 
 /**
@@ -381,7 +399,7 @@ export const SETTINGS: Setting[] = [
     key: 'dynamicPageSizes',
     name: 'Dynamic page sizes',
     detail:
-      'Whether a page is exactly as many rows as fit the window, so nothing scrolls but a wide table sideways — or a fixed fifty rows a page.',
+      'Whether a page is exactly as many rows as fit the window, so nothing scrolls but a wide table sideways — or a fixed number of rows a page, set below.',
     value: dynamicPageSizes,
     choices: [
       {
@@ -393,6 +411,17 @@ export const SETTINGS: Setting[] = [
         label: 'Off'
       }
     ]
+  },
+  {
+    kind: 'number',
+    key: 'pageSize',
+    name: 'Rows per page',
+    detail:
+      'How many results a page shows when dynamic page sizes are off. Not read while they are on.',
+    value: pageSize,
+    min: 1,
+    max: MOST_ROWS,
+    unit: 'rows'
   }
 ]
 
