@@ -15,6 +15,7 @@
 import { ref } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
 import { processQueue } from '../assets/js/make-call'
+import { BOT_CHECK_MESSAGE, checkedSince } from '../assets/js/bot-check'
 import {PAGE_SIZE,
   fetchStoreFront,
   fetchStoreItems,
@@ -103,28 +104,18 @@ export async function readStoreScope(username: string): Promise<StoredStoreScope
   }
 }
 
-/** Waits for something to land, or says why it has not. */
-async function awaitMore<T>(read: () => Promise<T[]>, before: number): Promise<T[]> {
-  const deadline = Date.now() + DEADLINE_MS
-  for (;;) {
-    const stored = await read()
-    if (stored.length > before) {
-      return stored
-    }
-    if (Date.now() > deadline) {
-      throw new Error(MISSING_EXTENSION)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 400))
-  }
-}
-
 /** Waits for the front page to give up the seller's numeric id. */
-async function awaitStoreId(username: string): Promise<number> {
-  const deadline = Date.now() + DEADLINE_MS
+async function awaitStoreId(username: string, asked: number): Promise<number> {
+  const deadline = asked + DEADLINE_MS
   for (;;) {
     const sid = storeIds.get(username)
     if (sid !== undefined) {
       return sid
+    }
+    // The check came back in its place: nothing else is coming, so say so now
+    // rather than at the deadline — see [botCheck].
+    if (checkedSince(asked)) {
+      throw new Error(BOT_CHECK_MESSAGE)
     }
     if (Date.now() > deadline) {
       throw new Error(MISSING_EXTENSION)
@@ -153,13 +144,14 @@ export async function storeIdFor(username: string): Promise<number> {
     return known
   }
   installResponseListener()
+  const asked = Date.now()
   // Queues the call, or replays a cached response — a front page read within
   // the week never leaves the browser.
   await fetchStoreFront(username)
   // Nothing drains the queue on its own here: appfr asks for exactly the page
   // someone is looking at.
   await processQueue(1)
-  return await awaitStoreId(username)
+  return await awaitStoreId(username, asked)
 }
 
 /**
@@ -171,9 +163,38 @@ export async function storeIdFor(username: string): Promise<number> {
  */
 async function firstPage(username: string): Promise<StoredStoreLot[]> {
   const sid = await storeIdFor(username)
+  const asked = Date.now()
   await fetchStoreItems(username, sid, 1)
   await processQueue(1)
-  return await awaitMore(() => readStoreLots(username), 0)
+  return await awaitFirstPage(username, asked)
+}
+
+/**
+ * The first page landing — or a seller with nothing on offer saying so.
+ *
+ * An empty store answers too: a page of no lots, which stores none, and a
+ * scope of none, which is what is read for it here. Waited for as lots alone
+ * it ran out the deadline and was reported as an extension that never
+ * answered, and three such sellers in a row ended a whole run of them.
+ */
+async function awaitFirstPage(username: string, asked: number): Promise<StoredStoreLot[]> {
+  const deadline = asked + DEADLINE_MS
+  for (;;) {
+    const stored = await readStoreLots(username)
+    if (stored.length) {
+      return stored
+    }
+    if ((await readStoreScope(username))?.lots === 0) {
+      return []
+    }
+    if (checkedSince(asked)) {
+      throw new Error(BOT_CHECK_MESSAGE)
+    }
+    if (Date.now() > deadline) {
+      throw new Error(MISSING_EXTENSION)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400))
+  }
 }
 
 /**

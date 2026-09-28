@@ -1,9 +1,10 @@
-import { callKey, CallType, handleEvent, isWriteCall, processQueue } from './make-call'
+import { callKey, CallType, handleEvent, isChallenge, isWriteCall, processQueue } from './make-call'
 import BrickLinkWorker from '@/assets/workers/brickLink?worker'
 import { put } from '../../../idb/db'
 import { getDbConnection } from '../../../idb/idb'
 import stores from '../../../idb/stores'
 import { ONE_WEEK } from './timesToMs'
+import { noteAnswer, noteBotCheck } from './bot-check'
 
 let listening = false
 
@@ -57,10 +58,24 @@ export function installResponseListener() {
     if (isWriteCall(e.detail.request?.call)) {
       return
     }
+    // An empty page is the firewall too: BrickLink serves none of its own, and
+    // a request it will not answer comes back as a bare 202.
+    if (e.detail.response === '' && e.detail.request?.type === CallType.TEXT) {
+      noteBotCheck(String(e.detail.request?.url ?? ''))
+      return
+    }
     if (!e.detail.response) {
       console.log('no response, skipping', e)
       return
     }
+    // The firewall's bot check, not the page asked for: neither kept nor
+    // handled, so the next ask goes to BrickLink again — see [isChallenge].
+    if (isChallenge(e.detail.response)) {
+      console.warn('BrickLink answered with a bot check', e.detail.request?.url)
+      noteBotCheck(String(e.detail.request?.url ?? ''))
+      return
+    }
+    noteAnswer()
     switch (e.detail.request.type) {
       /*
        * `json` was not here at all, and it is the type both of an item's own

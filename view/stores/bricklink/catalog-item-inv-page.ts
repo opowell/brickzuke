@@ -60,6 +60,35 @@ function decodeEntities(value: string | undefined): string | undefined {
   return element.value
 }
 
+/**
+ * How a catalogue page is asked for: as a browser navigating to it would, and
+ * with the browser's cookies. BrickLink's firewall answers anything else with
+ * an empty page — and the cookies are what carry the check a person passed by
+ * opening BrickLink in this browser. See [botCheck].
+ */
+export const CATALOG_PAGE_OPTIONS = {
+  headers: {
+    accept:
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'accept-language': 'en,de;q=0.9,es;q=0.8,en-US;q=0.7',
+    'cache-control': 'max-age=0',
+    priority: 'u=0, i',
+    'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'same-origin',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1',
+  },
+  referrerPolicy: 'no-referrer-when-downgrade',
+  body: null,
+  method: 'GET',
+  mode: 'cors',
+  credentials: 'include',
+}
+
 export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore', () => {
   const itemVariants = ref(new Map<string, Map<string, ItemVariant[]>>())
   const itemInventories = ref(new Map<string, Map<string, ItemInventory[]>>())
@@ -67,28 +96,7 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
     return await makeTextCall(
       Call.GET_CATALOG_ITEM_INV_PAGE,
       `https://www.bricklink.com/catalogItemInv.asp?${type}=${itemId}`,
-      {
-        headers: {
-          accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'accept-language': 'en,de;q=0.9,es;q=0.8,en-US;q=0.7',
-          'cache-control': 'max-age=0',
-          priority: 'u=0, i',
-          'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"macOS"',
-          'sec-fetch-dest': 'document',
-          'sec-fetch-mode': 'navigate',
-          'sec-fetch-site': 'same-origin',
-          'sec-fetch-user': '?1',
-          'upgrade-insecure-requests': '1',
-        },
-        referrerPolicy: 'no-referrer-when-downgrade',
-        body: null,
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'include',
-      },
+      CATALOG_PAGE_OPTIONS,
       undefined,
       ONE_DAY,
     )

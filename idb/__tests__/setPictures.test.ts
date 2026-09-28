@@ -64,7 +64,7 @@ describe('bringing stored sets up from their thumbnails', () => {
     await writeOldShape()
 
     const db = await getDbConnection()
-    expect(db.version).toBe(34)
+    expect(db.version).toBe(36)
     const items = (await getAll<BrickLinkItem>(db, STORES.BRICK_LINK_ITEMS)) ?? []
     db.close()
 

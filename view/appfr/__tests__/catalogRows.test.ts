@@ -379,3 +379,44 @@ describe.each([
     expect(cellTextOf(roleColumn(entity.columns ?? [], 'identity'), found[0]!)).toBe(name)
   })
 })
+
+describe('lines a part\'s own page states', () => {
+  it('join the sets opened, and a line both state is the set\'s own', async () => {
+    const line = (record: string, quantity: number) => ({
+      id: `${record}|3001-5`,
+      record,
+      part: 'P-3001',
+      quantity,
+      itemVariant: {
+        itemType: 'P',
+        itemId: '3001',
+        name: 'Brick 2 x 4',
+        thumbnail: '',
+        colorId: '5',
+        colorName: 'Red',
+        catType: 'P',
+        catString: '5',
+        variantId: '3001-5',
+        categoryName: 'Brick'
+      }
+    })
+    const db = await getDbConnection()
+    // One line the set's own inventory states too, and one set nobody opened.
+    await putAll(db, STORES.PART_APPEARANCES, [line('S-4000-1', 1), line('S-9999-1', 2)])
+    db.close()
+    try {
+      const rows = (await rowsFor('itemInventories', getDbConnection))!
+      expect(rows.length).toBe(4)
+      expect(rows.find((row) => row.fields.record === 'S-9999-1')?.fields.quantity).toBe(2)
+      // The opened set's own figure stands over the part page's.
+      expect(rows.filter((row) => row.fields.record === 'S-4000-1')).toHaveLength(1)
+      expect(rows.find((row) => row.fields.record === 'S-4000-1')?.fields.quantity).toBe(9)
+      const variants = (await rowsFor('itemVariants', getDbConnection))!
+      expect(variants.find((row) => row.fields.variant === '3001-5')?.fields.sets).toBe(3)
+    } finally {
+      const clearing = await getDbConnection()
+      await clearing.clear(STORES.PART_APPEARANCES.name)
+      clearing.close()
+    }
+  })
+})

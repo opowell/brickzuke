@@ -52,6 +52,8 @@ import { colorItemsNotice } from '../appfr/colorItemsNotice'
 import { storeLotsNotice } from '../appfr/storeLotsNotice'
 import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 import { rememberType } from '../appfr/recentTypes'
+import { useTableReach } from '../appfr/tableReach'
+import { botCheck, BOT_CHECK_MESSAGE } from '../assets/js/bot-check'
 import { refreshUserCounts } from '../appfr/userCounts'
 import { createRecordFor, deleteRecordsFor, shopPartsOf, userRevision } from '../appfr/userWrites'
 import { cartSelection } from '../appfr/cartDraft'
@@ -79,6 +81,13 @@ const urlEntity = computed(() => {
 })
 
 const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
+
+/**
+ * The sellers' lots a table under this query is read through, fetched while
+ * it is up — the fill the home screen runs, run for the table. See [tableReach].
+ */
+const urlExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
+const tableReach = useTableReach(urlEntity, urlExpr)
 
 /**
  * A colour or a seller too long to fetch whole says so under the pager's
@@ -194,16 +203,17 @@ function onDelete(selection: Selection) {
  * one `catalogSource`; the copy is a shell-facing wrapper and holds nothing.
  *
  * And made anew when the reference price is changed in Settings, which is a
- * different price ratio on every lot with nothing written to bring it about.
+ * different price ratio on every lot with nothing written to bring it about —
+ * and when lots land under a table read through them, see [tableReach].
  */
 const liveSource = computed<DataSource>(() => {
   void userRevision.value
   void referencePrice.value
   void referenceStore.value
   void referencePercentile.value
-  return {
+  return tableReach.sourceFor({
     ...catalogSource
-  }
+  })
 })
 
 /**
@@ -370,6 +380,22 @@ const plainTokens = {
       @delete="onDelete"
     >
       <template #actions>
+        <!--
+          BrickLink asking this browser whether it is a person, which every
+          fetch behind the table has stopped on. The answer is opening one of
+          its pages here, so this is that page — a press of the reader's own,
+          which is the only way through the check brickzuke takes.
+        -->
+        <a
+          v-if="botCheck"
+          class="items-shell__bot-check"
+          :href="botCheck.url || 'https://www.bricklink.com'"
+          target="_blank"
+          rel="noopener"
+          :title="BOT_CHECK_MESSAGE"
+        >
+          BrickLink check — open ↗
+        </a>
         <!--
           Buying what is in the set on screen. Beside the caveats rather than
           among the rows, being about the whole table and not about any line of
@@ -585,6 +611,12 @@ const plainTokens = {
  */
 .items-shell__shop {
   white-space: nowrap;
+}
+
+.items-shell__bot-check {
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: underline;
 }
 
 /*

@@ -294,15 +294,32 @@ export function inventoryFields(stored: StoredItemInventory): Record<string, unk
 }
 
 /**
- * Every part of every set that has been opened.
+ * Every part of every set that has been opened, and every set a part whose
+ * page has been read is in.
  *
  * Unlike the three above this is not a bulk download but the residue of
  * browsing: a set's inventory is written when someone opens it, so this table
  * grows as the app is used and is empty in a fresh profile. That is also why
  * it is not cached — the store it reads is written while the app is running.
  */
-async function itemInventoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
+/**
+ * Every line of every set stored — the sets opened, and the lines the parts'
+ * own pages state (see [catalog-item-in-page]) that no opened set already
+ * does. Both file a line under `set|part-colour`, so a line stated twice is
+ * the one line, and the set's own statement of it is the one kept.
+ */
+async function allInventoryLines(db: IDBPDatabase): Promise<StoredItemInventory[]> {
   const stored = (await getAll<StoredItemInventory>(db, stores.ITEM_INVENTORIES)) ?? []
+  const appearances = (await getAll<StoredItemInventory>(db, stores.PART_APPEARANCES)) ?? []
+  if (!appearances.length) {
+    return stored
+  }
+  const held = new Set(stored.map((line) => line.id))
+  return [...stored, ...appearances.filter((line) => !held.has(line.id))]
+}
+
+async function itemInventoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
+  const stored = await allInventoryLines(db)
   return [
     ...stored.map((record) => ({
       id: record.id,
@@ -326,7 +343,7 @@ async function itemInventoryRows(db: IDBPDatabase): Promise<ShellRow[]> {
  * table knows that the inventories do not.
  */
 async function itemVariantRows(db: IDBPDatabase): Promise<ShellRow[]> {
-  const stored = (await getAll<StoredItemInventory>(db, stores.ITEM_INVENTORIES)) ?? []
+  const stored = await allInventoryLines(db)
   const variants = new Map<string, { variant: ItemVariant; records: Set<string> }>()
   for (const record of stored) {
     const variant = record.itemVariant

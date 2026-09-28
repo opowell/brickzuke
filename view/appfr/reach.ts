@@ -460,6 +460,35 @@ export function reachedWhole(
 }
 
 /**
+ * Whether the type's table under this query is read through the sellers'
+ * lots — so that more of them is more of the table, and a fill fetching them
+ * is worth running while it is up. See [tableReach].
+ *
+ * The same test [reachFor] makes before it walks anything: a term the type
+ * cannot answer for itself in every alternative. Not where the query names
+ * lots (`id:`, `record:`, `store:`): an item's own lots are fetched by the
+ * table itself — see `namedLotsFillFor` in the source — and a named seller is
+ * one seller rather than a set of them to go through.
+ *
+ * `answered` are fields the type's rows carry beyond what its schema states,
+ * for a caller asking without the rows in hand.
+ */
+export function joinedThroughLots(
+  entityKey: string,
+  expr: string,
+  rows: readonly ShellRow[],
+  entity?: EntitySchema,
+  answered: readonly string[] = []
+): boolean {
+  const through = THROUGH[entityKey]
+  if (!through || !expr.trim() || namedIn(expr)) {
+    return false
+  }
+  const foreign = foreignTerms(entity, rows, expr, [...(through.answers ?? []), ...answered])
+  return foreign.length > 0 && foreign.every((group) => group.length > 0)
+}
+
+/**
  * The catalogue records behind a set of lots, as the three facts a card needs.
  *
  * One point lookup per distinct record, in one connection: a lot names its
@@ -1162,6 +1191,11 @@ function namedIn(expr: string): string {
       )
     )
   )
+}
+
+/** Whether the query names the lots it is about — an item's (`id:`, `record:`) or a seller's (`store:`). */
+export function namesLots(expr: string): boolean {
+  return Boolean(namedIn(expr))
 }
 
 /** A stand-in for the lot, where the value being read is the item's and not its. */

@@ -64,7 +64,14 @@ const DB_NAME = 'brickzuke'
 // 34 adds ELEMENT_CODES — which BrickLink part and colour each LEGO element
 // number is — so that LEGO's own prices can be filed as lots. Made by the loop
 // below like any other and, being a copy of BrickLink's, safe to clear.
-const DB_VERSION = 34
+// 35 gives a stored lot of a set the record the catalogue files the set under:
+// a store's page states `10311` and its sequence `1` apart, and the lots were
+// kept as `S-10311` — of no item there is. Rewritten in place, where the
+// catalogue knows the record with the `-1` and not without it.
+// 36 adds PART_APPEARANCES and its scopes — the sets and minifigures each
+// part is in, off the part's own page. Made by the loop below like any other
+// and, being a copy of BrickLink's, safe to clear.
+const DB_VERSION = 36
 
 export async function getDbConnection(): Promise<IDBPDatabase> {
   return await openDB(DB_NAME, DB_VERSION, {
@@ -328,6 +335,45 @@ export async function getDbConnection(): Promise<IDBPDatabase> {
           }
         } catch (e) {
           console.log('Error bringing set pictures up to size', e)
+        }
+      }
+      /*
+       * v35. A lot kept from a store's page named a set by its number without
+       * its sequence — see [storeItemNumber]. The catalogue says which: a
+       * record it knows is left alone, and one it knows only with `-1` after it
+       * is that. Parts and minifigures carry no sequence and are not read.
+       */
+      if (oldVersion >= 22 && oldVersion < 35) {
+        try {
+          const lots = transaction.objectStore(STORES.STORE_LOTS.name)
+          const items = transaction.objectStore(STORES.BRICK_LINK_ITEMS.name)
+          const known = new Map<string, boolean>()
+          const catalogued = async (record: string) => {
+            if (!known.has(record)) {
+              known.set(record, (await items.getKey(record)) !== undefined)
+            }
+            return known.get(record)!
+          }
+          const byRecord = lots.index(INDICES.STORE_LOTS_BY_RECORD.name)
+          for (const type of ['S', 'I', 'O', 'B', 'G', 'C']) {
+            const held = (await byRecord.getAll(IDBKeyRange.bound(`${type}-`, `${type}-\uffff`))) as {
+              record: string
+              itemNumber: string
+            }[]
+            for (const lot of held) {
+              const record = `${lot.record}-1`
+              if ((await catalogued(lot.record)) || !(await catalogued(record))) {
+                continue
+              }
+              await lots.put({
+                ...lot,
+                record,
+                itemNumber: `${lot.itemNumber}-1`
+              })
+            }
+          }
+        } catch (e) {
+          console.log('Error giving stored lots their sets\' records', e)
         }
       }
     },

@@ -3868,6 +3868,11 @@ function namedRecords(expr: string): Promise<string[]> | undefined {
   return namesItem(request) ? itemRecords(request) : undefined
 }
 
+/** The records a query names an item by — see [namedRecords] — for a fill fetching what they are made of. */
+export function recordsNamedBy(expr: string): Promise<string[]> | undefined {
+  return namedRecords(expr)
+}
+
 /**
  * What the query's item is made of — the stored lines of each record it
  * stands for, as the set's own inventory table shows them — or nothing where

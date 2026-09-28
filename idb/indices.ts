@@ -18,6 +18,7 @@ const indices: {
   STORE_LOTS_BY_STORE: IndexDefinition
   STORE_LOTS_BY_RECORD: IndexDefinition
   ELEMENT_CODES_BY_RECORD: IndexDefinition
+  PART_APPEARANCES_BY_PART: IndexDefinition
   USER_INVENTORY_LINES_BY_RECORD: IndexDefinition
   SHOP_LIST_ITEMS_BY_LIST: IndexDefinition
   CART_LINES_BY_CART: IndexDefinition
@@ -113,6 +114,12 @@ const indices: {
     store: stores.ELEMENT_CODES,
     name: 'record',
     keyPath: 'record'
+  },
+  /** Every line one part is in, by the part — `P-87615`. */
+  PART_APPEARANCES_BY_PART: {
+    store: stores.PART_APPEARANCES,
+    name: 'part',
+    keyPath: 'part'
   },
   /**
    * Every part of one set of somebody's own, by the set's record — `U-3`. The

@@ -101,7 +101,7 @@ export function parseElementCodes(text: string, colorIds: Map<string, string>): 
 }
 
 /** BrickLink's colour ids, by the colour's name in lower case. */
-async function colorIdsByName(): Promise<Map<string, string>> {
+export async function colorIdsByName(): Promise<Map<string, string>> {
   const db = await getDbConnection()
   try {
     const colors = (await getAll<BrickLinkColor>(db, STORES.BRICK_LINK_COLORS)) ?? []

@@ -14,6 +14,7 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Call, CallType, callKey, makeCall } from '../make-call'
 import { installResponseListener } from '../init-brick-link-worker'
+import { botCheck } from '../bot-check'
 import { get, put, dbDelete } from '../../../../idb/db'
 import { getDbConnection } from '../../../../idb/idb'
 import STORES from '../../../../idb/stores'
@@ -100,9 +101,37 @@ describe('a stored answer', () => {
   })
 })
 
+/** BrickLink's firewall answering in place of a page — trimmed, but the markers it carries. */
+const CHALLENGE =
+  '<!DOCTYPE html><html><head><title></title><script>' +
+  "window.awsWafCookieDomainList = ['store.bricklink.com']; window.gokuProps = {};" +
+  '</script></head><body></body></html>'
+
+describe('a stored bot check', () => {
+  it('is fetched again however fresh it is, and not left behind', async () => {
+    const key = callKey(URL_UNDER_TEST, OPTIONS)
+    await withDb((db) =>
+      put(db, STORES.CALLS, {
+        url: key,
+        options: OPTIONS,
+        response: CHALLENGE,
+        // Kept for a week as a seller's front page, which is what it was
+        // replayed as: no store id in it, and nothing ever asked again.
+        expiryTime: Date.now() + 60_000
+      })
+    )
+    const asked = dispatched()
+    expect(await makeCall(CallType.TEXT, INERT, URL_UNDER_TEST, OPTIONS)).toBe(false)
+    expect((await asked).detail.url).toBe(URL_UNDER_TEST)
+    expect(await withDb((db) => get(db, STORES.CALLS, key))).toBeUndefined()
+  })
+})
+
 describe('an answer coming back from the extension', () => {
   /** The extension's half of the bridge, as `content.js` dispatches it. */
-  async function answer(type: CallType, extraParams?: object) {
+  async function answer(type: CallType, extraParams?: object, response: unknown = {
+    list: []
+  }) {
     installResponseListener()
     document.dispatchEvent(
       new CustomEvent('bzServerToClient', {
@@ -115,9 +144,7 @@ describe('an answer coming back from the extension', () => {
             extraParams,
             storageTime: 60_000
           },
-          response: {
-            list: []
-          }
+          response
         }
       })
     )
@@ -150,5 +177,14 @@ describe('an answer coming back from the extension', () => {
     expect(
       await withDb((db) => get(db, STORES.CALLS, callKey(URL_UNDER_TEST, OPTIONS)))
     ).toBeUndefined()
+  })
+
+  it('is not kept when it is the firewall\'s bot check, and says the check stands', async () => {
+    expect(await answer(CallType.TEXT, undefined, CHALLENGE)).toBeUndefined()
+    // The page that was answered with it, for the screen to offer.
+    expect(botCheck.value?.url).toBe(URL_UNDER_TEST)
+    // And the next real answer is the check passed.
+    expect(await answer(CallType.JSON)).toBeDefined()
+    expect(botCheck.value).toBeUndefined()
   })
 })

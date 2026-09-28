@@ -49,10 +49,12 @@ import { forgetPreview } from './catalogPreviews'
 import { catalogSchema } from './catalogSchema'
 import { fetchNamedLots, storedRows } from './catalogSource'
 import { filled } from './homeFill'
-import { JOINED, forgetReach, matching, reachFor, reaches } from './reach'
+import { JOINED, forgetReach, matching } from './reach'
 import { reachGapMs, reachPatience } from './settings'
 import type { Fill } from './pageFill'
 import { readAllStoreLots, storeLotsFill, storeLotsFor } from './storeLotsFetch'
+import { countriesInScope, listSellers } from './sellerFill'
+import { botCheck, throughBotCheck, BOT_CHECK_BACKOFF_MS } from '../assets/js/bot-check'
 
 /** Three silences in a row is nobody answering — [homeFill]'s number. */
 const GIVE_UP = 3
@@ -91,6 +93,12 @@ export interface Reaching {
 export const reaching = ref<Reaching | undefined>(undefined)
 
 /**
+ * Ticks each time a page of lots lands — what a table read through them
+ * watches to read itself again. See [tableReach].
+ */
+export const lotsLanded = ref(0)
+
+/**
  * Which run is the live one. Zero is none: the query changed or the wall was
  * left, and every loop still in flight stops at its next look at this.
  */
@@ -103,24 +111,51 @@ const attempted = new Set<string>()
 /** The expression the live run is deepening, so the same one does not restart it. */
 let running = ''
 
+/** Whether the live run is going through every seller in scope — see [startReachFill]. */
+let runningWhole = false
+
 /**
  * The sellers the query reaches.
  *
- * The same pair of filters a card is read through — the store's own fields
- * answer `region:` and `country:` directly, and anything they cannot answer is
- * joined through the lots like everywhere else. So narrowing to a colour fetches
- * the sellers already known to stock it, which is the right set to deepen even
- * though it is not yet the whole of it.
+ * The store's own fields answer `region:` and `country:`, and those are the
+ * whole of it: a term a seller carries no field for matches every seller, so
+ * `country:"AT" type:S` is every Austrian seller. Not joined through the lots,
+ * as a card is — that is the sellers *already known* to stock a set, which are
+ * the ones whose lots are stored, which is a scope with nothing left in it to
+ * fetch. Narrowed that way the items table under the query above stayed at
+ * the one set somebody had happened to read, however long it was left open.
  */
-async function sellersInScope(expr: string): Promise<ShellRow[]> {
+async function sellersInScope(
+  expr: string,
+  whole: boolean,
+  live: () => boolean
+): Promise<ShellRow[]> {
+  await namedCountries(expr, whole, live)
   const rows = (await storedRows('stores')) ?? []
   if (!rows.length) {
     return []
   }
   const stores = catalogSchema.value.entities.find((entity) => entity.key === 'stores')
-  const reach = await reachFor('stores', expr, rows, stores)
-  const match = matching(stores, expr)
-  return rows.filter((row) => match(row) && reaches(reach, row))
+  return rows.filter(matching(stores, expr))
+}
+
+/**
+ * The sellers of every country the query names, fetched where the directory
+ * holds none of them yet.
+ *
+ * The home screen fills the directory country by country while it is up, so a
+ * table opened straight on `country:"AT"` can arrive before Austria has been —
+ * and with no Austrian seller stored there is nobody in scope to ask. One page
+ * per country and only where it is missing, which is what opening the country
+ * on the sellers table would have cost.
+ *
+ * A region's countries, or every country for a query naming no place, only
+ * for a `whole` run — a table, whose rows are every seller's. On the home
+ * screen those are dozens of countries that [homeFill] is already working
+ * through. See [countriesInScope].
+ */
+async function namedCountries(expr: string, whole: boolean, live: () => boolean): Promise<void> {
+  await listSellers(await countriesInScope(expr, whole), live)
 }
 
 /**
@@ -181,6 +216,7 @@ function landed(): void {
   // The home screen's own watch, which re-reads the cards. Shared with
   // [homeFill] because the two are one thing to a reader: something arrived.
   filled.value++
+  lotsLanded.value++
 }
 
 function report(read: number, scope: number): void {
@@ -198,19 +234,28 @@ function report(read: number, scope: number): void {
  * is the whole catalogue and every card is already exact, so an un-narrowed home
  * screen fetches no seller at all. That is the difference between this and
  * [homeFill], which fills the directory whatever is on screen.
+ *
+ * `whole` is a table's run: every row of a table is somebody's lot, so it goes
+ * through every seller in scope, to the end of each, rather than stopping when
+ * the sellers stop adding to the wall — see [breadth] — and it fetches the
+ * sellers of every country in a region the query names. The home screen's
+ * cards need only the values a type reaches, which settle long before that.
  */
-export function startReachFill(expr: string): void {
+export function startReachFill(expr: string, whole = false): void {
   const asked = expr.trim()
-  if (!asked) {
+  // Un-narrowed, the home screen's cards are the catalogue and exact. The
+  // lots table's rows are every lot there is, and a table's run goes on.
+  if (!asked && !whole) {
     stopReachFill()
     return
   }
-  if (current && running === asked) {
+  if (current && running === asked && runningWhole === whole) {
     return
   }
   running = asked
+  runningWhole = whole
   const mine = (current = ++issued)
-  void deepen(mine, asked)
+  void deepen(mine, asked, whole)
 }
 
 /**
@@ -223,6 +268,7 @@ export function startReachFill(expr: string): void {
 export function stopReachFill(): void {
   current = 0
   running = ''
+  runningWhole = false
   reaching.value = undefined
 }
 
@@ -230,13 +276,13 @@ export function stopReachFill(): void {
  * One page from every seller in scope, then the rest of each — or, under a
  * query naming an item, the item's own lots and nothing else.
  */
-async function deepen(mine: number, expr: string): Promise<void> {
+async function deepen(mine: number, expr: string, whole: boolean): Promise<void> {
   if (await deepenItem(mine, expr)) {
     return
   }
   let scope: ShellRow[]
   try {
-    scope = biggestFirst(await sellersInScope(expr))
+    scope = biggestFirst(await sellersInScope(expr, whole, () => mine === current))
   } catch {
     // No directory to read, so no seller to ask about. The cards say what they
     // said, which is the population with no join in it.
@@ -251,7 +297,7 @@ async function deepen(mine: number, expr: string): Promise<void> {
   }
   report(scope.filter((row) => stored.has(String(row.fields.store ?? ''))).length, scope.length)
 
-  const opened = await breadth(mine, scope, stored)
+  const opened = await breadth(mine, scope, stored, whole)
   if (mine !== current) {
     return
   }
@@ -324,7 +370,8 @@ async function deepenItem(mine: number, expr: string): Promise<boolean> {
 async function breadth(
   mine: number,
   scope: ShellRow[],
-  stored: Set<string>
+  stored: Set<string>,
+  whole: boolean
 ): Promise<string[]> {
   const opened: string[] = []
   const reached = ledger()
@@ -348,13 +395,20 @@ async function breadth(
     // Enough sellers in a row that changed nothing: the wall has stopped
     // moving, and going on is fetching a region to confirm what is already on
     // screen. The reader sets how much patience that takes — see [settings].
-    if (barren >= reachPatience.value) {
+    // Not for a table's run, whose rows are every seller's lots: a seller with
+    // nothing new to the wall still has rows of their own.
+    if (!whole && barren >= reachPatience.value) {
       return opened
     }
     attempted.add(username)
     let lots: Record<string, unknown>[]
     try {
-      lots = (await storeLotsFor(username)) as unknown as Record<string, unknown>[]
+      // Waited through BrickLink's bot check rather than counted as a failure:
+      // the seller did not fail, the whole of BrickLink stopped answering.
+      lots = (await throughBotCheck(
+        () => storeLotsFor(username),
+        () => mine === current
+      )) as unknown as Record<string, unknown>[]
     } catch {
       if (++failures >= GIVE_UP) {
         return opened
@@ -394,15 +448,25 @@ async function depth(mine: number, opened: string[]): Promise<void> {
     if (mine !== current) {
       return
     }
-    const fill = storeLotsFill(username)
-    // Stopped rather than awaited to a finish when the wall is left: the run is
-    // the seller's whole inventory, and nobody asked for it.
-    const watching = watchRun(mine, fill)
-    try {
-      await fill.run()
-    } finally {
-      clearInterval(watching)
-      fill.stop()
+    // Again after a pause while BrickLink's bot check stands: the fill stops at
+    // the first page that does not come, and picks up from the stored scope.
+    for (;;) {
+      const fill = storeLotsFill(username)
+      // Stopped rather than awaited to a finish when the wall is left: the run
+      // is the seller's whole inventory, and nobody asked for it.
+      const watching = watchRun(mine, fill)
+      try {
+        await fill.run()
+      } catch {
+        // A page that never came: said by the check below, or by nothing.
+      } finally {
+        clearInterval(watching)
+        fill.stop()
+      }
+      if (!botCheck.value || mine !== current) {
+        break
+      }
+      await wait(BOT_CHECK_BACKOFF_MS)
     }
     if (mine !== current) {
       return

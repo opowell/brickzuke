@@ -36,6 +36,8 @@ const stores: {
   PRICE_MODIFIER_PROFILES: StoreDefinition
   PRICE_MODIFIERS: StoreDefinition
   ITEM_IMAGES: StoreDefinition
+  PART_APPEARANCES: StoreDefinition
+  PART_APPEARANCE_SCOPES: StoreDefinition
 } = {
   CALLS: {
     name: 'calls',
@@ -204,6 +206,24 @@ const stores: {
   ELEMENT_CODES: {
     name: 'elementCodes',
     keyPath: 'code'
+  },
+  /**
+   * The lines of sets and minifigures that one part is in, as the part's own
+   * "appears in" page states them — `S-60465-1`, one White `P-87615` — filed
+   * under the id a line of the set's own inventory gets, `S-60465-1|87615-1`.
+   *
+   * Apart from ITEM_INVENTORIES because a set with one line there reads as a
+   * set whose parts are fetched: the part's page says what the part is in, and
+   * nothing about what else the set is made of. See [catalog-item-in-page].
+   */
+  PART_APPEARANCES: {
+    name: 'partAppearances',
+    keyPath: 'id'
+  },
+  /** Which parts' pages have been read, and of what — `P-87615|S` — so a part is asked about once. */
+  PART_APPEARANCE_SCOPES: {
+    name: 'partAppearanceScopes',
+    keyPath: 'id'
   },
   /*
    * The stores below are the ones nobody scraped.

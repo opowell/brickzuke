@@ -24,6 +24,7 @@ import {PAGE_SIZE,
   parseStoreId,
   storeIds,
   storeItemsUrl,
+  storeItemNumber,
   storeLotCounts} from '../store-front-page'
 import type { StoreItemsResponse, StoredStoreLot, StoredStoreScope } from '../store-front-page'
 import { get, getAllFromIndex } from '../../../../idb/db'
@@ -100,6 +101,26 @@ describe('the store front', () => {
   it('files the id under the username that was asked for', () => {
     handleStoreFrontResponse(frontDetail('BunteSteinewelt', FRONT))
     expect(storeIds.get('BunteSteinewelt')).toBe(1801484)
+  })
+})
+
+describe('an item\'s number', () => {
+  it('writes a set\'s sequence onto its number, as the catalogue files it', () => {
+    // The page states them apart; `S-4403` is of no item there is.
+    expect(storeItemNumber({
+      itemNo: '4403',
+      itemSeq: 1
+    })).toBe('4403-1')
+  })
+
+  it('leaves a part, which has no sequence, as it is', () => {
+    expect(storeItemNumber({
+      itemNo: '87615',
+      itemSeq: 0
+    })).toBe('87615')
+    expect(storeItemNumber({
+      itemNo: '3001'
+    })).toBe('3001')
   })
 })
 

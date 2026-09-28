@@ -69,6 +69,22 @@ vi.mock('../storeLotsFetch', async (importOriginal) => {
 /** Every item record whose page was asked for, in order. */
 const asked: string[] = []
 
+/** Every country whose sellers were fetched from the directory, in order. */
+const listed: string[] = []
+
+vi.mock('../storesFetch', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../storesFetch')>()
+  return {
+    ...original,
+    storesFor: async (countryId?: string) => {
+      if (countryId) {
+        listed.push(countryId)
+      }
+      return []
+    }
+  }
+})
+
 vi.mock('../itemPageFetch', async (importOriginal) => {
   const original = await importOriginal<typeof import('../itemPageFetch')>()
   return {
@@ -130,6 +146,24 @@ beforeAll(async () => {
       storeCount: 1
     },
     {
+      countryCode: 'AT',
+      countryName: 'Austria',
+      // A region of its own, so the Europe run leaves these two to this test.
+      regionId: 'Alps',
+      groupState: 'N',
+      image: '',
+      storeCount: 2
+    },
+    {
+      // In the Alps with Austria, and nobody from it in the directory yet.
+      countryCode: 'CH',
+      countryName: 'Switzerland',
+      regionId: 'Alps',
+      groupState: 'N',
+      image: '',
+      storeCount: 3
+    },
+    {
       countryCode: 'FR',
       countryName: 'France',
       regionId: 'Nowhere',
@@ -164,6 +198,21 @@ beforeAll(async () => {
       countryID: 'US',
       items: 5_000
     },
+    // One Austrian seller whose lot of the brick is stored and one bigger one
+    // nobody has opened: the pair that tells the sellers in a country from the
+    // sellers already known to stock a type there.
+    {
+      id: 'wien-bekannt',
+      name: 'Wien Bekannt',
+      countryID: 'AT',
+      items: 50
+    },
+    {
+      id: 'wien-neu',
+      name: 'Wien Neu',
+      countryID: 'AT',
+      items: 800
+    },
     {
       id: 'tokyo-bricks',
       name: 'Tokyo Bricks',
@@ -197,6 +246,21 @@ beforeAll(async () => {
   ])
   await putAll(db, STORES.STORE_LOTS, [
     {
+      id: 'held-at-1',
+      store: 'wien-bekannt',
+      record: 'P-3001',
+      itemType: 'P',
+      itemNumber: '3001',
+      itemName: 'Brick 2 x 4',
+      description: '',
+      condition: 'N',
+      colorId: '2',
+      quantity: 1,
+      price: 0.1,
+      displayPrice: 'EUR 0.10',
+      nativePrice: 'EUR 0.10'
+    },
+    {
       id: 'held-1',
       store: 'aaa-kleine-steine',
       record: 'P-3001',
@@ -216,6 +280,7 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
+  listed.length = 0
   opened.length = 0
   paged.length = 0
   asked.length = 0
@@ -252,6 +317,15 @@ describe('deepening a narrowed wall', () => {
     // of each shop. With one seller in scope that is one of each, in order.
     expect(opened).toEqual(['tokyo-bricks'])
     expect(paged).toEqual(['tokyo-bricks'])
+  })
+
+  it('opens every seller in the country under a term no seller carries', async () => {
+    // `type:P` is a question about the lots, not the sellers. Joined through
+    // the lots stored it was Wien Bekannt alone — the one seller already known
+    // to have a part — and the run had nobody new to ask.
+    startReachFill('country:"AT" type:P')
+    await settle()
+    expect(opened).toEqual(['wien-neu', 'wien-bekannt'])
   })
 
   it('fetches nothing at all when nothing is asked', async () => {
@@ -312,6 +386,30 @@ describe('knowing when to stop', () => {
     // The five from the run above are already stored and cost nothing; what is
     // new is the ten this run opens before giving up again.
     expect(opened).toHaveLength(10)
+  })
+
+  it('goes through every seller for a table, however little they add', async () => {
+    // A table's rows are every seller's lots, so a seller who teaches the wall
+    // nothing new still has rows of their own. Fifteen of the forty were
+    // opened above; this is the rest, with no patience to run out of.
+    reachPatience.value = 4
+    reachGapMs.value = 100
+    startReachFill('region:"Nowhere"', true)
+    await settle()
+    expect(opened).toHaveLength(25)
+  })
+
+  it('lists the sellers of every country in a table\'s region that has none', async () => {
+    startReachFill('region:"Alps" type:P', true)
+    await settle()
+    // Austria's sellers are in the directory already; Switzerland's are not.
+    expect(listed).toEqual(['CH'])
+  })
+
+  it('leaves a region\'s countries to the home screen\'s own fill', async () => {
+    startReachFill('region:"Alps" type:S')
+    await settle()
+    expect(listed).toEqual([])
   })
 
   it('is a knob the reader owns, held to its stated range', async () => {

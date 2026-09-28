@@ -236,6 +236,8 @@ export interface StoreItemsResponse extends EventDetail {
           invQty: number
           itemType: string
           itemNo: string
+          /** The `-1` of `10311-1`: nought on a part, which has none. */
+          itemSeq?: number
           colorID: number
           colorName: string
           salePrice: string
@@ -259,6 +261,19 @@ export interface StoreItemsResponse extends EventDetail {
  */
 function conditionCode(invNew: string): string {
   return invNew?.toLowerCase().startsWith('u') ? 'U' : 'N'
+}
+
+/**
+ * The item's number as the catalogue files it — `10311-1` for a set.
+ *
+ * A store's page states the set's number and its sequence apart, `10311` and
+ * `1`, where the catalogue, an item's own page and LEGO's lots all write them
+ * as one. Filed under `S-10311` a lot was of no item there is, so no set any
+ * seller's front gave up was reached by the join: the items table under
+ * `country:"AT" type:S` stayed at the one set whose own page had been read.
+ */
+export function storeItemNumber(item: { itemNo: string; itemSeq?: number }): string {
+  return item.itemSeq ? `${item.itemNo}-${item.itemSeq}` : item.itemNo
 }
 
 export function handleStoreFrontResponse(detail: EventDetail) {
@@ -312,9 +327,9 @@ export async function handleStoreItemsResponse(detail: StoreItemsResponse) {
         // The lot id, which is BrickLink's own and unique across sellers.
         id: String(item.invID),
         store: username,
-        record: `${item.itemType}-${item.itemNo}`,
+        record: `${item.itemType}-${storeItemNumber(item)}`,
         itemType: item.itemType,
-        itemNumber: item.itemNo,
+        itemNumber: storeItemNumber(item),
         itemName: item.itemName,
         description: item.invDescription ?? '',
         condition: conditionCode(item.invNew),

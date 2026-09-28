@@ -27,6 +27,7 @@ import {handleStoreFrontResponse,
   handleStoreItemsResponse,
   type StoreItemsResponse} from '@/stores/bricklink/store-front-page'
 import { handleStorePolicyResponse, type StorePolicyResponse } from '@/stores/bricklink/store-policy-page'
+import { handleItemInResponse } from '@/stores/bricklink/catalog-item-in-page'
 import { handleResponse as handleColorGuidePageResponse } from '../../../sources/bricklink/color-guide'
 import { handleElementCodesResponse } from '@/stores/bricklink/element-codes'
 import {handleLegoElementPageResponse,
@@ -51,6 +52,7 @@ export enum Call {
   GET_CATALOG_ITEM_PAGE = 'https://www.bricklink.com/catalogitem.page',
   GET_CATALOG_ITEM_IMAGES = 'https://www.bricklink.com/ajax/renovate/catalog/getItemImageList.ajax',
   GET_CATALOG_ITEM_INV_PAGE = 'https://www.bricklink.com/catalogItemInv.asp',
+  GET_CATALOG_ITEM_IN_PAGE = 'https://www.bricklink.com/catalogItemIn.asp',
   GET_CATALOG_ITEM_INVENTORIES = 'https://www.bricklink.com/ajax/clone/catalogifs.ajax?itemid=',
   GET_CATALOG_LIST_PAGE = 'https://www.bricklink.com/catalogList.asp',
   GET_CATALOG_LIST_PAGE_ALL = 'https://www.bricklink.com/catalogList.asp#all',
@@ -280,6 +282,10 @@ export function handleEvent(detail: EventDetail) {
         catalogItemPage.handlePageResponse(detail)
         return
       }
+      case Call.GET_CATALOG_ITEM_IN_PAGE: {
+        void handleItemInResponse(detail)
+        return
+      }
       case Call.GET_CATALOG_ITEM_INV_PAGE: {
         const catalogItemInvPage = useCatalogItemInvPageStore()
         catalogItemInvPage.handlePageResponse(detail)
@@ -438,6 +444,10 @@ interface StoredCall {
  * A record with no expiry at all is kept. That is not a case either writer
  * produces, and treating an absent deadline as one already passed would throw
  * away answers on a guess.
+ *
+ * Nor is a challenge an answer, however fresh — see [isChallenge]. One kept
+ * before the listener knew to refuse them is deleted on sight, so the call is
+ * asked again rather than replayed as a page for the rest of the week.
  */
 async function freshCall(
   db: IDBPDatabase,
@@ -450,11 +460,32 @@ async function freshCall(
   if (!value) {
     return undefined
   }
-  if (value.expiryTime !== undefined && value.expiryTime <= Date.now()) {
+  if (
+    (value.expiryTime !== undefined && value.expiryTime <= Date.now()) ||
+    isChallenge(value.response)
+  ) {
     await dbDelete(db, STORES.CALLS, key)
     return undefined
   }
   return value
+}
+
+/**
+ * Whether BrickLink answered with its bot check instead of the page.
+ *
+ * Its AWS firewall sometimes hands back a two-kilobyte script that sets a
+ * cookie and reloads, and to the extension that is a successful fetch of some
+ * HTML. Kept, it was the seller's front page for a week: no `var StoreFront` in
+ * it, so no store id learned, so every later ask for the seller's lots replayed
+ * it, sent nothing, and waited out its deadline as an extension that never
+ * answered — three of those in a row and a whole run of sellers gave up.
+ */
+export function isChallenge(response: unknown): boolean {
+  return (
+    typeof response === 'string' &&
+    response.length < 20_000 &&
+    (response.includes('awsWafCookieDomainList') || response.includes('gokuProps'))
+  )
 }
 
 export function callKey(url: string, options: { body?: string }, extraParams?: object) {
