@@ -28,7 +28,7 @@
  * so: the rate it picks carries the line it was read off, for checking.
  */
 import type { ShippingCost } from './shipping-terms'
-import { words } from './shipping-terms'
+import { flagOf, words } from './shipping-terms'
 
 /** A country as the matching needs it: BrickLink's code, and what else is known. */
 export interface Place {
@@ -298,6 +298,12 @@ export function destinationFit(destination: string | undefined, to: Place, from?
   const tail = cut ? text.slice(cut.index + cut[0].length) : ''
   if (tail && (names(tail, to) || inGroup(BLOCS, tail, to))) {
     return NONE
+  }
+  // A flag is the country's code, whatever the seller calls it: `🇨🇿 Česko`
+  // is CZ, and it is no other country however the name reads.
+  const flag = flagOf(head)
+  if (flag) {
+    return flag === to.code ? COUNTRY : NONE
   }
   if (names(head, to)) {
     return COUNTRY

@@ -26,6 +26,7 @@ import BERNIE from './fixtures/storePolicy-BernieR.json'
 import BIGAS from './fixtures/storePolicy-bigasbricks.json'
 import BRICKTROPOLIS from './fixtures/storePolicy-Brick_OnTheRed.json'
 import MARVLIN from './fixtures/storePolicy-MarVLin.json'
+import BRICK8 from './fixtures/storePolicy-Brick8.json'
 import GARRETT from './fixtures/storePolicy-garrett19.json'
 import MURAUER from './fixtures/storePolicy-murauer77.json'
 
@@ -301,3 +302,37 @@ describe('the postage a seller would charge', () => {
 function rate(postage: ReturnType<typeof postageTo>): ShippingCost | undefined {
   return postage.kind === 'rate' ? postage.rate : undefined
 }
+
+describe('a seller who heads each country with its flag', () => {
+  // Brick8 lists sixty-odd countries, each under its flag and its own name —
+  // `🇧🇪 België`, `🇨🇿 Česko` — with the rates for it below. Most of those
+  // names are on no list here; the flag is the country's code, spelled out.
+  const rates = parseShippingCosts(termsText(BRICK8.sellerTermsShipping), {
+    currencies: ['EUR']
+  })
+  const place = (code: string): Place => ({
+    code,
+    region: 'Europe'
+  })
+
+  it('files each rate under its country, and calls the rate what the line does', () => {
+    const belgium = rates.filter((rate) => rate.destination === '🇧🇪 België')
+    expect(belgium.map((rate) => [rate.label, rate.maxWeight, rate.cost])).toEqual([
+      ['Registered mail (EU)', 400, 10.99],
+      ['Registered mail (EU)', 800, 12.99],
+      ['Parcels (special, flat)', undefined, 13.99]
+    ])
+  })
+
+  it('finds a country\'s rates by its flag, whatever it is called', () => {
+    expect(destinationFit('🇨🇿 Česko', place('CZ'))).toBe(COUNTRY)
+    expect(destinationFit('🇨🇿 Česko', place('SK'))).toBe(NONE)
+    expect(ratesTo(rates, place('CZ')).map((rate) => rate.cost)).toEqual([10.99, 12.99, 8.99])
+    expect(ratesTo(rates, place('AD')).map((rate) => rate.cost)).toEqual([19.99, 49.99])
+  })
+
+  it('reads the British flag as BrickLink\'s UK', () => {
+    expect(destinationFit('🇬🇧 United Kingdom', place('UK'))).toBe(COUNTRY)
+    expect(destinationFit('🇬🇧 Britain', place('UK'))).toBe(COUNTRY)
+  })
+})

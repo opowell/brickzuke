@@ -229,8 +229,9 @@ const FREE = words([
 /** What a line has to mention to be read as a rate when it names no weight. */
 const SHIPPING = words([
   'ship', 'ships', 'shipping', 'shipped', 'postage', 'post', 'versand', 'versandkosten', 'porto', 'verzending',
-  'verzendkosten', 'verzenden', 'frais', 'port', 'envoi', 'colis', 'paket', 'pakket', 'parcel', 'letter',
-  'brief', 'lettre', 'mail', 'packet', 'package', 'box', 'envelope', 'padded', 'delivery', 'livraison',
+  'verzendkosten', 'verzenden', 'frais', 'port', 'envoi', 'colis', 'paket', 'pakete', 'pakket', 'pakketten',
+  'parcel', 'parcels', 'letter', 'letters', 'brief', 'briefe', 'lettre', 'lettres', 'mail', 'packet', 'packets',
+  'package', 'packages', 'box', 'boxes', 'envelope', 'envelopes', 'padded', 'delivery', 'livraison',
   'spedizione', 'envío', 'envio', 'correo', 'flat fee', 'flat rate', 's&h'
 ])
 
@@ -434,6 +435,10 @@ function isHeading(line: string): boolean {
   if (/:\s*$/.test(line) || /^zone\s*\d/iu.test(line)) {
     return true
   }
+  // `🇧🇪 België`: whatever the country is called, the flag says which.
+  if (line.search(FLAG) === 0) {
+    return true
+  }
   return (line.includes(':') || line.length <= 50) && !line.startsWith('(') && isPlace(line)
 }
 
@@ -453,29 +458,62 @@ function destinationOf(heading: string): string {
   return heading.replace(/\s*:\s*$/, '').trim()
 }
 
-/** Whether the lead of a rate line names where to, rather than what by. */
+/**
+ * Whether the lead of a rate line names where to, rather than what by.
+ *
+ * Not by an aside: `Registered mail (EU)` and `Parcel (Worldwide base)` are
+ * ways of sending that say where they go, and the rate is the method's.
+ */
 function isDestination(lead: string): boolean {
-  return lead.length > 0 && lead.length <= 40 && isPlace(lead)
+  const bare = lead.replace(/\([^)]*\)/gu, ' ').trim()
+  return bare.length > 0 && bare.length <= 40 && isPlace(bare)
+}
+
+/** A flag — two regional indicator letters — which is a country's code spelled out. */
+const FLAG = /\p{Regional_Indicator}{2}/u
+
+/**
+ * The BrickLink code of the country a flag in the text stands for, if one
+ * does: 🇧🇪 is `BE`. BrickLink calls Britain `UK` where the flag says `GB`.
+ */
+export function flagOf(text: string): string | undefined {
+  const flag = FLAG.exec(text)?.[0]
+  if (!flag) {
+    return undefined
+  }
+  const code = [...flag]
+    .map((letter) => String.fromCharCode(letter.codePointAt(0)! - 0x1f1e6 + 65))
+    .join('')
+  return code === 'GB' ? 'UK' : code
 }
 
 /**
  * The words a rate line leads with that say nothing about what the rate is
  * for — `bis`, `up to`, `from 2 to` — so a label is what is left after them.
  */
-const QUALIFIERS = words([
+const QUALIFIER_WORDS = [
   'up', 'to', 'bis', 'von', 'from', 'over', 'above', 'under', 'unter', "jusqu'à", "jusqu'a", 'tot', 'vanaf', 'ab',
   'über', 'max\\.?', 'min\\.?', 'maximum', 'minimum', 'poids', 'weight', 'gewicht', 'and', 'und', 'en', 'et',
   'the', 'der', 'die', 'das', 'for', 'für', 'voor', 'pour', 'of', 'at', 'is', 'are', 'ist', 'sind', 'starts',
   'start', 'starting', 'costs', 'cost', 'kostet', 'kosten', 'bedraagt', 'coûte', 'will', 'be', 'a', 'flat',
   'fee', 'rate'
-])
+]
+const QUALIFIERS = words(QUALIFIER_WORDS)
+
+/** The same words, and the punctuation between them, at the very end of a lead — `Registered mail (EU) up to`. */
+const TRAILING_QUALIFIERS = new RegExp(
+  String.raw`(?:[\s:\-–—,;]|(?<![\p{L}\d])(?:${QUALIFIER_WORDS.join('|')})(?![\p{L}\d]))+$`,
+  'iu'
+)
 
 function labelOf(lead: string): string | undefined {
   const words = lead.replace(QUALIFIERS, ' ').replace(/[\s:\-–—,;()]+/gu, ' ').trim()
   if (!/\p{L}{2}/u.test(words)) {
     return undefined
   }
-  return lead.length <= 40 ? lead : undefined
+  // As written, short of the `up to` it runs into the weight with.
+  const label = lead.replace(TRAILING_QUALIFIERS, '').trim()
+  return label.length <= 40 ? label : undefined
 }
 
 /**
@@ -489,11 +527,15 @@ export function parseShippingCosts(terms: string, context: TermsContext = {}): S
   terms = withoutStyleRules(terms)
   const out: ShippingCost[] = []
   let destination: string | undefined
+  // Under a country's own heading — its flag — the seller has said where, and
+  // a line under it naming `(EU)` or `worldwide` is saying how.
+  let pinned = false
   for (const line of terms.split('\n')) {
     const amounts = amountsOf(line, context)
     if (!amounts.length) {
       if (isHeading(line)) {
         destination = destinationOf(line)
+        pinned = flagOf(line) !== undefined
       }
       continue
     }
@@ -516,7 +558,7 @@ export function parseShippingCosts(terms: string, context: TermsContext = {}): S
     const firstAt = Math.min(...amounts.map((amount) => amount.at), ...weights.map((weight) => weight.at))
     const lead = leadOf(line, firstAt)
     let label: string | undefined
-    if (isDestination(lead)) {
+    if (!pinned && isDestination(lead)) {
       destination = lead
     } else {
       label = labelOf(lead)
