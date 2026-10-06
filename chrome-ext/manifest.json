@@ -13,14 +13,24 @@
     {
       "js": ["scripts/content.js"],
       "matches": [
-        "http://localhost:5173/*",
-        "https://localhost:5173/*",
+        "http://localhost/*",
+        "https://localhost/*",
         "https://www.brickzuke.com/*"
       ]
     }
   ],
   "background": {
-    "service_worker": "service-worker.js"
+    "service_worker": "service-worker.js",
+    "scripts": ["service-worker.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "brickzuke@opowell",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
   },
   "permissions": [
     "storage",

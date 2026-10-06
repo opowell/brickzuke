@@ -5,12 +5,15 @@
 document.addEventListener('bzClientToServer', async function (event) {
   const response = await chrome.runtime.sendMessage(event.detail)
   console.log('response', response, event)
+  const detail = {
+    request: event.detail,
+    response,
+  }
   document.dispatchEvent(
     new CustomEvent('bzServerToClient', {
-      detail: {
-        request: event.detail,
-        response,
-      },
+      // Firefox keeps an object a content script made out of the page's reach
+      // until it is cloned into the page. Chrome has no `cloneInto`, and needs none.
+      detail: typeof cloneInto === 'function' ? cloneInto(detail, document.defaultView) : detail,
     }),
   )
 })
