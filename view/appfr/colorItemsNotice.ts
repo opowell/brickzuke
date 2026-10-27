@@ -18,6 +18,7 @@ import { PARAM_ENTITY, PARAM_EXPR, parseExpression } from 'header-content-layout
 import router from '@/router'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import { colorScopeVersion, readColorScope } from './colorItemsFetch'
+import { naming } from './naming'
 
 /**
  * What a `field:"…"` term names, read straight off the expression. Not what a
@@ -30,7 +31,7 @@ function termValue(expr: string, field: string): string | undefined {
     .flat()
     .filter(
       (term) =>
-        term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated
+        term.kind === 'field' && term.field === field && naming(term.comparator) && !term.negated
     )
   return found.length === 1 ? found[0].value : undefined
 }

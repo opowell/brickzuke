@@ -39,7 +39,9 @@ import { sellersLanded, startSellerFill, stopSellerFill } from './sellerFill'
 import type { SellerFill } from './sellerFill'
 import { catalogLanded, startCatalogFill, stopCatalogFill } from './catalogFill'
 import type { CatalogFill } from './catalogFill'
+import { catalogDownloaded } from './catalogDownload'
 import { backgroundTurn } from './yieldToInput'
+import { naming } from './naming'
 
 /**
  * How long lots are left to gather before the table reads them. A seller's
@@ -147,6 +149,14 @@ export function useTableReach(entityKey: Ref<string | null>, expr: Ref<string>) 
     if (onTable) {
       stale = true
       settle()
+    }
+  })
+
+  // A bulk download, which the table asked for because it had nothing to
+  // show — see [catalogDownload]. Once, and whole, so read at once.
+  watch(catalogDownloaded, () => {
+    if (entityKey.value) {
+      revision.value++
     }
   })
 
@@ -361,7 +371,7 @@ function namedFields(expr: string): Set<string> {
   const named = new Set<string>()
   for (const group of parseExpression(expr)) {
     for (const term of group) {
-      if (term.kind === 'field' && term.comparator === ':' && !term.negated) {
+      if (term.kind === 'field' && naming(term.comparator) && !term.negated) {
         named.add(term.field)
       }
     }

@@ -38,6 +38,7 @@ import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'
 import { ITEM_FIELDS } from './itemFields'
+import { naming } from './naming'
 /**
  * Where the lots come from — handed in by the source rather than imported
  * from it, because the source applies this join to its own tables (see
@@ -345,12 +346,12 @@ export function matching(
  * it — see `itemAddress` there.
  */
 function namesItem(term: Term): boolean {
-  return term.kind === 'field' && term.field === 'id' && term.comparator === ':' && !term.negated
+  return term.kind === 'field' && term.field === 'id' && naming(term.comparator) && !term.negated
 }
 
 /** Whether a term is the `type:` that, beside an `id:`, says which of the item's records is meant. */
 function typesItem(term: Term): boolean {
-  return term.kind === 'field' && term.field === 'type' && term.comparator === ':' && !term.negated
+  return term.kind === 'field' && term.field === 'type' && naming(term.comparator) && !term.negated
 }
 
 /**
@@ -1186,7 +1187,7 @@ function namedIn(expr: string): string {
         (term) =>
           term.kind === 'field' &&
           ['id', 'record', 'store'].includes(term.field) &&
-          term.comparator === ':' &&
+          naming(term.comparator) &&
           !term.negated
       )
     )

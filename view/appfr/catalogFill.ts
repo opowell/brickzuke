@@ -37,6 +37,7 @@ import { recordsNamedBy } from './catalogSource'
 import { hasInventory, inventoryFor } from './inventoryFetch'
 import { imagedRecords, imagesFor } from './itemPageFetch'
 import { reachGapMs } from './settings'
+import { naming } from './naming'
 
 export type CatalogFill = 'lines' | 'pictures'
 
@@ -166,7 +167,7 @@ async function namedRecords(expr: string): Promise<string[]> {
     for (const term of group) {
       if (
         term.kind === 'field' &&
-        term.comparator === ':' &&
+        naming(term.comparator) &&
         !term.negated &&
         ['part', 'record'].includes(term.field) &&
         /^[A-Z]-./.test(term.value)
@@ -233,7 +234,7 @@ function namedTypes(expr: string): string[] {
   const types: string[] = []
   for (const group of parseExpression(expr)) {
     for (const term of group) {
-      if (term.kind === 'field' && term.field === 'type' && term.comparator === ':' && !term.negated) {
+      if (term.kind === 'field' && term.field === 'type' && naming(term.comparator) && !term.negated) {
         types.push(term.value.toUpperCase())
       }
     }

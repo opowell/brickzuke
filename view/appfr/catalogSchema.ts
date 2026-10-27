@@ -45,6 +45,8 @@ import { openedOwnSet } from './userWrites'
 import { SETTINGS, referencePercentile, referencePriceChosen, referenceStore } from './settings'
 import { RATIO, ratioText } from './referencePrices'
 import { userCounts } from './userCounts'
+import { naming } from './naming'
+import { described } from './typeDescriptions'
 import {cartLinesEntity,
   shopListItemsEntity,
   shopPlanEntity,
@@ -59,7 +61,7 @@ import {cartLinesEntity,
  * because a different result set makes a position in the old one meaningless.
  * `addTerm` handles the quoting and refuses to add a term twice.
  *
- * With ⌘ held — `exclude`, as the shell reads it off the press — the same
+ * With ⌥ held — `exclude`, as the shell reads it off the press — the same
  * value is what the screen is narrowed *away from*: `-category:"5"`, every row
  * but that category's. The shell's own rows answer the key this way, and a
  * cell brickzuke draws itself should not answer it differently.
@@ -139,7 +141,7 @@ export function narrowTo(
 
 /**
  * The press a record's own name takes, on every table whose rows can be named:
- * `Everything` narrowed to that record — and, with ⇧ or ⌘ held, `Everything`
+ * `Everything` narrowed to that record — and, with ⌥ held, `Everything`
  * with that record left out. The screen goes to the whole catalogue either
  * way, since what was pressed is the record itself and not a population it
  * belongs to; the standing column beside the name is where the same three
@@ -177,7 +179,7 @@ export function openOn(entity: string, field: string, value: string) {
 }
 
 /**
- * Every term of `expr` turned round — what the same press states with ⇧ or ⌘
+ * Every term of `expr` turned round — what the same press states with ⌥
  * held. `-country:"AT" -province:"AT-5"` for a province, since leaving a
  * record out is leaving out every term that named it.
  */
@@ -536,6 +538,9 @@ export const itemColumns: ColumnDef[] = [
   {
     key: 'year',
     label: 'Year',
+    // On the picture card too, under the name (appfr 0.60.0): what tells one
+    // release of a set from the next at a glance, the pictures being alike.
+    cardLabel: 'Year',
     width: '95px',
     sort: 'year',
     click: (row, options) => narrowBy('year', String(row.fields.year ?? ''), options)
@@ -697,6 +702,7 @@ export const itemRecordColumns: ColumnDef[] = [
   {
     key: 'year',
     label: 'Year',
+    cardLabel: 'Year',
     width: '95px',
     sort: 'year',
     click: (row, options) => narrowBy('year', String(row.fields.year ?? ''), options)
@@ -844,6 +850,8 @@ export const inventoryColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
+    // On the picture card too: a set's part is the picture and how many of it.
+    cardLabel: 'Qty',
     hint: 'How many of this part the set contains',
     kind: 'component',
     component: CellUserNumber,
@@ -1265,6 +1273,7 @@ export const itemInventoryColumns: ColumnDef[] = [
   {
     key: 'quantity',
     label: 'Quantity',
+    cardLabel: 'Qty',
     hint: 'How many of this part the set contains',
     width: '125px',
     sort: 'quantity',
@@ -1394,7 +1403,7 @@ function pinnedValue(expr: string, field: string): string | undefined {
   let pinned: string | undefined
   for (const group of groups) {
     const term = group.find(
-      (one) => one.kind === 'field' && one.field === field && one.comparator === ':'
+      (one) => one.kind === 'field' && one.field === field && naming(one.comparator)
     )
     if (!term) {
       return undefined
@@ -1608,7 +1617,10 @@ export const storeInventoryColumns: ColumnDef[] = [
     // Named without the currency, which no column can state until a price has
     // been read — see [pricedIn], which puts it in once one has.
     hint: 'What one piece costs, converted into your own currency',
-    width: '95px',
+    // Wide enough for the heading with its sort arrow and the button's own
+    // room around it, at the 18px the app is read at — see ItemsShell's
+    // `.dc-table__sort` rule for what happens to one that is not.
+    width: '105px',
     sort: 'priceValue'
   },
   // The same figure with the price modifiers on this lot applied — its
@@ -1620,7 +1632,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     component: CellPrice,
     label: 'Mod. price',
     hint: 'The price times every price modifier that applies to this lot — hover for the working',
-    width: '115px',
+    width: '150px',
     sort: 'modPrice'
   },
   // The price over what the same item in the same colour costs elsewhere —
@@ -1633,7 +1645,7 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: RATIO,
     kind: 'number',
     label: 'Price ratio',
-    width: '120px',
+    width: '145px',
     sort: RATIO,
     format: ratioText
   },
@@ -2481,6 +2493,7 @@ const itemRecordsEntity: EntitySchema = {
   tabs: [],
   samples: [],
   columns: itemRecordColumns,
+  card: 'picture',
   sorts: [
     {
       key: 'record',
@@ -2542,6 +2555,7 @@ const inventoryEntity = computed<EntitySchema>(() => ({
   tabs: [],
   samples: [],
   columns: inventoryColumns,
+  card: 'picture',
   sorts: [
     {
       key: 'type',
@@ -2589,6 +2603,7 @@ const colorItemsEntity: EntitySchema = {
   tabs: [],
   samples: [],
   columns: colorItemColumns,
+  card: 'picture',
   sorts: [
     {
       key: 'number',
@@ -2614,7 +2629,8 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
    * 0.18.0 for exactly this.
    */
   formatCount: abbreviate,
-  entities: [
+  // Each with its sentence on, for the home screen: see [typeDescriptions].
+  entities: described([
     {
       key: 'categories',
       label: 'Categories',
@@ -2679,6 +2695,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: [],
       samples: [],
       columns: colorColumns,
+      card: 'picture',
       sorts: [
         {
           key: 'name',
@@ -2784,6 +2801,10 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: ['Information', 'Inventory', 'Images'],
       samples: [],
       columns: itemColumns,
+      // A card of these is its picture and its name (appfr 0.44.0): a piece, a
+      // set or a colour is told apart by what it looks like, and its numbers
+      // are the table's. The same on every type below that leads with a picture.
+      card: 'picture',
       // Every labelled column, because every header in the original is a
       // button that sorts by it — which is how every type here declares its
       // sorts. A column with nothing to compare is the exception: an ordinal
@@ -2864,6 +2885,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       // Less the set, once the query is one set's: see
       // [INVENTORY_LINES_SETTLED_BY].
       columns: informative(itemInventoryColumns, openExpr.value, INVENTORY_LINES_SETTLED_BY),
+      card: 'picture',
       sorts: [
         {
           key: 'type',
@@ -2903,6 +2925,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: [],
       samples: [],
       columns: itemVariantColumns,
+      card: 'picture',
       sorts: [
         {
           key: 'type',
@@ -3308,6 +3331,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
       tabs: [],
       samples: [],
       columns: imageColumns,
+      card: 'picture',
       sorts: [
         {
           key: 'name',
@@ -3366,5 +3390,5 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
     ...(openShopPlan.value ? [shopPlanEntity] : []),
     ...(openShopStores.value ? [shopStoresEntity] : []),
     ...(openCartLines.value ? [cartLinesEntity] : [])
-  ]
+  ])
 }))

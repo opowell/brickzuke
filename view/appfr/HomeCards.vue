@@ -263,7 +263,12 @@ watch(filled, () => {
     <div class="home__wall">
       <section v-for="card in cards" :key="card.entity.key" class="home__card">
         <button type="button" class="home__head" @click="openType(card.entity.key)">
-          <span class="home__name">{{ card.entity.label }}</span>
+          <span class="home__title">
+            <span class="home__name">{{ card.entity.label }}</span>
+            <span v-if="card.entity.description" class="home__description">{{
+              card.entity.description
+            }}</span>
+          </span>
           <span class="home__count" :class="{ 'home__count--waiting': card.waiting }">{{
             card.count
           }}</span>
@@ -370,12 +375,28 @@ watch(filled, () => {
   background: var(--dc-bg-2);
 }
 
-.home__name {
+/*
+ * The name with what the type is under it — the sentence the shell's own type
+ * cards draw there (`EntitySchema.description`), inside the head so the head
+ * is still the one press. The count and the arrow stay on the name's line:
+ * the head lines up by its first baseline, which is the name's.
+ */
+.home__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
+}
+
+.home__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.home__description {
+  color: var(--dc-fg-3);
 }
 
 .home__count {

@@ -18,6 +18,7 @@ import { ref, watchEffect } from 'vue'
 import { PARAM_ENTITY, PARAM_EXPR, parseExpression } from 'header-content-layout'
 import router from '@/router'
 import { readStoreScope, storeScopeVersion } from './storeLotsFetch'
+import { naming } from './naming'
 
 /** What a `field:"…"` term names, read straight off the expression. */
 function termValue(expr: string, field: string): string | undefined {
@@ -25,7 +26,7 @@ function termValue(expr: string, field: string): string | undefined {
   // no one seller's — the same reading the source makes of an address.
   const found = parseExpression(expr)
     .flat()
-    .filter((term) => term.kind === 'field' && term.field === field && term.comparator === ':')
+    .filter((term) => term.kind === 'field' && term.field === field && naming(term.comparator))
   return found.length === 1 ? found[0].value : undefined
 }
 

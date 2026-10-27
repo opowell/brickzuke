@@ -12,8 +12,8 @@ importers:
         specifier: ^14.0.0
         version: 14.0.0(vue@3.5.13(typescript@5.8.3))
       header-content-layout:
-        specifier: github:opowell/appfr#v0.39.0
-        version: https://codeload.github.com/opowell/appfr/tar.gz/34a72b3a87f24addd4817c7d493ff59b746c2502(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3))
+        specifier: github:opowell/appfr#v0.64.0
+        version: https://codeload.github.com/opowell/appfr/tar.gz/49a3e9902976064f753ff746b19ac3430f377c87(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3))
       idb:
         specifier: ^8.0.3
         version: 8.0.3
@@ -1593,9 +1593,9 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/34a72b3a87f24addd4817c7d493ff59b746c2502:
-    resolution: {tarball: https://codeload.github.com/opowell/appfr/tar.gz/34a72b3a87f24addd4817c7d493ff59b746c2502}
-    version: 0.39.0
+  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/49a3e9902976064f753ff746b19ac3430f377c87:
+    resolution: {tarball: https://codeload.github.com/opowell/appfr/tar.gz/49a3e9902976064f753ff746b19ac3430f377c87}
+    version: 0.64.0
     peerDependencies:
       '@nuxt/kit': ^3.0.0 || ^4.0.0
       vue: ^3.4.0
@@ -2495,8 +2495,8 @@ packages:
   vue-component-type-helpers@3.2.9:
     resolution: {integrity: sha512-S3BiWYaLSzHxTpln665ELSrMR9UYmrIDUmhik7nVZxmJjTKL2/a+ew1hvGxksKelivm0ujjWfG1fYOiU/2e8rA==}
 
-  vue-component-type-helpers@3.3.11:
-    resolution: {integrity: sha512-LwcxzeliO9fkQcpJG0PoX8X5kmAhKmH9wkpDLxNabwzkQ9Zeib2YVHwFV4pcWmMLfXVfjr/dSV+DaJ3cIPgSNA==}
+  vue-component-type-helpers@3.3.13:
+    resolution: {integrity: sha512-02KCxSmKDhIITjKyJ4QT5csP6L0WoRborLqY/34a40+S9uvMvdNgMV0yVjO3p2Gkz3ZoPmFz/0JsGHacwJYTxw==}
 
   vue-docgen-api@4.79.2:
     resolution: {integrity: sha512-n9ENAcs+40awPZMsas7STqjkZiVlIjxIKgiJr5rSohDP0/JCrD9VtlzNojafsA1MChm/hz2h3PDtUedx3lbgfA==}
@@ -3239,7 +3239,7 @@ snapshots:
       ts-dedent: 2.2.0
       type-fest: 2.19.0
       vue: 3.5.13(typescript@5.8.3)
-      vue-component-type-helpers: 3.3.11
+      vue-component-type-helpers: 3.3.13
 
   '@tsconfig/node22@22.0.1': {}
 
@@ -4168,7 +4168,7 @@ snapshots:
 
   he@1.2.0: {}
 
-  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/34a72b3a87f24addd4817c7d493ff59b746c2502(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3)):
+  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/49a3e9902976064f753ff746b19ac3430f377c87(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3)):
     dependencies:
       vue: 3.5.13(typescript@5.8.3)
     optionalDependencies:
@@ -4990,7 +4990,7 @@ snapshots:
 
   vue-component-type-helpers@3.2.9: {}
 
-  vue-component-type-helpers@3.3.11: {}
+  vue-component-type-helpers@3.3.13: {}
 
   vue-docgen-api@4.79.2(vue@3.5.13(typescript@5.8.3)):
     dependencies:

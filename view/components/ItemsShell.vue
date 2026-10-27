@@ -36,11 +36,19 @@ import {DataShell,
   PARAM_SORT,
   PARAM_VIEW,
   ResultsArea,
+  ShellToasts,
+  VIEW_KINDS,
   createVueRouterAdapter,
   isTypeCardsQuery,
   parseQuery,
-  serializeQuery} from 'header-content-layout'
-import type { DataSource, EntitySchema, Selection, ShellQuery } from 'header-content-layout'
+  serializeQuery,
+  useToasts} from 'header-content-layout'
+import type {DataSource,
+  EntitySchema,
+  Selection,
+  ShellQuery,
+  ViewKind,
+  ViewsContext} from 'header-content-layout'
 import 'header-content-layout/style.css'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -53,6 +61,7 @@ import { storeLotsNotice } from '../appfr/storeLotsNotice'
 import { openedQuery, shellDefaultsFor } from '../appfr/openingOrder'
 import { rememberType } from '../appfr/recentTypes'
 import { useTableReach } from '../appfr/tableReach'
+import { downloadIfEmpty } from '../appfr/catalogDownload'
 import { botCheck, BOT_CHECK_MESSAGE } from '../assets/js/bot-check'
 import { refreshUserCounts } from '../appfr/userCounts'
 import { createRecordFor, deleteRecordsFor, shopPartsOf, userRevision } from '../appfr/userWrites'
@@ -188,18 +197,49 @@ onMounted(() => {
  * be typed over — because the table it was made from would not show it.
  */
 async function onCreate(entity: EntitySchema) {
-  const made = await createRecordFor(
-    entity,
-    String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
-  )
-  if (made) {
-    openOn(entity.key, 'record', made)
+  try {
+    const made = await createRecordFor(
+      entity,
+      String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
+    )
+    if (made) {
+      openOn(entity.key, 'record', made)
+    }
+  } catch (error) {
+    toastError(error)
   }
 }
 
 function onDelete(selection: Selection) {
-  void deleteRecordsFor(selection)
+  deleteRecordsFor(selection).catch(toastError)
 }
+
+/**
+ * What a press here could not do, said in the corner (appfr 0.61.0's toasts).
+ *
+ * A write that failed used to fail without a word — the handlers above are
+ * the shell's events, which nobody awaits — and a Shop parts with nothing to
+ * list did nothing at all, which reads as a button that is broken.
+ */
+const {
+  toast, toastError
+} = useToasts()
+
+/**
+ * A colour, category or item type table with no download behind it fetches
+ * its own, and says so here when nothing comes. See [catalogDownload].
+ */
+watch(
+  urlEntity,
+  (key) => {
+    if (key) {
+      downloadIfEmpty(key).catch(toastError)
+    }
+  },
+  {
+    immediate: true
+  }
+)
 
 /**
  * The source, made anew whenever a table of theirs is written.
@@ -240,7 +280,7 @@ const openSet = computed(() => {
   }
   const expr = String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
   // Not `-record:`, which is a set the parts are *not* from.
-  return /(?:^|\s)record:"?([A-Za-z0-9-]+)"?/.exec(expr)?.[1] ?? ''
+  return /(?:^|\s)record[:=]"?([A-Za-z0-9-]+)"?/.exec(expr)?.[1] ?? ''
 })
 
 /** Whether the list is being made, so the press cannot be made twice. */
@@ -268,7 +308,11 @@ async function shopOpenSet() {
     const listId = await shopPartsOf(openSet.value)
     if (listId) {
       openOn('shopPlan', 'shoplist', String(listId))
+    } else {
+      toast('None of this set’s parts are stored yet, so there is nothing to list. Try again once its inventory has loaded.')
     }
+  } catch (error) {
+    toastError(error)
   } finally {
     shopping.value = false
   }
@@ -285,6 +329,21 @@ async function shopOpenSet() {
  * nothing to do to what it ticks is a control that leads nowhere.
  */
 const cartTicks = computed(() => urlEntity.value === 'inventories' && activeCart.value !== '')
+
+/**
+ * The views on offer, screen by screen (appfr 0.61.0's `views` function).
+ *
+ * The home screen is the cards and nothing else: every other view of
+ * Everything is a table brickzuke has no rows for, which [openedQuery] sends
+ * straight back to the cards. One view on offer is a bar with no View chooser
+ * (appfr 0.54.0), rather than a chooser whose every other entry bounces.
+ * Inside a type, every view, as before.
+ */
+function offeredViews({
+  entity
+}: ViewsContext): ViewKind[] {
+  return entity ? [...VIEW_KINDS] : ['cards']
+}
 
 /**
  * How long a page is: as many rows as fill the window, read off what the shell
@@ -384,6 +443,7 @@ const plainTokens = {
       :limit="pageLimit"
       :pages-note="pagesNote"
       :selectable="cartTicks"
+      :views="offeredViews"
       row-press="open"
       v-model:selected="cartSelection"
       @query-change="onQueryChange"
@@ -435,6 +495,11 @@ const plainTokens = {
         <ResultsArea v-else />
       </template>
     </DataShell>
+    <!-- Beside the shell rather than in it, so it is told the shell's dress. -->
+    <ShellToasts
+      theme="mono-size"
+      :tokens="plainTokens"
+    />
   </div>
 </template>
 
@@ -481,8 +546,12 @@ const plainTokens = {
  * menu's ground, and the shell's own tint on the one the pointer is over,
  * which is the whole of what an option says. `:where` so the exemption
  * weighs nothing and the rule stays where it was against the shell's own.
+ *
+ * Nor the name at the start of the bar (appfr 0.64.0), which is a button so
+ * that pressing it goes home, but is the name before it is a press: set as
+ * the shell sets it, with the shell's own tint on the way past.
  */
-.items-shell :deep(button:where(:not(.dc-menu__item))) {
+.items-shell :deep(button:where(:not(.dc-menu__item, .dc-header__domain))) {
   appearance: revert;
   background: revert;
   border: revert;
@@ -533,6 +602,20 @@ const plainTokens = {
 }
 
 /*
+ * Nor may a column's heading run past its column. The same eight pixels put
+ * `Price ratio` five past a 120px column at 18px type, and the header, which
+ * clips with an ellipsis, drew what was left of the `…` after the button — a
+ * stray dot beside the narrow headings and none beside the wide ones. Held to
+ * the column, a heading that does not fit goes onto a second line, as a name
+ * in a cell does. The price columns are now set wide enough not to need it;
+ * this is for a column that is not, or a type set larger than 18px.
+ */
+.items-shell :deep(.dc-table__sort) {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/*
  * And no underline on the way past. That is a link's manner, and these are
  * buttons — they have edges to say what they are, which a link has not.
  */
@@ -565,13 +648,16 @@ const plainTokens = {
  *
  * The two marks beside a row's name are not buttons of this kind: the `→`
  * says with its colour which way the press would go — green to narrow to the
- * record, red with ⌘ held to leave it out — and the `+` or `−` fades to say
+ * record, red with ⌥ held to leave it out — and the `+` or `−` fades to say
  * the press lifts it. A face and a reverted ink would say neither. `:where`
  * so the exemption weighs nothing, and the tie with the active rule below is
  * kept as it stands. Nor a row of a picker's list, for the reason given over
- * the rule above: its hover is the shell's tint, not a lifted face.
+ * the rule above: its hover is the shell's tint, not a lifted face. Nor a
+ * part of the query in the header, which fades and is struck through to say
+ * the press takes it out — the `text-decoration: none` here cancelled the
+ * strike and left only the fade.
  */
-.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing, .dc-menu__item))) {
+.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing, .dc-menu__item, .dc-header__domain, .dc-term))) {
   background: color-mix(in oklab, ButtonFace 88%, ButtonText);
   border: revert;
   border-radius: revert;

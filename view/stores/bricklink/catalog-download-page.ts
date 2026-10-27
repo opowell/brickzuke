@@ -458,6 +458,7 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
 
   // return
   return {
+    fetchCatalogTree,
     fetchItemPage,
     fetchViewType,
     filteredItems,

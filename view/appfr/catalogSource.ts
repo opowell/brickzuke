@@ -98,6 +98,7 @@ import { referencePercentile, referencePriceChosen, referenceStore } from './set
 import { userItemIdOf } from '../../idb/userItem'
 import {useCatalogItemPageStore} from '../stores/bricklink/catalog-item-page'
 import type { StoreInventory } from '../stores/bricklink/catalog-item-page'
+import { naming } from './naming'
 
 /**
  * `bzItemId` is the key path of BRICK_LINK_ITEMS_BY_ITEM_ID and is on the
@@ -556,7 +557,7 @@ function toRecordRow(itemId: number, brickLinkItem: JoinedItem): ShellRow {
  * `-record:` as nowhere in particular.
  */
 function names(term: Term, field: string): term is FieldTerm {
-  return term.kind === 'field' && term.field === field && term.comparator === ':' && !term.negated
+  return term.kind === 'field' && term.field === field && naming(term.comparator) && !term.negated
 }
 
 /**

@@ -3,7 +3,7 @@
  *
  * The name of a category, a country or a seller is the record itself and not
  * a count of anything, so pressing it opens `Everything` narrowed to that
- * record — and, with ⇧ or ⌘ held, `Everything` with that record left out.
+ * record — and, with ⌥ held, `Everything` with that record left out.
  * Either accumulates: two records named on one field are either of them,
  * and two left out are both left out, which is what two such presses asked
  * for.

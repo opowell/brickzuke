@@ -55,7 +55,7 @@ export interface PreviewTile {
   image?: string
   /**
    * Where the record leads — the press its own row makes. With `exclude`, the
-   * press made with ⌘ held, it is the record left out instead, where the row
+   * press made with ⌥ held, it is the record left out instead, where the row
    * can be: a tile that narrows to a record can narrow away from it, and one
    * that opens a table opens it either way.
    */

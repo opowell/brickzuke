@@ -162,14 +162,14 @@ export function recordId(fields: Record<string, unknown>): number | undefined {
  * go under the record the table is already showing.
  */
 export function openedId(expr: string, field: string): number | undefined {
-  const found = new RegExp(`${field}:"?(\\d+)"?`).exec(expr)
+  const found = new RegExp(`${field}[:=]"?(\\d+)"?`).exec(expr)
   const id = found ? Number(found[1]) : NaN
   return Number.isFinite(id) && id > 0 ? id : undefined
 }
 
 /** The set of theirs whose parts are up — `record:"U-3"` — or nothing. */
 export function openedOwnSet(expr: string): string | undefined {
-  const found = /record:"?(U-\d+)"?/.exec(expr)
+  const found = /record[:=]"?(U-\d+)"?/.exec(expr)
   return found && userItemIdOf(found[1]) !== undefined ? found[1] : undefined
 }
 

@@ -23,6 +23,7 @@ import type { PropType } from 'vue'
 import { computed, watch } from 'vue'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
+import { naming } from './naming'
 import {ensureStoreInventories,
   ensureStoreLots,
   storeInventoriesReady,
@@ -58,7 +59,7 @@ const addressedStores = computed(() =>
   parseExpression(expr.value)
     .flat()
     .flatMap((term) =>
-      term.kind === 'field' && term.field === 'store' && term.comparator === ':' && !term.negated
+      term.kind === 'field' && term.field === 'store' && naming(term.comparator) && !term.negated
         ? [term.value]
         : []
     )

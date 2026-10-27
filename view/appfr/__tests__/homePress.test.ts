@@ -108,15 +108,16 @@ describe('pressing a record on the home screen', () => {
     tile.press?.()
     await flushPromises()
     // The term the shell itself would have written: `category` is the type's
-    // scope, `5` is BrickLink's id for Brick, which is the row's own id.
-    expect(landed().expr).toBe('category:5')
+    // scope, `5` is BrickLink's id for Brick, which is the row's own id, and
+    // `=` compares the id whole (appfr 0.52.0).
+    expect(landed().expr).toBe('category=5')
     // And still the home screen. Naming no type is what keeps the cards up —
     // see `openedQuery`, which sends every typeless query to them.
     expect(landed().entity).toBeUndefined()
   })
 
   /*
-   * The same press with ⌘ held, which the shell reads as `exclude` and
+   * The same press with ⌥ held, which the shell reads as `exclude` and
    * brickzuke's own tiles answer the same way its rows do: the wall stays,
    * and the term written says which record it is *not* about.
    */
@@ -127,7 +128,7 @@ describe('pressing a record on the home screen', () => {
       exclude: true
     })
     await flushPromises()
-    expect(landed().expr).toBe('-category:5')
+    expect(landed().expr).toBe('-category=5')
     expect(landed().entity).toBeUndefined()
   })
 
@@ -138,7 +139,7 @@ describe('pressing a record on the home screen', () => {
       exclude: true
     })
     await flushPromises()
-    expect(landed().expr).toBe('-category:5')
+    expect(landed().expr).toBe('-category=5')
   })
 
   it('keeps a record term on the way into a type', async () => {

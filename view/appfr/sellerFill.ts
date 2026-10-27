@@ -28,6 +28,7 @@ import { matching } from './reach'
 import { reachGapMs } from './settings'
 import { readStorePolicy, storePolicyFor } from './storePolicyFetch'
 import { countriesFor, readStores, storesFor } from './storesFetch'
+import { naming } from './naming'
 
 /** Three failures in a row is the extension not being there — [homeFill]'s number. */
 const GIVE_UP = 3
@@ -54,7 +55,7 @@ export async function countriesInScope(expr: string, wide: boolean): Promise<str
   let placed = false
   for (const group of parseExpression(expr)) {
     for (const term of group) {
-      if (term.kind !== 'field' || term.comparator !== ':' || term.negated) {
+      if (term.kind !== 'field' || !naming(term.comparator) || term.negated) {
         continue
       }
       if (term.field === 'country' && /^[A-Z]{2}$/.test(term.value)) {
