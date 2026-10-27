@@ -23,7 +23,7 @@
  * The row carries its own Max, 0, Apply, Reset too — what the header's do to
  * the whole table, done to this one lot, through the same draft.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
 import { cartQuantityOf } from './activeCart'

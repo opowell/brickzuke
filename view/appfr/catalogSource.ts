@@ -7,7 +7,7 @@
  * cannot write the query someone just left over the one they are looking at.
  */
 import { ref, watch } from 'vue'
-import { formatExpression, matchesExpression, parseExpression } from 'header-content-layout'
+import { formatExpression, matchesExpression, parseExpression } from 'appfr'
 import type {DataSource,
   EntitySchema,
   FieldTerm,
@@ -16,7 +16,7 @@ import type {DataSource,
   QuerySink,
   QueryUpdate,
   ShellRow,
-  Term} from 'header-content-layout'
+  Term} from 'appfr'
 import type { IDBPDatabase } from 'idb'
 import { fillPages } from './pageFill'
 import { backgroundTurn, maybeYield } from './yieldToInput'

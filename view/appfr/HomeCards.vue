@@ -15,9 +15,9 @@
  * The cards are drawn in the shell's own tokens, so a screen brickzuke now
  * owns still looks like the one it replaced.
  */
-import { pressOptions } from 'header-content-layout'
+import { entityCount, formatCount, pressOptions } from 'appfr'
+import type { EntitySchema } from 'appfr'
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { formatInteger } from '@/assets/js/utils'
 import { catalogSchema, openType } from './catalogSchema'
 import { forgetPreview, previewFor } from './catalogPreviews'
 import type { Preview, PreviewTile } from './catalogPreviews'
@@ -57,7 +57,7 @@ const cards = computed(() =>
     .map((entity) => {
       const preview = previews.value[entity.key]
       const tiles = preview?.tiles.length ? preview.tiles : undefined
-      const count = countOf(entity.count, preview)
+      const count = countOf(entity, preview)
       return {
         entity,
         count,
@@ -119,15 +119,16 @@ function emptyUnder(asked: string, preview: Preview | undefined, count: string):
  * where the read could say, and the population the schema publishes where it
  * could not.
  *
- * Abbreviated the way `population` abbreviates a population, these two numbers
- * standing in the same place on the same wall — see the note there.
+ * Both written by the shell's `formatCount`, as every population is — the two
+ * stand in the same place on the same wall.
  *
  * A type the schema states no population for keeps its silence. A card reading
  * `0` for a country list nobody has fetched says brickzuke looked and found
  * none, which is a different claim from not having looked — and under a query
  * it is the wrong one for exactly the types that have nothing stored yet.
  */
-function countOf(population: string, preview: Preview | undefined): string {
+function countOf(entity: EntitySchema, preview: Preview | undefined): string {
+  const population = entityCount(entity)
   if (preview?.count === undefined || !population) {
     return population
   }
@@ -135,7 +136,7 @@ function countOf(population: string, preview: Preview | undefined): string {
   // about the narrowed number for the same reason: see [homeFill]. The two
   // stand in the same place on the same wall and must not disagree about what
   // a tilde means.
-  return (preview.estimated ? '~' : '') + String(formatInteger(preview.count) ?? '')
+  return (preview.estimated ? '~' : '') + formatCount(preview.count)
 }
 
 /**

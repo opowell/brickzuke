@@ -16,9 +16,9 @@
  * which is the ordinary case for the great majority of the catalogue: only a
  * seller somebody has actually looked at is known here.
  */
-import { pressOptions } from 'header-content-layout'
-import type { ColumnDef, ShellRow } from 'header-content-layout'
-import { parseExpression } from 'header-content-layout'
+import { pressOptions } from 'appfr'
+import type { ColumnDef, ShellRow } from 'appfr'
+import { parseExpression } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, watch } from 'vue'
 import { shownExpr } from './catalogSchema'

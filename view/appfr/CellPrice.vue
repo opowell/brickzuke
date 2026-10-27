@@ -27,7 +27,7 @@
  * euros — through [priceText]. The hovers are not: they quote what BrickLink
  * printed, sign and all, and a quote is not restated.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 import { modifiersApplying } from './priceModifiers'

@@ -16,7 +16,7 @@
  * The figure is in the units the price units setting names, and the currency
  * after it says so — `499 EUR cents`, `4.99 EUR` — see [priceText].
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 import { priceText, priceUnitsPhrase } from './priceText'

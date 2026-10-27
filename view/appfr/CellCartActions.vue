@@ -15,7 +15,7 @@
  * page is where the order is actually placed, and the point of the press is
  * to end up on it.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 import { BRICKLINK_CART_URL } from '../stores/bricklink/cart-add'

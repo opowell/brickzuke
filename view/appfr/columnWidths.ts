@@ -10,7 +10,7 @@
  * the heading: a table whose headings are cut short cannot say what it is
  * showing.
  */
-import type { ColumnDef } from 'header-content-layout'
+import type { ColumnDef } from 'appfr'
 
 const WIDTHS: Record<string, string> = {
   applies: '80px',

@@ -16,7 +16,7 @@
  * somebody has looked at are the sellers with a figure, and the rest fill in
  * as they are looked at.
  */
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 import { readStorePolicies } from './storePolicyFetch'
 import type { StoredStorePolicy } from '../stores/bricklink/store-policy-page'
 import type { Country, Store } from '../stores/bricklink/stores-page'

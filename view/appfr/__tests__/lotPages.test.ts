@@ -7,8 +7,8 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { computed, effectScope, nextTick, ref, watch } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { useResults } from 'header-content-layout'
-import type { ShellQuery } from 'header-content-layout'
+import { useResults } from 'appfr'
+import type { ShellQuery } from 'appfr'
 
 vi.mock('../../../model', async () => {
   const {

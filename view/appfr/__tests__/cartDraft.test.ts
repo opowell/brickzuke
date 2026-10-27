@@ -8,7 +8,7 @@
  * a box drops the proposal for that one lot and no other.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 
 vi.mock('../../../model', async () => {
   const {

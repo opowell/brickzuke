@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
-import { DataShell, createMemoryAdapter } from 'header-content-layout'
-import type { DataSource, ShellRow } from 'header-content-layout'
-import type { ColumnDef } from 'header-content-layout'
+import { DataShell, createMemoryAdapter } from 'appfr'
+import type { DataSource, ShellRow } from 'appfr'
+import type { ColumnDef } from 'appfr'
 import {catalogSchema,
   categoryColumns,
   colorColumns,
@@ -163,13 +163,11 @@ describe('a query that names a record', () => {
 const itemsEntity = () => catalogSchema.value.entities.find((entity) => entity.key === 'items')!
 
 describe('items schema', () => {
-  it('abbreviates the population the way brickzuke writes every count', () => {
-    // Through brickzuke's own `formatInteger`, not grouped through appfr's
-    // `formatCount` — and never the bare 0 a hardcoded count showed. A
-    // population is read for its size, and `10.0k` is the same abbreviation
-    // the counts in the cells beside it are written in.
-    expect(itemsEntity().count).toBe('10.0k')
-    expect(mountShell().text()).toContain('10.0k')
+  it('hands the population over for the shell to abbreviate', () => {
+    // A number, which the shell writes with its own `formatCount` — the hand
+    // its live counts are in — and never the bare 0 a hardcoded count showed.
+    expect(itemsEntity().count).toBe(9988)
+    expect(mountShell().text()).toContain('10k')
   })
 
   it('has the shell write its own live count the same way', async () => {
@@ -207,7 +205,7 @@ describe('items schema', () => {
     expect(headers).toEqual([
       // The ticks, because the table lists items of somebody's own beside
       // the catalogue's and names `delete` for them — see [userItemRows].
-      // Headed by the tick that takes the page (header-content-layout
+      // Headed by the tick that takes the page (appfr
       // 0.30.0), which says nothing in text.
       '',
       // Where the query stands on each row — `+` named, `·` unsaid, `−`

@@ -10,7 +10,7 @@
  * Kept here together rather than on each type, so the sentences read as one
  * set and can be compared with one another; [described] puts them on.
  */
-import type { EntitySchema } from 'header-content-layout'
+import type { EntitySchema } from 'appfr'
 
 export const TYPE_DESCRIPTIONS: Record<string, string> = {
   categories: 'The groups BrickLink files its catalogue under, and your own',

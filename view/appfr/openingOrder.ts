@@ -16,7 +16,7 @@
  * ItemsShell applies this on arrival, and hands the shell the same answer as
  * the fallback for a URL that names no sort.
  */
-import type { ShellQuery, ShellQueryDefaults, SortDirection } from 'header-content-layout'
+import type { ShellQuery, ShellQueryDefaults, SortDirection } from 'appfr'
 
 export interface OpeningOrder {
   sort: string

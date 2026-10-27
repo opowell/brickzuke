@@ -10,7 +10,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { QuerySink, QueryUpdate, ShellRow } from 'header-content-layout'
+import type { QuerySink, QueryUpdate, ShellRow } from 'appfr'
 
 vi.mock('../../../model', async () => {
   const {

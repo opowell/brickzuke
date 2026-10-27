@@ -30,7 +30,7 @@
  * An action is a button, held down while what it started is still running so
  * a second press does not queue the same requests twice.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, onMounted, ref } from 'vue'
 import { pickedSetting, setSetting, settingFor } from './settings'

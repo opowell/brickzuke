@@ -12,7 +12,7 @@
  * count on the bar, and most end in a tick of [userRevision], which is what
  * makes the row itself appear — see the note there.
  */
-import type { EntitySchema, Selection, ShellRow } from 'header-content-layout'
+import type { EntitySchema, Selection, ShellRow } from 'appfr'
 import type { IDBPDatabase } from 'idb'
 import { ref } from 'vue'
 import { getDbConnection } from '../../idb/idb'

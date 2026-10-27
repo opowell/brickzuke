@@ -180,7 +180,6 @@ watch(activeProfile, () => {
  * shopping-list card reading nothing is saying you have not made one yet, which
  * is true and is the state most readers will first see it in.
  */
-export function userPopulation(key: string): string {
-  const value = userCounts.value[key]
-  return value ? String(value) : ''
+export function userPopulation(key: string): number | string {
+  return userCounts.value[key] || ''
 }

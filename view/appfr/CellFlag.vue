@@ -16,7 +16,7 @@
  * value being the name — the identity, which is what a card heads and a tile
  * captions, and what the header sorts by.
  */
-import { pressOptions, type ColumnDef, type ShellRow } from 'header-content-layout'
+import { pressOptions, type ColumnDef, type ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed } from 'vue'
 

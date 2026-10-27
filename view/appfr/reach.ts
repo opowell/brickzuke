@@ -31,9 +31,9 @@
  * read from — and it is written in the same `~` the store fill uses for a
  * projection, the two standing in the same place on the same wall.
  */
-import { formatExpression, matchesExpression, parseExpression } from 'header-content-layout'
-import type { EntitySchema, ShellRow } from 'header-content-layout'
-import type { Term } from 'header-content-layout'
+import { formatExpression, matchesExpression, parseExpression } from 'appfr'
+import type { EntitySchema, ShellRow } from 'appfr'
+import type { Term } from 'appfr'
 import { getDbConnection } from '../../idb/idb'
 import STORES from '../../idb/stores'
 import type { BrickLinkItem } from '../stores/bricklink/catalog-download-page'

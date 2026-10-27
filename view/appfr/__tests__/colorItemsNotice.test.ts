@@ -9,7 +9,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { nextTick } from 'vue'
-import { PARAM_ENTITY, PARAM_EXPR } from 'header-content-layout'
+import { PARAM_ENTITY, PARAM_EXPR } from 'appfr'
 import router from '@/router'
 import { colorItemsNotice } from '../colorItemsNotice'
 import { put } from '../../../idb/db'

@@ -20,8 +20,8 @@
  * time Apply is pressed the row may be off screen.
  */
 import { computed, ref } from 'vue'
-import type { ShellRow } from 'header-content-layout'
-import { parseQuery } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
+import { parseQuery } from 'appfr'
 import { catalogSchema } from './catalogSchema'
 import { matchingRows } from './catalogSource'
 import { shellDefaultsFor } from './openingOrder'

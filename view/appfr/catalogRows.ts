@@ -13,7 +13,7 @@
  * for a colour, the categories for an item type — because a column that is
  * always blank is not a wired-up column.
  */
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 import { SETTINGS } from './settings'
 import { priceModifierOf } from './priceModifiers'
 import type { IDBPDatabase } from 'idb'

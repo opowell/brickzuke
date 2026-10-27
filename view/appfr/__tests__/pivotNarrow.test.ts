@@ -17,8 +17,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
-import { PARAM_ENTITY, PARAM_EXPR } from 'header-content-layout'
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { PARAM_ENTITY, PARAM_EXPR } from 'appfr'
+import type { ColumnDef, ShellRow } from 'appfr'
 import router from '@/router'
 
 vi.mock('../../../model', async () => {

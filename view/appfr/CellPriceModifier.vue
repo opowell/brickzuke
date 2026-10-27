@@ -19,7 +19,7 @@
  * box. With no profile active the box is blank and writing into it makes one
  * — see [setPriceModifierFor].
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { ref, watch } from 'vue'
 import { setPriceModifierFor } from './userWrites'

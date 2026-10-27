@@ -3,8 +3,8 @@
  * the same order standing in for a URL that names no sort.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { parseQuery } from 'header-content-layout'
-import type { ShellQuery } from 'header-content-layout'
+import { parseQuery } from 'appfr'
+import type { ShellQuery } from 'appfr'
 import { openedQuery, shellDefaultsFor } from '../openingOrder'
 
 vi.mock('../../../model', async () => {

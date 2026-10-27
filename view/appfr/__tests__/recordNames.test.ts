@@ -12,7 +12,7 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
-import { DataShell, PARAM_ENTITY, PARAM_EXPR, createMemoryAdapter } from 'header-content-layout'
+import { DataShell, PARAM_ENTITY, PARAM_EXPR, createMemoryAdapter } from 'appfr'
 import router from '@/router'
 
 vi.mock('../../../model', async () => {
@@ -139,7 +139,7 @@ describe('a record named in the query', () => {
       await nextTick()
     }
     // The name under the field it was written with, and no id after it: the
-    // header says which record by naming it at all (header-content-layout
+    // header says which record by naming it at all (appfr
     // 0.27.2 drops a trailing id from a resolved part). The id stays in the
     // expression field, which the shell still writes out under the empty
     // result.

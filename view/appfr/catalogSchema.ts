@@ -1,5 +1,5 @@
 /**
- * brickzuke's catalogue, as a header-content-layout schema.
+ * brickzuke's catalogue, as a appfr schema.
  *
  * Every type its home screen counts, with the columns each table draws today
  * expressed as ColumnDefs. The mapping is field-for-field — `id`→`key`,
@@ -16,13 +16,14 @@ import {PARAM_ENTITY,
   excludingTerm,
   findEntityByAddress,
   formatExpression,
+  formatCount,
   formatTerm,
   parseExpression,
   readExpression,
   scopeTermFor,
   scopedEntity,
-  searchFromQuery} from 'header-content-layout'
-import type { ColumnDef, DomainSchema, EntitySchema, PressOptions, ShellRow } from 'header-content-layout'
+  searchFromQuery} from 'appfr'
+import type { ColumnDef, DomainSchema, EntitySchema, PressOptions, ShellRow } from 'appfr'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
 import { itemTypes, processingCounts, selectedCounts } from '../../model'
@@ -2233,40 +2234,17 @@ export const imageColumns: ColumnDef[] = sized('image', [
  * `entity.count` holds and the only number the shell formats a version of
  * itself.
  *
- * Abbreviated through brickzuke's own `formatInteger` — `1.7k`, `199k`,
- * `23.5m` — because a population is read for its size and not for its digits.
- * Nobody reaches the home screen to learn that there are 198,689 items; they
- * reach it to see which types are big, and eleven cards of grouped six-figure
- * numbers make that harder to see rather than easier.
- *
- * It was grouped through the shell's own `formatCount` up to here, to keep the
- * list of types writing its numbers one way: that control states the
- * population of every type except the one in force, and states that one as how
- * many rows matched, which is the shell's own number. That is settled the
- * other way round now — `formatCount` on the schema below hands the shell this
- * same hand to write its live count in — so the whole list reads alike without
- * brickzuke having to give up the abbreviation.
+ * Handed over as a number, which the shell abbreviates — `1.7k`, `199k`,
+ * `23.5m` — in the same hand as the live count beside it.
  *
  * Absent rather than zero while the worker is still counting — so a card reads
  * `Colors` until the number is real, never `Colors 0`.
  */
-function population(value?: number): string {
+function population(value?: number): number | string {
   if (processingCounts.value || !value) {
     return ''
   }
-  return abbreviate(value)
-}
-
-/**
- * One count, written the way brickzuke writes every count: `29`, `1.7k`,
- * `199k`, `23.5m`.
- *
- * `formatInteger` hands back `string | number | undefined`, none of which a
- * count on a card can be — the value is known to be a number by the time it
- * reaches here, and the callers want a string. This is the cast, in one place.
- */
-function abbreviate(value: number): string {
-  return String(formatInteger(value) ?? '')
+  return value
 }
 
 /**
@@ -2293,13 +2271,13 @@ function tableCount(id: string): number | undefined {
  * what anyone reading `Stores` wants to know. See [homeFill] for the two that
  * stand in front of it.
  */
-function browsed(key: string): string {
+function browsed(key: string): number | string {
   const fill = fills.value[key]
   if (fill) {
-    return fill.estimate === undefined ? LOADING : '~' + abbreviate(fill.estimate)
+    return fill.estimate === undefined ? LOADING : '~' + formatCount(fill.estimate)
   }
   const value = browsedCounts.value[key]
-  return value ? abbreviate(value) : ''
+  return value || ''
 }
 
 /**
@@ -3302,14 +3280,6 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
   label: 'Brickzuke',
   kicker: 'BrickLink catalogue',
   placeholder: 'brick OR plate year>=1988',
-  /*
-   * The one count the shell works out for itself — how many rows matched, said
-   * on the type in force and on `Everything` — written in brickzuke's hand,
-   * which is `population`'s hand and the cells' hand. Without it the list of
-   * types read `Items · 199k` beside `Everything · 198,689`. Added to appfr in
-   * 0.18.0 for exactly this.
-   */
-  formatCount: abbreviate,
   // Each with its sentence on, for the home screen: see [typeDescriptions].
   entities: described([
     ...standingEntities.value,

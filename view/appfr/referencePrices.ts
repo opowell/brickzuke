@@ -18,7 +18,7 @@
  * references are wanted — see [referenced] in catalogSource — and this is the
  * arithmetic on them.
  */
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 
 /** The field the ratio is on, and the one a term or a sort names it by. */
 export const RATIO = 'ratio'

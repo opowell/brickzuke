@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * brickzuke's tables, drawn by header-content-layout.
+ * brickzuke's tables, drawn by appfr.
  *
  * The shell owns the address bar: `createVueRouterAdapter` makes every query
  * change an ordinary navigation, so the query is a link someone can paste and
@@ -40,14 +40,14 @@ import {DataShell,
   isTypeCardsQuery,
   parseQuery,
   serializeQuery,
-  useToasts} from 'header-content-layout'
+  useToasts} from 'appfr'
 import type {DataSource,
   EntitySchema,
   Selection,
   ShellQuery,
   ViewKind,
-  ViewsContext} from 'header-content-layout'
-import 'header-content-layout/style.css'
+  ViewsContext} from 'appfr'
+import 'appfr/style.css'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { refreshCount, refreshCounts } from '../appfr/catalogCounts'
@@ -420,10 +420,9 @@ const plainTokens = {
   '--dc-raised-ink': 'var(--bz-fg)',
   // What a table's headings are laid on, the rows scrolling under them.
   '--dc-ground': 'var(--bz-bg)',
-  // The search field's fill and resting edge, so it is a field on the bar
-  // rather than more of it, and can be found before it is focused.
-  '--dc-search-fill': 'var(--bz-field)',
-  '--dc-search-border': 'light-dark(#c4c4c4, #4a4a4a)',
+  // What a field is filled with — the search box — which the theme otherwise
+  // paints `Field`, the browser's rather than brickzuke's.
+  '--dc-field': 'var(--bz-field)',
   '--dc-ok': 'light-dark(oklch(0.48 0.13 150), oklch(0.74 0.13 150))',
   '--dc-danger': 'light-dark(oklch(0.5 0.18 25), oklch(0.68 0.17 25))',
 }

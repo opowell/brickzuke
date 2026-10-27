@@ -13,8 +13,8 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
-import { DataShell, PARAM_ENTITY, PARAM_EXPR, createMemoryAdapter } from 'header-content-layout'
-import type { DataSource, ShellRow } from 'header-content-layout'
+import { DataShell, PARAM_ENTITY, PARAM_EXPR, createMemoryAdapter } from 'appfr'
+import type { DataSource, ShellRow } from 'appfr'
 import router from '@/router'
 
 vi.mock('../../../model', async () => {

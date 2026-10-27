@@ -12,7 +12,7 @@
  */
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll } from 'vitest'
-import type { EntitySchema, QueryRequest, ShellRow } from 'header-content-layout'
+import type { EntitySchema, QueryRequest, ShellRow } from 'appfr'
 import { catalogSource } from '../catalogSource'
 import { putAll } from '../../../idb/db'
 import { getDbConnection } from '../../../idb/idb'

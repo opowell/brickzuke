@@ -29,8 +29,8 @@
  */
 import { onUnmounted, ref, watch } from 'vue'
 import type { Ref } from 'vue'
-import { parseExpression } from 'header-content-layout'
-import type { DataSource, EntitySchema, QuerySink, ShellRow } from 'header-content-layout'
+import { parseExpression } from 'appfr'
+import type { DataSource, EntitySchema, QuerySink, ShellRow } from 'appfr'
 import { catalogSchema } from './catalogSchema'
 import { inventoryFields } from './catalogRows'
 import { joinedThroughLots, namesLots } from './reach'

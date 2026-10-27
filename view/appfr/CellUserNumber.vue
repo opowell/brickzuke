@@ -11,7 +11,7 @@
  * and a price limit is pennies — so it is read off the column's own kind rather
  * than stated twice.
  */
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
 import { recordId, writableRow, writeField } from './userWrites'

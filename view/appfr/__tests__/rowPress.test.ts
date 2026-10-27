@@ -21,8 +21,8 @@ import {DataShell,
   PARAM_VIEW,
   createMemoryAdapter,
   formatExpression,
-  parseExpression} from 'header-content-layout'
-import type { DataSource, ShellRow } from 'header-content-layout'
+  parseExpression} from 'appfr'
+import type { DataSource, ShellRow } from 'appfr'
 import router from '@/router'
 
 vi.mock('../../../model', async () => {

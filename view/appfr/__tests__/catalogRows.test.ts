@@ -15,7 +15,7 @@ import {cellTextOf,
   parseExpression,
   recordTerm,
   roleColumn,
-  scopedEntity} from 'header-content-layout'
+  scopedEntity} from 'appfr'
 import { forgetCatalogRows, rowsFor } from '../catalogRows'
 import { holdPriceModifiers } from '../priceModifiers'
 import { catalogSchema } from '../catalogSchema'

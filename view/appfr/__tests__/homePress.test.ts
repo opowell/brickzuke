@@ -13,7 +13,7 @@ import { flushPromises } from '@vue/test-utils'
 import {PARAM_ENTITY,
   PARAM_EXPR,
   formatExpression,
-  parseExpression} from 'header-content-layout'
+  parseExpression} from 'appfr'
 import router from '@/router'
 import { getDbConnection } from '../../../idb/idb'
 import { putAll } from '../../../idb/db'

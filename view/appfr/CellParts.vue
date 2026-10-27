@@ -24,8 +24,8 @@
  * A row that is not made of anything — a part, an instruction sheet — draws no
  * cell at all, rather than a button leading to an empty table.
  */
-import { pressOptions } from 'header-content-layout'
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { pressOptions } from 'appfr'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, onMounted } from 'vue'
 import { formatInteger } from '@/assets/js/utils'

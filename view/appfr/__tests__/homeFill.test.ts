@@ -11,6 +11,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { entityCount } from 'appfr'
 
 vi.mock('../../../model', async () => {
   const {
@@ -48,7 +49,7 @@ const STORES = (await import('../../../idb/stores')).default
 
 /** What the card for one type reads, which is the whole of this screen. */
 const cardCount = (key: string) =>
-  catalogSchema.value.entities.find((entity) => entity.key === key)!.count
+  entityCount(catalogSchema.value.entities.find((entity) => entity.key === key)!)
 
 beforeAll(async () => {
   setActivePinia(createPinia())

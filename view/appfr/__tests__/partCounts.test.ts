@@ -10,8 +10,8 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { PARAM_ENTITY, PARAM_EXPR } from 'header-content-layout'
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { PARAM_ENTITY, PARAM_EXPR } from 'appfr'
+import type { ColumnDef, ShellRow } from 'appfr'
 import router from '@/router'
 
 /**

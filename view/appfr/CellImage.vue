@@ -18,8 +18,8 @@
  * It stays generic by calling whatever `click` the column declares rather than
  * knowing what narrowing means.
  */
-import { pressOptions } from 'header-content-layout'
-import type { ColumnDef, ShellRow } from 'header-content-layout'
+import { pressOptions } from 'appfr'
+import type { ColumnDef, ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 
 const props = defineProps({

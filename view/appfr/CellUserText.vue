@@ -28,7 +28,7 @@
  * request to be taken to the items it heads, and a name of somebody's own
  * still narrows by the count beside it.
  */
-import { pressOptions, type ColumnDef, type ShellRow } from 'header-content-layout'
+import { pressOptions, type ColumnDef, type ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
 import { recordId, writableRow, writeField } from './userWrites'

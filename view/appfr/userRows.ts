@@ -23,7 +23,7 @@
  * these are tens of records: the indexed read that answers "what is in this" is
  * the same read the detail table makes.
  */
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 import type { IDBPDatabase } from 'idb'
 import { getAll } from '../../idb/db'
 import stores from '../../idb/stores'

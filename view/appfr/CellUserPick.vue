@@ -11,7 +11,7 @@
  * The choices come from the column's own key, so which field this is and what
  * it may hold are stated in one place.
  */
-import { pressOptions, type ColumnDef, type ShellRow } from 'header-content-layout'
+import { pressOptions, type ColumnDef, type ShellRow } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, ref, watch } from 'vue'
 import { recordId, writableRow, writeField } from './userWrites'

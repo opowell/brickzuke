@@ -25,7 +25,7 @@
  * inventory are scattered all through the catalogue; see [partsFill].
  */
 import { ref } from 'vue'
-import { parseExpression } from 'header-content-layout'
+import { parseExpression } from 'appfr'
 import { throughBotCheck } from '../assets/js/bot-check'
 import { getAll } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'

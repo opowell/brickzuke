@@ -11,9 +11,9 @@ importers:
       '@vueuse/core':
         specifier: ^14.0.0
         version: 14.0.0(vue@3.5.13(typescript@5.8.3))
-      header-content-layout:
-        specifier: github:opowell/appfr#v0.67.0
-        version: https://codeload.github.com/opowell/appfr/tar.gz/aa053a54762ae294b1899955eb75cd9559442af8(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3))
+      appfr:
+        specifier: github:opowell/appfr#v0.68.0
+        version: https://codeload.github.com/opowell/appfr/tar.gz/c90404af8147ed23b51bae6fab3ab1eadf14167b(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3))
       idb:
         specifier: ^8.0.3
         version: 8.0.3
@@ -1083,6 +1083,19 @@ packages:
     resolution: {integrity: sha512-bN798gFfQX+viw3R7yrGWRqnrN2oRkEkUjjl4JNn4E8GxxbjtG3FbrEIIY3l8/hrwUwIeCZvi4QuOTP4MErVug==}
     engines: {node: '>=12'}
 
+  appfr@https://codeload.github.com/opowell/appfr/tar.gz/c90404af8147ed23b51bae6fab3ab1eadf14167b:
+    resolution: {tarball: https://codeload.github.com/opowell/appfr/tar.gz/c90404af8147ed23b51bae6fab3ab1eadf14167b}
+    version: 0.68.0
+    peerDependencies:
+      '@nuxt/kit': ^3.0.0 || ^4.0.0
+      vue: ^3.4.0
+      vue-router: ^4.0.0 || ^5.0.0
+    peerDependenciesMeta:
+      '@nuxt/kit':
+        optional: true
+      vue-router:
+        optional: true
+
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
@@ -1592,19 +1605,6 @@ packages:
   he@1.2.0:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
-
-  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/aa053a54762ae294b1899955eb75cd9559442af8:
-    resolution: {tarball: https://codeload.github.com/opowell/appfr/tar.gz/aa053a54762ae294b1899955eb75cd9559442af8}
-    version: 0.67.0
-    peerDependencies:
-      '@nuxt/kit': ^3.0.0 || ^4.0.0
-      vue: ^3.4.0
-      vue-router: ^4.0.0 || ^5.0.0
-    peerDependenciesMeta:
-      '@nuxt/kit':
-        optional: true
-      vue-router:
-        optional: true
 
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
@@ -3647,6 +3647,12 @@ snapshots:
 
   ansi-styles@6.2.1: {}
 
+  appfr@https://codeload.github.com/opowell/appfr/tar.gz/c90404af8147ed23b51bae6fab3ab1eadf14167b(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3)):
+    dependencies:
+      vue: 3.5.13(typescript@5.8.3)
+    optionalDependencies:
+      vue-router: 4.5.1(vue@3.5.13(typescript@5.8.3))
+
   argparse@2.0.1: {}
 
   asap@2.0.6: {}
@@ -4167,12 +4173,6 @@ snapshots:
       function-bind: 1.1.2
 
   he@1.2.0: {}
-
-  header-content-layout@https://codeload.github.com/opowell/appfr/tar.gz/aa053a54762ae294b1899955eb75cd9559442af8(vue-router@4.5.1(vue@3.5.13(typescript@5.8.3)))(vue@3.5.13(typescript@5.8.3)):
-    dependencies:
-      vue: 3.5.13(typescript@5.8.3)
-    optionalDependencies:
-      vue-router: 4.5.1(vue@3.5.13(typescript@5.8.3))
 
   hookable@5.5.3: {}
 

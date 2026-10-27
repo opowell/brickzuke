@@ -44,7 +44,7 @@
  * That is a bound on the actual goal instead of a guess at it.
  */
 import { ref, watch } from 'vue'
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 import { forgetPreview } from './catalogPreviews'
 import { catalogSchema } from './catalogSchema'
 import { fetchNamedLots, storedRows } from './catalogSource'

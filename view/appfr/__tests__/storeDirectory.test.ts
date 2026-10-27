@@ -17,8 +17,8 @@ import {PARAM_ENTITY,
   PARAM_EXPR,
   matchesExpression,
   parseExpression,
-  useResults} from 'header-content-layout'
-import type { EntitySchema, ShellQuery } from 'header-content-layout'
+  useResults} from 'appfr'
+import type { EntitySchema, ShellQuery } from 'appfr'
 
 /** Whether the shell installed reads two naming terms on one field as any of them. */
 const anyOf = matchesExpression(
@@ -344,7 +344,7 @@ describe('stores', () => {
     // source reads every seller stored — the same read the un-narrowed table
     // makes, asking BrickLink for nothing — and leaves both terms to the
     // matcher, which reads two naming terms on one field as any of them
-    // (header-content-layout 0.33.0). Under the older shell, which ANDs
+    // (appfr 0.33.0). Under the older shell, which ANDs
     // them, the same read filters down to nothing; the test says which.
     const rows = await rowsOf({
       entity: 'stores',
@@ -946,7 +946,7 @@ describe('conditions', () => {
     // shell does not put to that type: read against the conditions
     // themselves, `condition:"N"` would list the one and leave nothing to
     // swap it for, so the shell lifts it before the source sees it
-    // (header-content-layout 0.27.6, `withoutOwnScope`) and both rows are
+    // (appfr 0.27.6, `withoutOwnScope`) and both rows are
     // listed. Nor is it a second filter over the lots underneath — each row
     // already counts its own code, so the New row still states every New lot
     // there is.
@@ -980,7 +980,7 @@ describe.each([
   it('names the one record it points at', async () => {
     const {
       cellTextOf, matchesExpression, parseExpression, recordTerm, roleColumn, scopedEntity
-    } = await import('header-content-layout')
+    } = await import('appfr')
     const type = entity(key)
     // The field the header starts from: it has the term and has to work out
     // which type that is about.

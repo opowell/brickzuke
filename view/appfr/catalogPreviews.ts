@@ -24,8 +24,8 @@ import {addTerm,
   cellValue,
   parseExpression,
   roleColumn,
-  scopeTermFor} from 'header-content-layout'
-import type { ColumnDef, EntitySchema, PressOptions, ShellRow } from 'header-content-layout'
+  scopeTermFor} from 'appfr'
+import type { ColumnDef, EntitySchema, PressOptions, ShellRow } from 'appfr'
 import type { IDBPDatabase } from 'idb'
 import { get, getAllFromIndex } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'

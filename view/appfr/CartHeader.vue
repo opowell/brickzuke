@@ -13,7 +13,7 @@
  * and Reset are disabled while there is nothing proposed, which is what tells
  * a reader whether the boxes are showing the cart or a proposal for it.
  */
-import type { ColumnDef, EntitySchema } from 'header-content-layout'
+import type { ColumnDef, EntitySchema } from 'appfr'
 import type { PropType } from 'vue'
 import { computed, ref } from 'vue'
 import { cartSelection, draftCount, proposeAll, resetDraft } from './cartDraft'

@@ -14,7 +14,7 @@
  * never fetched were never counted.
  */
 import { ref, watchEffect } from 'vue'
-import { parseExpression } from 'header-content-layout'
+import { parseExpression } from 'appfr'
 import { openEntity, shownExpr } from './catalogSchema'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import { colorScopeVersion, readColorScope } from './colorItemsFetch'

@@ -8,8 +8,8 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, afterEach, beforeAll, vi } from 'vitest'
 import { computed, effectScope, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { useResults } from 'header-content-layout'
-import type { ShellQuery, ShellRow } from 'header-content-layout'
+import { useResults } from 'appfr'
+import type { ShellQuery, ShellRow } from 'appfr'
 import {lowestReferences,
   percentileOf,
   percentileReferences,

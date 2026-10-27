@@ -8,7 +8,7 @@
  * is not taken for it). A source that reads a naming term as an address has
  * to read both, or a press on a seller opens every seller's lots.
  */
-import type { Comparator } from 'header-content-layout'
+import type { Comparator } from 'appfr'
 
 export function naming(comparator: Comparator): boolean {
   return comparator === ':' || comparator === '='

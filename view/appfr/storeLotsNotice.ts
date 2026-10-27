@@ -15,7 +15,7 @@
  * known exactly rather than only in pages never asked for.
  */
 import { ref, watchEffect } from 'vue'
-import { parseExpression } from 'header-content-layout'
+import { parseExpression } from 'appfr'
 import { openEntity, shownExpr } from './catalogSchema'
 import { readStoreScope, storeScopeVersion } from './storeLotsFetch'
 import { naming } from './naming'

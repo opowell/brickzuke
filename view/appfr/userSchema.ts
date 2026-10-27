@@ -25,8 +25,8 @@
  * a shopping list, a cart, and a price modifier profile, which the catalogue
  * has no counterpart to.
  */
-import type { ColumnDef, EntitySchema } from 'header-content-layout'
-import type { ShellRow } from 'header-content-layout'
+import type { ColumnDef, EntitySchema } from 'appfr'
+import type { ShellRow } from 'appfr'
 import { narrowBy, narrowTo, openOn } from './catalogSchema'
 import { userPopulation } from './userCounts'
 import { setSetting } from './settings'

@@ -25,8 +25,8 @@
  * condition directly, and those are what narrow the count here.
  */
 import { ref, watch } from 'vue'
-import { matchesExpression, parseExpression } from 'header-content-layout'
-import type { EntitySchema, ShellRow, Term } from 'header-content-layout'
+import { matchesExpression, parseExpression } from 'appfr'
+import type { EntitySchema, ShellRow, Term } from 'appfr'
 import { openCursor } from '../../idb/db'
 import { getDbConnection } from '../../idb/idb'
 import dbStores from '../../idb/stores'

@@ -14,7 +14,7 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
-import type { ShellRow } from 'header-content-layout'
+import type { ShellRow } from 'appfr'
 import type { CartLine } from '../../../idb/userTypes'
 
 vi.mock('../../../model', async () => {

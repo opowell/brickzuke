@@ -13,7 +13,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { QueryRequest, ShellRow } from 'header-content-layout'
+import type { QueryRequest, ShellRow } from 'appfr'
 
 vi.mock('../../../model', async () => {
   const {
