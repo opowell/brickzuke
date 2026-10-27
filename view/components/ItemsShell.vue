@@ -408,6 +408,11 @@ onMounted(() => {
  */
 const plainTokens = {
   '--dc-accent': 'currentColor',
+  // The query panel, menus, dialogs and toasts, which the theme otherwise
+  // paints `Canvas` — the browser's page, not brickzuke's (see App.vue).
+  '--dc-accent-contrast': 'var(--bz-bg)',
+  '--dc-raised': 'var(--bz-raised)',
+  '--dc-raised-ink': 'var(--bz-fg)',
   '--dc-ok': 'light-dark(oklch(0.48 0.13 150), oklch(0.74 0.13 150))',
   '--dc-danger': 'light-dark(oklch(0.5 0.18 25), oklch(0.68 0.17 25))',
 }
@@ -517,15 +522,17 @@ const plainTokens = {
 }
 
 /*
- * The browser's own button, everywhere the shell draws one: a cell that leads
- * somewhere, a heading that sorts, the pager, the controls along the bar, the
- * cards on the home screen. One press looks like every other press, which is
- * the whole of the styling the original table had and the only rule brickzuke
- * wants over the shell's own.
+ * brickzuke's one button (App.vue states it for the rest of the page),
+ * everywhere the shell draws one: a cell that leads somewhere, a heading that
+ * sorts, the pager, the controls along the bar, the cards on the home screen.
+ * One press looks like every other press, which is the whole of the styling
+ * the original table had and the only rule brickzuke wants over the shell's
+ * own. It was the browser's own button until that turned out to be a
+ * different, and louder, one in each browser.
  *
- * What is reverted is only what the browser paints — the face, the edge, the
- * space inside it, the ink — and not how the button is laid out or what it is
- * set in. `all: revert` was the first try and takes too much with it: the
+ * What is set is only what gets painted — the face, the edge, the space inside
+ * it, the ink — and not how the button is laid out or what it is set in.
+ * `all: revert`, the very first try, took too much with it: the
  * font, which is a bare `<button>`'s 13.3px Arial and the whole of what made
  * the pressable cells smaller than the text beside them; and `display`, which
  * on a card's header is the flex row holding its name apart from its count,
@@ -535,7 +542,7 @@ const plainTokens = {
  * `border-radius` is in the list because a border is a shape as much as a
  * line: the shell squares its header buttons off — `--dc-radius-sm` is `0`
  * under this theme — while a cell button, which the shell gives no radius at
- * all, kept the browser's own rounded one. Two shapes is two button styles,
+ * all, keeps the browser's own rounded one. Two shapes is two button styles,
  * however alike the rest of them is, and the whole point here is that a press
  * looks the same wherever it is.
  *
@@ -552,14 +559,14 @@ const plainTokens = {
  * the shell sets it, with the shell's own tint on the way past.
  */
 .items-shell :deep(button:where(:not(.dc-menu__item, .dc-header__domain))) {
-  appearance: revert;
-  background: revert;
-  border: revert;
-  border-radius: revert;
+  appearance: none;
+  background: var(--bz-button);
+  border: 1px solid var(--bz-button-border);
+  border-radius: 4px;
   /* A shade more room inside than the browser allows, which it measures for a
      word on its own and not for a name running to three lines in a table. */
   padding: 3px 8px;
-  color: revert;
+  color: var(--bz-fg);
   font: inherit;
   /* A button centres its label, which never showed while the box hugged one
      line of it. Wrapping makes the box the width of the column, so it shows:
@@ -584,9 +591,17 @@ const plainTokens = {
  *
  * `:only-child` is what says "on its own": a card whose press holds a picture
  * *and* a name still wants the room, the name being the part that needs it.
+ *
+ * Centred in it, too: the rule above has the button take its cell's
+ * `text-align`, which is left in a table, so a picture narrower than its button
+ * sat against the left edge — and, drawn inline, on a baseline with a gap
+ * under it.
  */
 .items-shell :deep(button:has(> img:only-child)) {
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /*
@@ -622,19 +637,18 @@ const plainTokens = {
 /*
  * One hover to go with the one look. The shell has a manner of its own for the
  * way past — a chip lifts its border and its ink, a cell underlines itself
- * like a link — and against a button the browser paints, those read as two
- * more button styles.
+ * like a link — and against the button above, those read as two more button
+ * styles.
  *
- * Stated here rather than reverted to the browser's, because the browser's is
- * not one hover either: a cell button is `display: -webkit-box` so that it can
+ * Stated here rather than left to the browser's, because the browser's is not
+ * one hover either: a cell button is `display: -webkit-box` so that it can
  * be cut off at three lines, and a form control whose display has been changed
  * stops being painted as a widget — face and all, hover included. Measured, it
  * was the difference between a chip lifting from 96 to 112 and a cell not
  * lifting at all.
  *
- * `ButtonFace` mixed with a little `ButtonText` is that lift said in a way
- * that holds in both schemes: towards white over a dark page, towards black
- * over a pale one, because both are the system's own and turn over together.
+ * `--bz-button-hover` is that lift in both schemes: lighter over a dark page,
+ * darker over a pale one.
  *
  * `:not(:disabled)` is here to be heavy rather than to be exact — it is what
  * the shell's own primary-button hover weighs, and without it that rule wins
@@ -658,10 +672,10 @@ const plainTokens = {
  * strike and left only the fade.
  */
 .items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing, .dc-menu__item, .dc-header__domain, .dc-term))) {
-  background: color-mix(in oklab, ButtonFace 88%, ButtonText);
-  border: revert;
-  border-radius: revert;
-  color: revert;
+  background: var(--bz-button-hover);
+  border: 1px solid var(--bz-button-border);
+  border-radius: 4px;
+  color: var(--bz-fg);
   filter: none;
   text-decoration: none;
 }
@@ -703,7 +717,7 @@ const plainTokens = {
 
 /*
  * It takes the same button the rest of the shell takes — the rule above hands
- * every button here the browser's own — so nothing is stated for it but the
+ * every button here brickzuke's own — so nothing is stated for it but the
  * room it needs not to run into the pager beside it.
  */
 .items-shell__shop {

@@ -26,14 +26,14 @@ document.addEventListener('pulse', async function () {
   border-radius: 50%;
   width: 1rem;
   height: 1rem;
-  color: color-mix(in oklab, CanvasText 55%, Canvas);
+  color: color-mix(in oklab, var(--bz-fg) 55%, var(--bz-bg));
   opacity: 0;
   position: absolute;
   bottom: 2rem;
   right: 2rem;
   transition: opacity 0.1s ease-in;
-  background-color: color-mix(in oklab, CanvasText 35%, Canvas);
-  border: 1px solid color-mix(in oklab, CanvasText 75%, Canvas);
+  background-color: color-mix(in oklab, var(--bz-fg) 35%, var(--bz-bg));
+  border: 1px solid color-mix(in oklab, var(--bz-fg) 75%, var(--bz-bg));
 }
 .pulse-show {
   opacity: 1;
