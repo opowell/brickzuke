@@ -1,9 +1,6 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
-import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
-import { useCatalogItemPageStore } from './catalog-item-page'
-import { useModelsStore } from '../models'
+import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { ONE_YEAR } from '@/assets/js/timesToMs'
 
 export interface BrickLinkColor {
@@ -26,59 +23,6 @@ export const useColorsPageStore = defineStore('colorsPageStore', {
   getters: {
     colorsArray(state): BrickLinkColor[] {
       return Array.from(state.colors.values())
-    },
-    filteredColors(state): BrickLinkColor[] {
-      const modelsStore = useModelsStore()
-      const {
-        search, sorts 
-      } = storeToRefs(modelsStore)
-      const catalogItemPage = useCatalogItemPageStore()
-      const catalogItemPageRefs = storeToRefs(catalogItemPage)
-      const singleItem = catalogItemPageRefs.singleItem
-      if (singleItem.value) {
-        const out: BrickLinkColor[] = []
-        const catalogItemInvPage = useCatalogItemInvPageStore()
-        const invItems =
-          catalogItemInvPage.itemVariants
-            .get(singleItem.value.itemType)
-            ?.get(singleItem.value.itemNumber) || []
-        const activeColors = new Map<string, boolean>()
-        invItems.forEach((ii) => {
-          if (!ii.colorId) {
-            return
-          }
-          activeColors.set(ii.colorId, true)
-        })
-        const itemVariants = catalogItemPage.itemVariants.get(
-          singleItem.value.itemType + '-' + singleItem.value.itemNumber,
-        )
-        itemVariants?.forEach((iv) => {
-          activeColors.set(iv.colorId, true)
-        })
-        const keys = Array.from(activeColors.keys())
-        keys.forEach((key) => {
-          const color = state.colors.get(key)
-          if (!color) {
-            return
-          }
-          out.push(color)
-        })
-        sortItems(out, sorts.value)
-        return out
-      }
-      if (!search.value || search.value === '') {
-        return this.colorsArray
-      }
-      const lowerCaseSearch = search.value.toString().toLowerCase()
-      const caseMatch = search.value !== lowerCaseSearch
-      const out = this.colorsArray.filter((color: BrickLinkColor) => {
-        if (caseMatch && search.value) {
-          return color.colorName.includes(search.value?.toString())
-        }
-        return color.colorName.toLowerCase().includes(lowerCaseSearch)
-      })
-      sortItems(out, sorts.value)
-      return out
     },
   },
   actions: {

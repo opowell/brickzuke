@@ -14,11 +14,14 @@ import {PARAM_ENTITY,
   PARAM_SORT,
   addTerm,
   excludingTerm,
+  findEntityByAddress,
   formatExpression,
   formatTerm,
   parseExpression,
+  readExpression,
   scopeTermFor,
-  scopedEntity} from 'header-content-layout'
+  scopedEntity,
+  searchFromQuery} from 'header-content-layout'
 import type { ColumnDef, DomainSchema, EntitySchema, PressOptions, ShellRow } from 'header-content-layout'
 import router from '@/router'
 import { formatInteger } from '@/assets/js/utils'
@@ -44,6 +47,7 @@ import CellPriceModifier from './CellPriceModifier.vue'
 import { openedOwnSet } from './userWrites'
 import { SETTINGS, referencePercentile, referencePriceChosen, referenceStore } from './settings'
 import { RATIO, ratioText } from './referencePrices'
+import { sized } from './columnWidths'
 import { userCounts } from './userCounts'
 import { naming } from './naming'
 import { described } from './typeDescriptions'
@@ -52,6 +56,39 @@ import {cartLinesEntity,
   shopPlanEntity,
   shopStoresEntity,
   standingUserEntities} from './userSchema'
+
+/**
+ * The expression the shell is showing, in the columns' own names.
+ *
+ * The URL writes a column by its shortcut on the type in force — `p:..5` for
+ * the price — so anything reading the expression for what it says reads it
+ * through this. Not from inside [catalogSchema], which this reads: there the
+ * raw `q` is what there is, and enough, since the terms the schema reads are
+ * join keys and the URL never shortens one.
+ */
+export const shownExpr = computed(() =>
+  readExpression(searchFromQuery(router.currentRoute.value.query), catalogSchema.value)
+)
+
+/**
+ * The URL's parameters, with the type and the expression in keys — what a
+ * press edits before it navigates.
+ *
+ * A shortcut is one type's: `p` is the price on store inventories and the
+ * province on stores. So a press that carries the expression to another type
+ * starts from the names the shortcuts stand for, and the shell writes the
+ * address back in its own shortcuts once it has read it — see [ItemsShell].
+ */
+function shownParams(): URLSearchParams {
+  const params = new URLSearchParams(window.location.search)
+  if (openEntity.value) {
+    params.set(PARAM_ENTITY, openEntity.value)
+  }
+  if (shownExpr.value) {
+    params.set(PARAM_EXPR, shownExpr.value)
+  }
+  return params
+}
 
 /**
  * What `clickValue` + `clickSelection` did in TableCell, in the shell's terms.
@@ -86,7 +123,7 @@ function narrowByTerm(term: string, options: PressOptions = {}) {
   if (!written) {
     return
   }
-  const params = new URLSearchParams(window.location.search)
+  const params = shownParams()
   params.set(PARAM_EXPR, addTerm(params.get(PARAM_EXPR) ?? '', written))
   params.delete(PARAM_PAGE)
   router.push('/?' + params.toString())
@@ -170,7 +207,7 @@ export function openOn(entity: string, field: string, value: string) {
   if (!value) {
     return
   }
-  const params = new URLSearchParams(window.location.search)
+  const params = shownParams()
   params.set(PARAM_ENTITY, entity)
   params.set(PARAM_EXPR, `${field}:"${value}"`)
   params.delete(PARAM_SORT)
@@ -265,7 +302,7 @@ function addTerms(base: string, expr: string): string {
  * record is opened on one — see `addTerms`.
  */
 function openWith(entity: string | null, expr: string, options: PressOptions = {}) {
-  const params = new URLSearchParams(window.location.search)
+  const params = shownParams()
   const kept = carriedTerms(params.get(PARAM_EXPR) ?? '', params.get(PARAM_ENTITY))
   if (entity === null) {
     params.delete(PARAM_ENTITY)
@@ -377,7 +414,7 @@ function fieldsOf(entity: EntitySchema | undefined): Set<string> {
  * used to make under `Europe`.
  */
 export function openType(entity: string) {
-  const params = new URLSearchParams(window.location.search)
+  const params = shownParams()
   params.set(PARAM_ENTITY, entity)
   params.delete(PARAM_SORT)
   params.delete(PARAM_PAGE)
@@ -455,22 +492,11 @@ export function narrowToColor(catType: string, row: ShellRow) {
   openWith('colorItems', `colorid:"${colorId}" type:"${catType}"`)
 }
 
-/*
- * A width has to hold the heading as well as the value, and three of these are
- * headed by a longer word than anything under them: `S` under Type, a dash or
- * `2.52` under Weight (g), `2 x 4` under Dimensions. Those three are sized
- * for the label rather than for the column, because a table whose headings are
- * cut short cannot say what it is showing — and the headings are set in
- * brickzuke's own type size now that the shell takes it, which is wider than
- * the size these widths were first measured against. `itemRecordColumns` below
- * is the same table for one item, and carries the same three widths.
- */
-export const itemColumns: ColumnDef[] = [
+export const itemColumns: ColumnDef[] = sized('item', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   // No label: a column of pictures says what it is. Drawn by a component
   // rather than by the `image` kind, because the picture is a button here and
@@ -485,7 +511,6 @@ export const itemColumns: ColumnDef[] = [
     role: 'image',
     kind: 'component',
     component: CellImage,
-    width: '180px',
     height: '100px',
     // Pressing the picture opens the item, which is what the original image
     // cell does — `clickSelection: 'images'`, a switch to that item's own
@@ -497,7 +522,6 @@ export const itemColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     hint: 'Which of BrickLink’s kinds of thing this is — a set, a part, a minifigure, a gear',
-    width: '95px',
     sort: 'type',
     click: (row, options) => narrowBy('type', String(row.fields.typeId ?? ''), options)
   },
@@ -518,7 +542,6 @@ export const itemColumns: ColumnDef[] = [
     kind: 'component',
     component: CellUserText,
     value: (row) => (row.fields.own === true ? row.fields.ownName : row.fields.name),
-    width: '300px',
     sort: 'name',
     click: (row, options) => narrowBy('id', String(row.fields.id ?? ''), options)
   },
@@ -526,7 +549,6 @@ export const itemColumns: ColumnDef[] = [
     key: 'category',
     role: 'reference',
     label: 'Category',
-    width: '200px',
     sort: 'categoryName',
     // `category` holds the id so a term can address it; the cell shows the
     // name — and on an item of theirs, the picker, offering BrickLink's
@@ -541,7 +563,6 @@ export const itemColumns: ColumnDef[] = [
     // On the picture card too, under the name (appfr 0.60.0): what tells one
     // release of a set from the next at a glance, the pictures being alike.
     cardLabel: 'Year',
-    width: '95px',
     sort: 'year',
     click: (row, options) => narrowBy('year', String(row.fields.year ?? ''), options)
   },
@@ -563,7 +584,6 @@ export const itemColumns: ColumnDef[] = [
     hint: 'How many pieces the set is made of — a dash until somebody opens it, BrickLink stating an inventory only a page at a time',
     kind: 'component',
     component: CellParts,
-    width: '100px',
     sort: 'parts',
     click: (row) => narrowTo('inventory', 'record', String(row.fields.record ?? ''))
   },
@@ -585,7 +605,6 @@ export const itemColumns: ColumnDef[] = [
     hint: 'How many of this piece the stores the current query reaches have on offer — a floor: only a seller somebody has actually looked at is counted',
     kind: 'component',
     component: CellStoreInventory,
-    width: '160px',
     sort: 'storeInventory',
     click: (row) => narrowTo('inventories', 'record', String(row.fields.record ?? ''))
   },
@@ -596,7 +615,6 @@ export const itemColumns: ColumnDef[] = [
     kind: 'number',
     label: 'Weight (g)',
     hint: 'What the whole item weighs, in grams',
-    width: '110px',
     sort: 'weight',
     format: grams
   },
@@ -604,7 +622,6 @@ export const itemColumns: ColumnDef[] = [
     key: 'dimensions',
     label: 'Dimensions',
     hint: 'The footprint BrickLink records for the part, in studs',
-    width: '150px',
     sort: 'dimensions',
     // Every other part the same shape — pressing `2 x 4` is the one question a
     // dimension answers.
@@ -623,11 +640,10 @@ export const itemColumns: ColumnDef[] = [
     hint: 'Your own note on an item of your own',
     kind: 'component',
     component: CellUserText,
-    width: '220px',
     sort: 'note',
     hideBelow: 1100
   }
-]
+])
 
 /**
  * One opened item: the BrickLink records the items table collapses into a
@@ -645,19 +661,17 @@ export const itemColumns: ColumnDef[] = [
  * share it, not to leave for the whole catalogue and lose which item this was
  * — the same fix `inventoryColumns` needed for its Type and Category.
  */
-export const itemRecordColumns: ColumnDef[] = [
+export const itemRecordColumns: ColumnDef[] = sized('itemRecord', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
     role: 'image',
     kind: 'component',
     component: CellImage,
-    width: '180px',
     height: '100px',
     // Where the name leads, because a picture of a set is the most obvious
     // thing on the row to press for what is in it.
@@ -675,7 +689,6 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'record',
     label: 'Record',
     hint: 'BrickLink’s own id for this one record, its type letter in front of it',
-    width: '150px',
     mono: true,
     sort: 'record',
     click: (row, options) => narrowBy('type', String(row.fields.typeId ?? ''), options)
@@ -685,7 +698,6 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '300px',
     sort: 'name',
     click: (row) => narrowTo('inventory', 'record', String(row.fields.id ?? ''))
   },
@@ -693,7 +705,6 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'category',
     role: 'reference',
     label: 'Category',
-    width: '200px',
     // By the name the cell shows, not by the id behind it.
     sort: 'categoryName',
     value: (row) => row.fields.categoryName,
@@ -703,7 +714,6 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'year',
     label: 'Year',
     cardLabel: 'Year',
-    width: '95px',
     sort: 'year',
     click: (row, options) => narrowBy('year', String(row.fields.year ?? ''), options)
   },
@@ -715,7 +725,6 @@ export const itemRecordColumns: ColumnDef[] = [
     hint: 'How many pieces the set is made of — a dash until somebody opens it, BrickLink stating an inventory only a page at a time',
     kind: 'component',
     component: CellParts,
-    width: '100px',
     sort: 'parts',
     click: (row) => narrowTo('inventory', 'record', String(row.fields.record ?? ''))
   },
@@ -724,7 +733,6 @@ export const itemRecordColumns: ColumnDef[] = [
     kind: 'number',
     label: 'Weight (g)',
     hint: 'What the whole item weighs, in grams',
-    width: '110px',
     sort: 'weight',
     format: grams
   },
@@ -732,11 +740,10 @@ export const itemRecordColumns: ColumnDef[] = [
     key: 'dimensions',
     label: 'Dimensions',
     hint: 'The footprint BrickLink records for the part, in studs',
-    width: '150px',
     sort: 'dimensions',
     click: (row, options) => narrowBy('dimensions', String(row.fields.dimensions ?? ''), options)
   }
-]
+])
 
 /**
  * What a set is made of — the original's `itemInventories` columns in its own
@@ -753,12 +760,11 @@ export const itemRecordColumns: ColumnDef[] = [
  * Colour cannot do the same trick in reverse: an item row carries no colour at
  * all, which is the same reason the colours table narrows nothing.
  */
-export const inventoryColumns: ColumnDef[] = [
+export const inventoryColumns: ColumnDef[] = sized('inventory', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
@@ -767,7 +773,6 @@ export const inventoryColumns: ColumnDef[] = [
     component: CellImage,
     label: 'Variant',
     hint: 'The part in the one colour this row is about, which is what a variant is',
-    width: '100px',
     height: '60px',
     click: narrowToVariant
   },
@@ -775,7 +780,6 @@ export const inventoryColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
-    width: '95px',
     sort: 'type',
     click: (row, options) => narrowBy('type', String(row.fields.type ?? ''), options)
   },
@@ -791,7 +795,6 @@ export const inventoryColumns: ColumnDef[] = [
      */
     kind: 'component',
     component: CellUserText,
-    width: '300px',
     sort: 'name',
     // Out to the catalogue entry for this part, colour and all. The picture
     // beside it keeps the colour, this being the row's two questions: what
@@ -810,7 +813,6 @@ export const inventoryColumns: ColumnDef[] = [
     hint: 'The part’s record — BrickLink’s, P-3001, or one of your own, U-5. On a set of your own, what you type here is what the sellers’ lots are matched against',
     kind: 'component',
     component: CellUserText,
-    width: '130px',
     mono: true,
     sort: 'part',
     value: (row) =>
@@ -821,14 +823,12 @@ export const inventoryColumns: ColumnDef[] = [
     key: 'categoryName',
     role: 'reference',
     label: 'Category',
-    width: '160px',
     sort: 'categoryName',
     click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'color',
     label: 'Color',
-    width: '100px',
     sort: 'color',
     // The one place in the catalogue a colour is a thing rows carry, so it is
     // the one place a colour narrows: pressing it leaves the parts of this set
@@ -844,7 +844,6 @@ export const inventoryColumns: ColumnDef[] = [
     hint: 'BrickLink’s own colour id, which is what a seller’s lots carry. On a set of your own, blank takes the part in any colour',
     kind: 'component',
     component: CellUserText,
-    width: '95px',
     sort: 'colorid'
   },
   {
@@ -855,11 +854,10 @@ export const inventoryColumns: ColumnDef[] = [
     hint: 'How many of this part the set contains',
     kind: 'component',
     component: CellUserNumber,
-    width: '125px',
     sort: 'quantity',
     format: counted
   }
-]
+])
 
 /** A count, or an empty cell when the catalogue never stored the number. */
 export function counted(value: unknown): string {
@@ -903,27 +901,24 @@ export function grams(value: unknown): string {
  * one population. The picture leads to that item in this colour, the pair the
  * listing is of, narrowed the same way.
  */
-export const colorItemColumns: ColumnDef[] = [
+export const colorItemColumns: ColumnDef[] = sized('colorItem', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
     role: 'image',
     kind: 'component',
     component: CellImage,
-    width: '120px',
-    height: '70px',
+    height: '80px',
     click: narrowToVariant
   },
   {
     key: 'number',
     label: 'No.',
     hint: 'BrickLink’s catalogue number for the item',
-    width: '110px',
     mono: true,
     sort: 'number'
   },
@@ -931,11 +926,10 @@ export const colorItemColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '300px',
     sort: 'name',
     click: narrowToItem
   }
-]
+])
 
 /**
  * The factor somebody has put on every lot of this row's — colour, seller,
@@ -953,7 +947,6 @@ const priceModifierColumn: ColumnDef = {
   hint: 'Multiplies the price of every lot of this, in the active price modifier profile — 1.1 marks them up a tenth, 0.9 down, 0 makes them free; blank leaves them alone',
   kind: 'component',
   component: CellPriceModifier,
-  width: '110px',
   sort: 'priceModifier'
 }
 
@@ -966,17 +959,15 @@ const priceModifierColumn: ColumnDef = {
  * table — a category row carries its own `typeId` — rather than leaving for
  * the item types table and losing whatever this list was narrowed to.
  */
-export const categoryColumns: ColumnDef[] = [
+export const categoryColumns: ColumnDef[] = sized('category', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'type',
     label: 'Type',
-    width: '95px',
     sort: 'type',
     click: (row, options) => narrowBy('type', String(row.fields.typeId ?? ''), options)
   },
@@ -986,7 +977,6 @@ export const categoryColumns: ColumnDef[] = [
     hint: 'How many items are filed under this category — the catalogue’s under one of BrickLink’s, yours under one of your own',
     kind: 'component',
     component: CellCount,
-    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowToCategoryItems(row)
@@ -1004,12 +994,11 @@ export const categoryColumns: ColumnDef[] = [
     label: 'Name',
     kind: 'component',
     component: CellUserText,
-    width: '300px',
     sort: 'name',
     click: narrowToRecord('category', 'category')
   },
   priceModifierColumn
-]
+])
 
 /**
  * The items filed under a category, on whichever table holds them.
@@ -1047,26 +1036,23 @@ function narrowToCategoryItems(row: ShellRow) {
  * item's, a seller's, a region's — and an un-narrowed list of colours has
  * reached none. See `joined` in the source, and [reach].
  */
-export const colorColumns: ColumnDef[] = [
+export const colorColumns: ColumnDef[] = sized('color', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
     role: 'image',
     kind: 'component',
     component: CellImage,
-    width: '100px',
     height: '40px'
   },
   {
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '200px',
     sort: 'name',
     // The colour's own scope term, `colorid:`, which is what the lots and the
     // colour items are addressed by and what the header names a colour from.
@@ -1086,7 +1072,6 @@ export const colorColumns: ColumnDef[] = [
     hint: 'Distinct part designs catalogued in this colour, off BrickLink’s own colour guide',
     kind: 'component',
     component: CellCount,
-    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowToColor('P', row)
@@ -1097,7 +1082,6 @@ export const colorColumns: ColumnDef[] = [
     hint: 'Sets holding at least one piece in this colour',
     kind: 'component',
     component: CellCount,
-    width: '90px',
     sort: 'sets',
     format: counted,
     click: (row) => narrowToColor('S', row)
@@ -1106,7 +1090,6 @@ export const colorColumns: ColumnDef[] = [
     key: 'wanted',
     label: 'Wanted',
     hint: 'Lots of this colour on other people’s wanted lists — buyers, not catalogue items',
-    width: '120px',
     sort: 'wanted',
     format: counted
   },
@@ -1114,7 +1097,6 @@ export const colorColumns: ColumnDef[] = [
     key: 'forSale',
     label: 'For sale',
     hint: 'Lots of this colour sellers have on offer — stock, not catalogue items',
-    width: '120px',
     sort: 'forSale',
     format: counted
   },
@@ -1122,7 +1104,6 @@ export const colorColumns: ColumnDef[] = [
     key: 'lots',
     label: 'Lots',
     hint: 'Listings in this colour among the lots the query reached, not BrickLink’s own total',
-    width: '90px',
     sort: 'lots',
     format: counted,
     click: (row) => narrowTo('inventories', 'colorid', String(row.fields.colorid ?? ''))
@@ -1131,7 +1112,6 @@ export const colorColumns: ColumnDef[] = [
     key: 'quantity',
     label: 'Quantity',
     hint: 'Every piece inside those lots, counted one by one',
-    width: '125px',
     sort: 'quantity',
     format: counted
   },
@@ -1139,36 +1119,32 @@ export const colorColumns: ColumnDef[] = [
     key: 'yearFrom',
     label: 'Year from',
     hint: 'The first year anything was made in this colour',
-    width: '135px',
     sort: 'yearFrom'
   },
   {
     key: 'yearTo',
     label: 'Year to',
     hint: 'The last year anything was made in it, which for a colour still in use is this one',
-    width: '115px',
     sort: 'yearTo'
   },
   priceModifierColumn
-]
+])
 
 /**
  * Item types. `code` is the one-letter type an item carries, so the name and
  * the item count both lead to those items, and the category count to the
  * categories of that type.
  */
-export const itemTypeColumns: ColumnDef[] = [
+export const itemTypeColumns: ColumnDef[] = sized('itemType', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '160px',
     sort: 'name',
     // The type's own identity rather than a count, so it pivots to
     // `Everything` narrowed to it — the Items and Categories columns beside
@@ -1181,7 +1157,6 @@ export const itemTypeColumns: ColumnDef[] = [
     hint: 'How many catalogue items are of this type',
     kind: 'component',
     component: CellCount,
-    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowTo('items', 'type', String(row.fields.type ?? ''))
@@ -1192,13 +1167,12 @@ export const itemTypeColumns: ColumnDef[] = [
     hint: 'How many categories hold items of this type',
     kind: 'component',
     component: CellCount,
-    width: '145px',
     sort: 'categories',
     format: counted,
     click: (row) => narrowTo('categories', 'type', String(row.fields.type ?? ''))
   },
   priceModifierColumn
-]
+])
 
 /**
  * Every part of every set anyone has opened.
@@ -1210,12 +1184,11 @@ export const itemTypeColumns: ColumnDef[] = [
  * Narrowed to one set it is that set repeated down the table, and goes the
  * way a settled column does: see [namesOneSet].
  */
-export const itemInventoryColumns: ColumnDef[] = [
+export const itemInventoryColumns: ColumnDef[] = sized('itemInventory', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
@@ -1224,7 +1197,6 @@ export const itemInventoryColumns: ColumnDef[] = [
     component: CellImage,
     label: 'Variant',
     hint: 'The part in the one colour this row is about, which is what a variant is',
-    width: '100px',
     height: '60px',
     click: narrowToVariant
   },
@@ -1232,7 +1204,6 @@ export const itemInventoryColumns: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     hint: 'Which of BrickLink’s kinds of thing the piece is — most of an inventory is parts, a few of it minifigures',
-    width: '95px',
     sort: 'type',
     click: (row, options) => narrowBy('type', String(row.fields.type ?? ''), options)
   },
@@ -1240,7 +1211,6 @@ export const itemInventoryColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Item',
-    width: '280px',
     sort: 'name',
     click: narrowToItem
   },
@@ -1249,7 +1219,6 @@ export const itemInventoryColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Set',
     hint: 'The set this part came out of, by BrickLink’s id for it',
-    width: '110px',
     mono: true,
     sort: 'record',
     // Into the one set, which is the same table narrowed to a single record.
@@ -1259,14 +1228,12 @@ export const itemInventoryColumns: ColumnDef[] = [
     key: 'categoryName',
     role: 'reference',
     label: 'Category',
-    width: '160px',
     sort: 'categoryName',
     click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'color',
     label: 'Color',
-    width: '100px',
     sort: 'color',
     click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
@@ -1275,11 +1242,10 @@ export const itemInventoryColumns: ColumnDef[] = [
     label: 'Quantity',
     cardLabel: 'Qty',
     hint: 'How many of this part the set contains',
-    width: '125px',
     sort: 'quantity',
     format: counted
   }
-]
+])
 
 /**
  * An item in one colour — the same records as above with the quantities
@@ -1289,12 +1255,11 @@ export const itemInventoryColumns: ColumnDef[] = [
  * in. It is what the table is for, a variant otherwise being an inventory row
  * with a column taken away, and pressing it leads to those rows.
  */
-export const itemVariantColumns: ColumnDef[] = [
+export const itemVariantColumns: ColumnDef[] = sized('itemVariant', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
@@ -1302,14 +1267,12 @@ export const itemVariantColumns: ColumnDef[] = [
     kind: 'component',
     component: CellImage,
     label: 'Variant',
-    width: '100px',
     height: '60px',
     click: narrowToVariant
   },
   {
     key: 'type',
     label: 'Type',
-    width: '95px',
     sort: 'type',
     click: (row, options) => narrowBy('type', String(row.fields.type ?? ''), options)
   },
@@ -1317,7 +1280,6 @@ export const itemVariantColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Item',
-    width: '300px',
     sort: 'name',
     click: narrowToItem
   },
@@ -1325,26 +1287,23 @@ export const itemVariantColumns: ColumnDef[] = [
     key: 'categoryName',
     role: 'reference',
     label: 'Category',
-    width: '160px',
     sort: 'categoryName',
     click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
   {
     key: 'color',
     label: 'Color',
-    width: '100px',
     sort: 'color',
     click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
   },
   {
     key: 'sets',
     label: 'Sets',
-    width: '90px',
     sort: 'sets',
     format: counted,
     click: (row) => narrowTo('itemInventories', 'variant', String(row.fields.variant ?? ''))
   }
-]
+])
 
 /**
  * Which terms leave a column with nothing left to say, by column key.
@@ -1571,7 +1530,12 @@ function ordinal(n: number): string {
   return `${n}${suffix}`
 }
 
-/** The expression the shell is showing, which is the one in the URL. */
+/**
+ * The expression in the URL, as the URL writes it — its columns by their
+ * shortcuts. Read raw because the schema is what reads those back; what the
+ * schema asks of it is which records it names, and a join key is never
+ * shortened. Anything else reads [shownExpr].
+ */
 const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
 
 /**
@@ -1585,19 +1549,17 @@ const openExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXP
  * lots, with one more constraint over them. The column pressed then goes, the
  * query having settled it: see [SETTLED_BY].
  */
-export const storeInventoryColumns: ColumnDef[] = [
+export const storeInventoryColumns: ColumnDef[] = sized('storeInventory', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
     role: 'image',
     kind: 'component',
     component: CellImage,
-    width: '70px',
     height: '50px',
     // The lot's own part and colour, out across every seller of it — a lot is
     // of a coloured part, and so is the picture. The Item column beside it is
@@ -1617,10 +1579,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     // Named without the currency, which no column can state until a price has
     // been read — see [pricedIn], which puts it in once one has.
     hint: 'What one piece costs, converted into your own currency',
-    // Wide enough for the heading with its sort arrow and the button's own
-    // room around it, at the 18px the app is read at — see ItemsShell's
-    // `.dc-table__sort` rule for what happens to one that is not.
-    width: '105px',
     sort: 'priceValue'
   },
   // The same figure with the price modifiers on this lot applied — its
@@ -1632,7 +1590,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     component: CellPrice,
     label: 'Mod. price',
     hint: 'The price times every price modifier that applies to this lot — hover for the working',
-    width: '150px',
     sort: 'modPrice'
   },
   // The price over what the same item in the same colour costs elsewhere —
@@ -1645,7 +1602,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: RATIO,
     kind: 'number',
     label: 'Price ratio',
-    width: '145px',
     sort: RATIO,
     format: ratioText
   },
@@ -1658,7 +1614,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'item',
     role: 'identity',
     label: 'Item',
-    width: '280px',
     sort: 'itemName',
     value: (row) => row.fields.itemName,
     // The item's lots among the ones on screen, the way Store does for the
@@ -1671,7 +1626,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'categoryName',
     role: 'reference',
     label: 'Category',
-    width: '150px',
     sort: 'categoryName',
     click: (row, options) => narrowBy('category', String(row.fields.category ?? ''), options)
   },
@@ -1679,13 +1633,11 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'description',
     label: 'Remark',
     hint: 'The seller’s own note on this lot, which is theirs to write and often empty',
-    width: '200px',
     sort: 'description'
   },
   {
     key: 'color',
     label: 'Color',
-    width: '110px',
     sort: 'colorName',
     value: (row) => row.fields.colorName,
     click: (row, options) => narrowBy('colorid', String(row.fields.colorid ?? ''), options)
@@ -1695,7 +1647,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Country',
     hint: 'Where the seller is, which is where the parcel comes from',
-    width: '120px',
     sort: 'countryName',
     click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
@@ -1703,7 +1654,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'storeName',
     role: 'reference',
     label: 'Store',
-    width: '200px',
     sort: 'storeName',
     // This seller's lots among the ones on screen, not the seller's row on the
     // stores table: the question a press asks is "what else of this do they
@@ -1716,7 +1666,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'conditionName',
     label: 'Condition',
     hint: 'New or Used, as the seller graded the lot',
-    width: '130px',
     sort: 'conditionName',
     click: (row, options) => narrowBy('condition', String(row.fields.condition ?? ''), options)
   },
@@ -1724,7 +1673,6 @@ export const storeInventoryColumns: ColumnDef[] = [
     key: 'quantity',
     label: 'Quant.',
     hint: 'How many pieces are in this one lot, all at the price beside it',
-    width: '110px',
     sort: 'quantity',
     format: counted
   },
@@ -1741,22 +1689,16 @@ export const storeInventoryColumns: ColumnDef[] = [
     kind: 'component',
     component: CellCartQuantity,
     header: CartHeader,
-    // Room for the label and the four buttons — all four fixed words, not
-    // "Apply 3,002": a header the shell cannot fit is a header it cuts to an
-    // ellipsis, and Max with nothing ticked can propose thousands of rows, a
-    // count with no bound to hold a width budget to. See [CartHeader].
-    width: '340px',
     sort: 'cartQuantity'
   },
   {
     key: 'feedback',
     label: 'Feedback',
     hint: 'The seller’s feedback score on BrickLink — blank on their own store front, which never states it',
-    width: '135px',
     sort: 'feedback',
     format: counted
   }
-]
+])
 
 /**
  * New and Used, and how much of each is on offer.
@@ -1765,18 +1707,16 @@ export const storeInventoryColumns: ColumnDef[] = [
  * blank until an item has been opened — which is the honest state of a number
  * nobody has fetched, and the reason `counted` draws nothing for it.
  */
-export const conditionColumns: ColumnDef[] = [
+export const conditionColumns: ColumnDef[] = sized('condition', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'name',
     role: 'identity',
     label: 'Condition',
-    width: '130px',
     sort: 'name',
     // Its own identity, not the count beside it, so it pivots to `Everything`
     // narrowed to it rather than to the lots the Lots column counts.
@@ -1786,7 +1726,6 @@ export const conditionColumns: ColumnDef[] = [
     key: 'lots',
     label: 'Lots',
     hint: 'Listings of this condition among the lots loaded so far, not BrickLink’s own total',
-    width: '90px',
     sort: 'lots',
     format: counted,
     click: (row) => narrowTo('inventories', 'condition', String(row.fields.condition ?? ''))
@@ -1795,12 +1734,11 @@ export const conditionColumns: ColumnDef[] = [
     key: 'quantity',
     label: 'Quantity',
     hint: 'Every piece inside those lots, counted one by one',
-    width: '125px',
     sort: 'quantity',
     format: counted
   },
   priceModifierColumn
-]
+])
 
 /**
  * The years the catalogue covers, and how many items came out in each.
@@ -1810,18 +1748,16 @@ export const conditionColumns: ColumnDef[] = [
  * the column. The year itself, being the row's own identity rather than a
  * count, leads to `Everything` narrowed to it instead.
  */
-export const yearColumns: ColumnDef[] = [
+export const yearColumns: ColumnDef[] = sized('year', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'name',
     role: 'identity',
     label: 'Year',
-    width: '95px',
     sort: 'year',
     click: narrowToRecord('year', 'name')
   },
@@ -1829,12 +1765,11 @@ export const yearColumns: ColumnDef[] = [
     key: 'items',
     label: 'Items',
     hint: 'Catalogue items BrickLink dates to this year',
-    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowTo('items', 'year', String(row.fields.name ?? ''))
   }
-]
+])
 
 /** The parts of the world BrickLink groups its sellers by. */
 /**
@@ -1846,15 +1781,11 @@ export const yearColumns: ColumnDef[] = [
  * documentation a reader gets. No `click` on any of them: a setting leads
  * nowhere, it is simply changed where it stands.
  */
-export const settingsColumns: ColumnDef[] = [
+export const settingsColumns: ColumnDef[] = sized('settings', [
   {
     key: 'name',
     role: 'identity',
     label: 'Setting',
-    // Wide enough for the longest name here to stand whole. A setting cut short
-    // is a setting nobody can look up, and there are three of them — the room
-    // costs nothing that a fourteen-column catalogue table would miss.
-    width: '330px',
     sort: 'name'
   },
   {
@@ -1864,32 +1795,24 @@ export const settingsColumns: ColumnDef[] = [
     component: CellSetting,
     // What the cell's text is, where the cell is text rather than the control
     // — `5000 ms`, as the control itself writes it.
-    format: (value, row) => [value, row.fields.unit].filter(Boolean).join(' '),
-    // Room for a country's name in the picker, not only five figures in the
-    // number field — `United Kingdom` is the widest value a setting takes.
-    width: '200px'
+    format: (value, row) => [value, row.fields.unit].filter(Boolean).join(' ')
   },
   {
     key: 'detail',
-    label: 'What it does',
-    // This column *is* the documentation, so it is sized to hold a sentence
-    // rather than to fit a column of them.
-    width: '900px'
+    label: 'What it does'
   }
-]
+])
 
-export const regionColumns: ColumnDef[] = [
+export const regionColumns: ColumnDef[] = sized('region', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '200px',
     sort: 'name',
     // The region's own identity, not the count beside it, so it pivots to
     // `Everything` narrowed to it rather than to the countries the Countries
@@ -1900,7 +1823,6 @@ export const regionColumns: ColumnDef[] = [
     key: 'countries',
     label: 'Countries',
     hint: 'How many countries with sellers in them this part of the world holds',
-    width: '135px',
     sort: 'countries',
     format: counted,
     click: (row) => narrowTo('countries', 'region', String(row.fields.region ?? ''))
@@ -1913,13 +1835,12 @@ export const regionColumns: ColumnDef[] = [
     key: 'stores',
     label: 'Stores',
     hint: 'Sellers here with a lot the query reached — blank until a query reaches one',
-    width: '110px',
     sort: 'stores',
     format: counted,
     click: (row) => narrowTo('stores', 'region', String(row.fields.region ?? ''))
   },
   priceModifierColumn
-]
+])
 
 /**
  * The countries with sellers in them.
@@ -1928,12 +1849,11 @@ export const regionColumns: ColumnDef[] = [
  * before anyone has fetched a single seller — and pressing it is what fetches
  * them, one country's page at a time.
  */
-export const countryColumns: ColumnDef[] = [
+export const countryColumns: ColumnDef[] = sized('country', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   // The flag and the name as one cell — see [CellFlag]. The one cell whose
   // whole job is leading to the record itself — `Everything` narrowed to the
@@ -1945,7 +1865,6 @@ export const countryColumns: ColumnDef[] = [
     label: 'Name',
     kind: 'component',
     component: CellFlag,
-    width: '220px',
     sort: 'name',
     click: narrowToRecord('country', 'country')
   },
@@ -1953,7 +1872,6 @@ export const countryColumns: ColumnDef[] = [
     key: 'stores',
     label: 'Stores',
     hint: 'BrickLink’s own count of the sellers here, stated before any of them has been fetched — or, under a query the lots answer, the sellers here with a lot it reached',
-    width: '110px',
     sort: 'stores',
     format: counted,
     click: (row) => narrowTo('stores', 'country', String(row.fields.country ?? ''))
@@ -1963,7 +1881,6 @@ export const countryColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Region',
     hint: 'The part of the world BrickLink groups the country under',
-    width: '140px',
     sort: 'region',
     // Narrows the countries on screen to that region, as `provinceColumns`
     // does with the same field — a country row carries `region` itself, so
@@ -1972,7 +1889,7 @@ export const countryColumns: ColumnDef[] = [
     click: (row, options) => narrowBy('region', String(row.fields.region ?? ''), options)
   },
   priceModifierColumn
-]
+])
 
 /**
  * The provinces a country's sellers are grouped under — the directory's own
@@ -1984,18 +1901,16 @@ export const countryColumns: ColumnDef[] = [
  * `provincesOf` — and a province nobody has fetched the country of is not
  * here yet.
  */
-export const provinceColumns: ColumnDef[] = [
+export const provinceColumns: ColumnDef[] = sized('province', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '200px',
     sort: 'name',
     // The country as well as the province, so whichever table fetches sellers
     // by country still does and the header names both. `Everything` rather
@@ -2007,7 +1922,6 @@ export const provinceColumns: ColumnDef[] = [
     key: 'countryName',
     role: 'reference',
     label: 'Country',
-    width: '140px',
     sort: 'countryName',
     // Narrows the provinces on screen to that country, as the sellers table does
     // with the same field — a province row carries `country` itself.
@@ -2017,7 +1931,6 @@ export const provinceColumns: ColumnDef[] = [
     key: 'stores',
     label: 'Stores',
     hint: 'How many of the sellers fetched so far are in this province — or, under a query the lots answer, how many of them have a lot it reached',
-    width: '110px',
     sort: 'stores',
     format: counted,
     click: (row) => openWith('stores', provinceTerms(row))
@@ -2026,7 +1939,6 @@ export const provinceColumns: ColumnDef[] = [
     key: 'items',
     label: 'Items',
     hint: 'Every piece those sellers have for sale, counted one by one and added up',
-    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => openWith('stores', provinceTerms(row))
@@ -2036,14 +1948,13 @@ export const provinceColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Region',
     hint: 'The part of the world BrickLink groups the country under',
-    width: '140px',
     sort: 'region',
     // Narrows the provinces on screen to that region, as `countryColumns` does
     // with the same field — a province row carries `region` itself.
     click: (row, options) => narrowBy('region', String(row.fields.region ?? ''), options)
   },
   priceModifierColumn
-]
+])
 
 /**
  * The expression that opens one province's sellers: the country, which is
@@ -2058,18 +1969,16 @@ function provinceTerms(row: ShellRow): string {
  * country, province, the name with its id after it, the lot count and whether
  * the seller takes instant checkout.
  */
-export const storeColumns: ColumnDef[] = [
+export const storeColumns: ColumnDef[] = sized('store', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'country',
     role: 'reference',
     label: 'Country',
-    width: '120px',
     sort: 'country',
     // Narrows the sellers on screen to that country, as `storeInventoryColumns`
     // already does with the same field — a store row carries `country` itself,
@@ -2082,7 +1991,6 @@ export const storeColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Province',
     hint: 'The province the directory groups the seller under — blank where it does not group the country at all',
-    width: '125px',
     sort: 'provinceName',
     // The key rather than the name: a name alone is not one province — see
     // `provinceId` — and the key is what the provinces table is scoped by.
@@ -2092,7 +2000,6 @@ export const storeColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Name',
-    width: '220px',
     sort: 'name',
     // This one seller: `Everything` narrowed to it, the country already asked
     // about surviving the press as a record term does; the count beside it is
@@ -2106,7 +2013,6 @@ export const storeColumns: ColumnDef[] = [
     key: 'items',
     label: 'Items',
     hint: 'Every piece the seller has for sale, counted one by one — not how many listings that is. Under a query the lots answer, only the pieces in the lots it reached',
-    width: '100px',
     sort: 'items',
     format: counted,
     click: (row) => narrowTo('inventories', 'store', String(row.fields.store ?? ''))
@@ -2115,11 +2021,10 @@ export const storeColumns: ColumnDef[] = [
     key: 'instantCheckout',
     label: 'Instant Checkout',
     hint: 'Whether the seller takes payment straight away, rather than by invoice after they have quoted postage',
-    width: '190px',
     sort: 'instantCheckout'
   },
   priceModifierColumn
-]
+])
 
 /**
  * The ways a seller will send an order, off the policy their store front
@@ -2130,18 +2035,16 @@ export const storeColumns: ColumnDef[] = [
  * `International` for everyone else — and never the charge. The charge is
  * the next table's, read out of the prose.
  */
-export const shippingMethodColumns: ColumnDef[] = [
+export const shippingMethodColumns: ColumnDef[] = sized('shippingMethod', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'storeName',
     role: 'reference',
     label: 'Seller',
-    width: '200px',
     sort: 'storeName',
     click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
@@ -2150,7 +2053,6 @@ export const shippingMethodColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Country',
     hint: 'Where the seller is, which is what “Domestic” means for them',
-    width: '130px',
     sort: 'countryName',
     click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
@@ -2158,33 +2060,29 @@ export const shippingMethodColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Method',
-    width: '240px',
     sort: 'name'
   },
   {
     key: 'reach',
     label: 'Offered to',
     hint: 'Buyers in the seller’s own country, buyers everywhere else, or both',
-    width: '135px',
     sort: 'reach'
   },
   {
     key: 'note',
     label: 'Note',
     hint: 'What the seller wrote beside the method, which is theirs to write and often empty',
-    width: '320px',
     sort: 'note'
   },
   {
     key: 'shipsTo',
     label: 'Ships to',
     hint: 'How many countries the seller ships to — blank where they declared none, which BrickLink shows as everywhere',
-    width: '100px',
     sort: 'shipsTo',
     format: counted,
     muted: true
   }
-]
+])
 
 /**
  * What a seller says shipping costs, as far as it can be read.
@@ -2194,18 +2092,16 @@ export const shippingMethodColumns: ColumnDef[] = [
  * sentence is the last column, for checking the reading against. A rate is
  * where to, how heavy an order it covers, what it costs and in what.
  */
-export const shippingCostColumns: ColumnDef[] = [
+export const shippingCostColumns: ColumnDef[] = sized('shippingCost', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'storeName',
     role: 'reference',
     label: 'Seller',
-    width: '200px',
     sort: 'storeName',
     click: (row, options) => narrowBy('store', String(row.fields.store ?? ''), options)
   },
@@ -2214,7 +2110,6 @@ export const shippingCostColumns: ColumnDef[] = [
     role: 'reference',
     label: 'Country',
     hint: 'Where the seller is',
-    width: '130px',
     sort: 'countryName',
     click: (row, options) => narrowBy('country', String(row.fields.country ?? ''), options)
   },
@@ -2223,21 +2118,18 @@ export const shippingCostColumns: ColumnDef[] = [
     role: 'identity',
     label: 'Destination',
     hint: 'Where the rate applies, in the seller’s own words — the heading the line sat under',
-    width: '220px',
     sort: 'destination'
   },
   {
     key: 'applies',
     label: 'To you',
     hint: 'Whether this is one of the rates for the “Ship to” country — the closest heading the seller wrote to it, as read by brickzuke',
-    width: '80px',
     sort: 'applies'
   },
   {
     key: 'label',
     label: 'Method',
     hint: 'What the seller called the rate, where they named it',
-    width: '160px',
     sort: 'label'
   },
   // The cost before the bounds on it: what a rate is read for, and the number
@@ -2254,13 +2146,11 @@ export const shippingCostColumns: ColumnDef[] = [
     // in the units the reader chose, as the cell itself says it.
     format: (value, row) =>
       [priceText(Number(value)), priceUnitsPhrase(String(row.fields.currency ?? ''))].filter(Boolean).join(' '),
-    width: '90px',
     sort: 'cost'
   },
   {
     key: 'currency',
     label: 'Currency',
-    width: '100px',
     sort: 'currency',
     muted: true
   },
@@ -2268,7 +2158,6 @@ export const shippingCostColumns: ColumnDef[] = [
     key: 'minWeight',
     label: 'From (g)',
     hint: 'The lightest order the rate starts at, in grams',
-    width: '90px',
     sort: 'minWeight',
     muted: true
   },
@@ -2276,14 +2165,12 @@ export const shippingCostColumns: ColumnDef[] = [
     key: 'maxWeight',
     label: 'Up to (g)',
     hint: 'The heaviest order the rate covers, in grams — the grams themselves, a band being read against a scale',
-    width: '90px',
     sort: 'maxWeight'
   },
   {
     key: 'minValue',
     label: 'Order from',
     hint: 'The order value the rate starts at, where the seller bounded it — free postage over a value is a nought from there',
-    width: '115px',
     sort: 'minValue',
     muted: true
   },
@@ -2291,7 +2178,6 @@ export const shippingCostColumns: ColumnDef[] = [
     key: 'maxValue',
     label: 'Order up to',
     hint: 'The dearest order the rate applies to, where the seller bounded it',
-    width: '115px',
     sort: 'maxValue',
     muted: true
   },
@@ -2299,11 +2185,10 @@ export const shippingCostColumns: ColumnDef[] = [
     key: 'source',
     label: 'As written',
     hint: 'The line the rate was read off, as the seller wrote it — the reading is a guess and this is what to check it against',
-    width: '400px',
     sort: 'source',
     muted: true
   }
-]
+])
 
 /**
  * The pictures of an item, which is the one table here that is only pictures.
@@ -2313,19 +2198,17 @@ export const shippingCostColumns: ColumnDef[] = [
  * query matches rather than one item's, and a wall of photographs with
  * nothing saying what they are of is not a table.
  */
-export const imageColumns: ColumnDef[] = [
+export const imageColumns: ColumnDef[] = sized('image', [
   {
     key: 'ordinal',
     kind: 'ordinal',
-    label: '#',
-    width: '48px'
+    label: '#'
   },
   {
     key: 'image',
     role: 'image',
     kind: 'component',
     component: CellImage,
-    width: '200px',
     height: '150px',
     click: narrowToItem
   },
@@ -2333,19 +2216,17 @@ export const imageColumns: ColumnDef[] = [
     key: 'name',
     role: 'identity',
     label: 'Item',
-    width: '300px',
     sort: 'name',
     click: narrowToItem
   },
   {
     key: 'record',
     label: 'Record',
-    width: '160px',
     mono: true,
     sort: 'record',
     click: narrowToItem
   }
-]
+])
 
 /**
  * A population: how many records of a type there are, which is what
@@ -2438,7 +2319,14 @@ function browsed(key: string): string {
  * for nothing. So the type exists exactly while the URL is on it, which is the
  * same thing as saying it is a detail rather than a table.
  */
-const openEntity = computed(() => router.currentRoute.value.query[PARAM_ENTITY])
+export const openEntity = computed(() => {
+  const named = router.currentRoute.value.query[PARAM_ENTITY]
+  if (typeof named !== 'string') {
+    return undefined
+  }
+  // By its key: `e` may be its shortcut, `si` for the store inventories.
+  return findEntityByAddress(addressSchema.value, named)?.key ?? named
+})
 const openItemRecords = computed(() => openEntity.value === 'itemRecords')
 
 /**
@@ -2616,6 +2504,799 @@ const colorItemsEntity: EntitySchema = {
   ]
 }
 
+/**
+ * Every type the wall always has: the catalogue's, the sellers', and somebody's
+ * own — everything but the details declared while one is open.
+ *
+ * A computed of its own because the details are declared by the type the URL
+ * names, and the URL names a type by its shortcut: reading that back takes
+ * the types' labels, and these are labels the details do not change — see
+ * [addressSchema].
+ */
+const standingEntities = computed((): EntitySchema[] => [
+  {
+    key: 'categories',
+    label: 'Categories',
+    // The field every other record carries a category's id in — what an
+    // item row holds in `category`, and what pressing a category writes.
+    // Declaring it is what lets the header say `category:Brick (5)` where
+    // the query says `category:"5"`: the shell reads the term back through
+    // this field, against this type, and shows what the record is called.
+    // Nothing else in the shell acts on it — a drill needs a column asking
+    // for one, and brickzuke's columns press for themselves.
+    scope: 'category',
+    // The catalogue's count and theirs together, this being the one table
+    // that lists both. Reading `userCounts` here is also what rebuilds the
+    // schema after one of theirs is written, which is what makes the new row
+    // appear — see [userCounts].
+    count: population(
+      (selectedCounts.value?.categories ?? 0) + (userCounts.value.userCategories ?? 0)
+    ),
+    /*
+       * The one catalogue type that can be added to and taken from. What is
+       * made is a category of theirs, which is a row of this table; what can
+       * be deleted is only such a row — the handler leaves BrickLink's alone
+       * whatever is ticked. See [userWrites].
+       */
+    create: 'New category',
+    delete: 'Delete',
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: categoryColumns,
+    // Every labelled column, in the order the table shows them — see the
+    // note on `items` below. Which of them a table *opens* on is not this
+    // list's business: `openingOrder` says that.
+    sorts: [
+      {
+        key: 'type',
+        label: 'Type'
+      },
+      {
+        key: 'items',
+        label: 'Items'
+      },
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    key: 'colors',
+    label: 'Colors',
+    // As above. BrickLink's colour id and not brickzuke's, that being the
+    // one an inventory row and a colour's listing are addressed by — so
+    // `colorid:"41"` reads as Aqua in both.
+    scope: 'colorid',
+    count: population(selectedCounts.value?.colors),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: colorColumns,
+    card: 'picture',
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'items',
+        label: 'Parts'
+      },
+      {
+        key: 'sets',
+        label: 'Sets'
+      },
+      {
+        key: 'wanted',
+        label: 'Wanted'
+      },
+      {
+        key: 'forSale',
+        label: 'For sale'
+      },
+      {
+        key: 'lots',
+        label: 'Lots'
+      },
+      {
+        key: 'quantity',
+        label: 'Quantity'
+      },
+      {
+        key: 'yearFrom',
+        label: 'Year from'
+      },
+      {
+        key: 'yearTo',
+        label: 'Year to'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    key: 'itemTypes',
+    label: 'Item types',
+    // As above, for the one-letter code items, categories and colour items
+    // are all narrowed by: `type:"P"` says Part, which is a good deal more
+    // than P says.
+    scope: 'type',
+    count: population(tableCount('itemTypes')),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: itemTypeColumns,
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'items',
+        label: 'Items'
+      },
+      {
+        key: 'categories',
+        label: 'Categories'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    key: 'items',
+    label: 'Items',
+    // The field every other record carries this item's id in — `id`, on a
+    // lot of any store's or a set's own inventory, because that is what
+    // `toRow` names it and an expression field is read verbatim. Declaring
+    // it is what lets the header say `item: Tile 6 x 6` where the query
+    // says `id:"21971"` — `scopeLabel` says "item" in place of the field's
+    // own bare name, which reads as nothing to a reader.
+    scope: 'id',
+    scopeLabel: 'item',
+    // And kept on this table's own list, where every other type's scope is
+    // lifted off it: the items under `id:979` are the set and its parts,
+    // not every item — see `itemAddress` in [catalogSource] and [OF_ITEM]
+    // in reach for how the source reads the term.
+    keepsScope: true,
+    // The catalogue's count and theirs, this table listing both — and
+    // reading `userCounts` is what rebuilds the schema after one of theirs
+    // is written. See [userCounts].
+    count: population((selectedCounts.value?.items ?? 0) + (userCounts.value.userItems ?? 0)),
+    /*
+       * The second catalogue type that can be added to and taken from. What
+       * is made is an item of theirs, a row of this table; what can be
+       * deleted is only such a row — see [userWrites].
+       */
+    create: 'New item',
+    delete: 'Delete',
+    facets: [],
+    tabs: ['Information', 'Inventory', 'Images'],
+    samples: [],
+    columns: itemColumns,
+    // A card of these is its picture and its name (appfr 0.44.0): a piece, a
+    // set or a colour is told apart by what it looks like, and its numbers
+    // are the table's. The same on every type below that leads with a picture.
+    card: 'picture',
+    // Every labelled column, because every header in the original is a
+    // button that sorts by it — which is how every type here declares its
+    // sorts. A column with nothing to compare is the exception: an ordinal
+    // is the position under the current sort, and a picture is a picture.
+    sorts: [
+      {
+        key: 'type',
+        label: 'Type'
+      },
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'categoryName',
+        label: 'Category'
+      },
+      {
+        key: 'year',
+        label: 'Year'
+      },
+      // Sorted over what was known when the scan ran, which is the sets
+      // opened so far — the rest have no number to compare and sort as an
+      // empty cell does.
+      {
+        key: 'parts',
+        label: 'Parts'
+      },
+      // As with `parts`: sorted over what the fold over held lots knew when
+      // the scan ran — see [storeInventoryCounts].
+      {
+        key: 'storeInventory',
+        label: 'Store inventories'
+      },
+      {
+        key: 'weight',
+        label: 'Weight'
+      },
+      {
+        key: 'dimensions',
+        label: 'Dimensions'
+      },
+      {
+        key: 'note',
+        label: 'Note'
+      }
+    ]
+  },
+  /**
+     * The rest of what brickzuke has tables for: the parts a set is made of
+     * and the lots a seller has for sale, BrickLink's stores and where in the
+     * world they are, and the cross-sections the original slices all of it by.
+     *
+     * These are the nine tables brickzuke's older model listed beside the
+     * four `model.ts` counts — a schema built from `model.ts` alone drops the
+     * stores, the countries and the inventories, and states the catalogue as
+     * the bulk downloads rather than as the catalogue.
+     *
+     * In that model's order, and counted by [catalogCounts] rather than by
+     * `setCounts` — the latter counts the four stores the bulk downloads fill,
+     * and every one of these is filled by browsing instead: a set opened, a
+     * country asked about. So the number on the card is how much of each has
+     * been fetched so far, which is exactly what its table shows.
+     *
+     * Until something has been fetched that number is zero, and zero is drawn
+     * as no count at all: a card reading `0` for a type nobody has asked about
+     * states a number brickzuke never gave. That is the same rule `population`
+     * follows for the bulk four while their counts are still running.
+     */
+  {
+    key: 'itemInventories',
+    label: 'Item inventories',
+    count: browsed('itemInventories'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    // Less the set, once the query is one set's: see
+    // [INVENTORY_LINES_SETTLED_BY].
+    columns: informative(itemInventoryColumns, openExpr.value, INVENTORY_LINES_SETTLED_BY),
+    card: 'picture',
+    sorts: [
+      {
+        key: 'type',
+        label: 'Type'
+      },
+      {
+        key: 'name',
+        label: 'Item'
+      },
+      {
+        key: 'record',
+        label: 'Set'
+      },
+      {
+        key: 'categoryName',
+        label: 'Category'
+      },
+      {
+        key: 'color',
+        label: 'Color'
+      },
+      {
+        key: 'quantity',
+        label: 'Quantity'
+      }
+    ]
+  },
+  {
+    key: 'itemVariants',
+    label: 'Item variants',
+    // The field an inventory row carries its variant in, which is what
+    // pressing `Sets` writes — so `variant:"3001-5"` reads as the brick
+    // rather than as the pair of numbers it is.
+    scope: 'variant',
+    count: browsed('itemVariants'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: itemVariantColumns,
+    card: 'picture',
+    sorts: [
+      {
+        key: 'type',
+        label: 'Type'
+      },
+      {
+        key: 'name',
+        label: 'Item'
+      },
+      {
+        key: 'categoryName',
+        label: 'Category'
+      },
+      {
+        key: 'color',
+        label: 'Color'
+      },
+      {
+        key: 'sets',
+        label: 'Sets'
+      }
+    ]
+  },
+  {
+    // A seller's lots, which is not the `inventory` type this schema also
+    // declares: that one is the parts BrickLink says one set is made of, and
+    // exists only while an item is open. This is what stores have for sale,
+    // and it is a table in its own right — hence both, under the two names
+    // the original gives them.
+    key: 'inventories',
+    label: 'Store inventories',
+    count: browsed('inventories'),
+    facets: [
+      {
+        kind: 'range',
+        key: 'quantity',
+        label: 'Quantity',
+        min: 0,
+        max: 1_000
+      },
+      {
+        kind: 'range',
+        key: 'priceValue',
+        label: 'Price',
+        min: 0,
+        max: 1_000
+      }
+    ],
+    tabs: [],
+    samples: [],
+    columns: referencedIn(
+      pricedIn(informative(storeInventoryColumns, openExpr.value), priceCurrency.value)
+    ),
+    sorts: [
+      {
+        key: 'priceValue',
+        label: 'Price'
+      },
+      {
+        key: 'itemName',
+        label: 'Item'
+      },
+      {
+        key: 'categoryName',
+        label: 'Category'
+      },
+      {
+        key: 'description',
+        label: 'Remark'
+      },
+      {
+        key: 'colorName',
+        label: 'Color'
+      },
+      {
+        key: 'countryName',
+        label: 'Country'
+      },
+      {
+        key: 'storeName',
+        label: 'Store'
+      },
+      {
+        key: 'conditionName',
+        label: 'Condition'
+      },
+      {
+        key: 'quantity',
+        label: 'Quant.'
+      },
+      {
+        key: 'cartQuantity',
+        label: 'Cart'
+      },
+      {
+        key: 'feedback',
+        label: 'Feedback'
+      },
+      {
+        key: 'modPrice',
+        label: 'Mod. price'
+      },
+      {
+        key: RATIO,
+        label: 'Price ratio'
+      }
+    ].filter((sort) => sort.key !== RATIO || referencePriceChosen() !== 'off')
+  },
+  {
+    // BrickLink's own one-letter code, `N` or `U`, which is what a lot
+    // carries — so `condition:"N"` reads as New on the lots table too.
+    key: 'conditions',
+    label: 'Conditions',
+    scope: 'condition',
+    // Two, always: BrickLink sells in New and Used and nothing
+    // else, so this is a fixed pair rather than a population
+    // anything counts — see `conditionRows`.
+    count: '2',
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: conditionColumns,
+    sorts: [
+      {
+        key: 'name',
+        label: 'Condition'
+      },
+      {
+        key: 'lots',
+        label: 'Lots'
+      },
+      {
+        key: 'quantity',
+        label: 'Quantity'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    // The field an item row carries its year in, so `year:"1958"` states the
+    // year on both tables and the number of items behind it on this one.
+    key: 'years',
+    label: 'Years',
+    scope: 'year',
+    count: browsed('years'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: yearColumns,
+    sorts: [
+      {
+        key: 'year',
+        label: 'Year'
+      },
+      {
+        key: 'items',
+        label: 'Items'
+      }
+    ]
+  },
+  {
+    // The field a country carries its region in.
+    key: 'regions',
+    label: 'Regions',
+    scope: 'region',
+    count: browsed('regions'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: regionColumns,
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'countries',
+        label: 'Countries'
+      },
+      {
+        key: 'stores',
+        label: 'Stores'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    // The code a seller and a lot both carry, so `country:"DE"` reads as
+    // Germany on the stores table and on the lots.
+    key: 'countries',
+    label: 'Countries',
+    scope: 'country',
+    count: browsed('countries'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: informative(countryColumns, openExpr.value),
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'stores',
+        label: 'Stores'
+      },
+      {
+        key: 'region',
+        label: 'Region'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    // The key a seller carries its province under — the country code and
+    // the name together, since a name alone is not one province.
+    key: 'provinces',
+    label: 'Provinces',
+    scope: 'province',
+    count: browsed('provinces'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: informative(provinceColumns, openExpr.value),
+    sorts: [
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'countryName',
+        label: 'Country'
+      },
+      {
+        key: 'stores',
+        label: 'Stores'
+      },
+      {
+        key: 'items',
+        label: 'Items'
+      },
+      {
+        key: 'region',
+        label: 'Region'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  {
+    // The seller's username, which is what a lot carries and what pressing a
+    // store on the lots table writes.
+    key: 'stores',
+    label: 'Stores',
+    scope: 'store',
+    count: browsed('stores'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: informative(storeColumns, openExpr.value),
+    sorts: [
+      {
+        key: 'country',
+        label: 'Country'
+      },
+      {
+        key: 'provinceName',
+        label: 'Province'
+      },
+      {
+        key: 'name',
+        label: 'Name'
+      },
+      {
+        key: 'items',
+        label: 'Items'
+      },
+      {
+        key: 'instantCheckout',
+        label: 'Instant Checkout'
+      },
+      {
+        key: 'priceModifier',
+        label: 'Price mod.'
+      }
+    ]
+  },
+  /*
+     * A seller's terms, after the seller. Neither declares a scope: a method
+     * and a rate are things a seller has, not things anything else carries
+     * the id of, and both are reached by narrowing to the seller.
+     */
+  {
+    key: 'shippingMethods',
+    label: 'Shipping methods',
+    count: browsed('shippingMethods'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: informative(shippingMethodColumns, openExpr.value),
+    sorts: [
+      {
+        key: 'storeName',
+        label: 'Seller'
+      },
+      {
+        key: 'countryName',
+        label: 'Country'
+      },
+      {
+        key: 'name',
+        label: 'Method'
+      },
+      {
+        key: 'reach',
+        label: 'Offered to'
+      },
+      {
+        key: 'note',
+        label: 'Note'
+      },
+      {
+        key: 'shipsTo',
+        label: 'Ships to'
+      }
+    ]
+  },
+  {
+    key: 'shippingCosts',
+    label: 'Shipping costs',
+    count: browsed('shippingCosts'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: informative(shippingCostColumns, openExpr.value),
+    sorts: [
+      {
+        key: 'storeName',
+        label: 'Seller'
+      },
+      {
+        key: 'countryName',
+        label: 'Country'
+      },
+      {
+        key: 'destination',
+        label: 'Destination'
+      },
+      {
+        key: 'applies',
+        label: 'To you'
+      },
+      {
+        key: 'label',
+        label: 'Method'
+      },
+      {
+        key: 'minWeight',
+        label: 'From (g)'
+      },
+      {
+        key: 'maxWeight',
+        label: 'Up to (g)'
+      },
+      {
+        key: 'cost',
+        label: 'Cost'
+      },
+      {
+        key: 'currency',
+        label: 'Currency'
+      },
+      {
+        key: 'minValue',
+        label: 'Order from'
+      },
+      {
+        key: 'maxValue',
+        label: 'Order up to'
+      },
+      {
+        key: 'source',
+        label: 'As written'
+      }
+    ]
+  },
+  {
+    key: 'images',
+    label: 'Images',
+    count: browsed('images'),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: imageColumns,
+    card: 'picture',
+    sorts: [
+      {
+        key: 'name',
+        label: 'Item'
+      },
+      {
+        key: 'record',
+        label: 'Record'
+      }
+    ]
+  },
+  /*
+     * The knobs, last on the wall.
+     *
+     * A type like any other, which is the point of putting them here rather
+     * than behind a gear: they are records with names and values, and the
+     * shell already draws records with names and values. It sorts, it filters,
+     * it has a card — `Settings 2` beside `Colors 213` — and a reader who
+     * wants to know what brickzuke will do on their behalf looks it up the way
+     * they look anything else up.
+     *
+     * Declared unconditionally, unlike the three below it: a setting is not a
+     * detail of whatever is open, and the one time somebody wants this card is
+     * when something is behaving in a way they would like to change.
+     */
+  {
+    key: 'settings',
+    label: 'Settings',
+    // The field a row carries its own key in, so the value cell can find the
+    // setting it is drawing from the row alone.
+    scope: 'setting',
+    count: population(SETTINGS.length),
+    facets: [],
+    tabs: [],
+    samples: [],
+    columns: settingsColumns,
+    sorts: [
+      {
+        key: 'name',
+        label: 'Setting'
+      }
+    ]
+  },
+  /*
+     * And the types nobody scraped, last on the wall: somebody's own
+     * categories, items and sets, the shopping lists they buy the parts from,
+     * and the carts they put lots in. Standing types like the catalogue's own
+     * — each with a card, a table and a population — and the first here that
+     * are also written from the screen that draws them. See [userSchema].
+     */
+  ...standingUserEntities()
+])
+
+/**
+ * The details, in the order they are declared after the standing types —
+ * which, with initials none of them shares with one another, means each owns
+ * the same shortcut whichever of them are declared.
+ */
+const detailEntities = computed((): EntitySchema[] => [
+  itemRecordsEntity,
+  inventoryEntity.value,
+  colorItemsEntity,
+  shopListItemsEntity,
+  shopPlanEntity,
+  shopStoresEntity,
+  cartLinesEntity
+])
+
+/**
+ * Every type the URL can name, for reading its `e` back: the shortcut a type
+ * is written by is its initials where no type before it has them, so the
+ * schema the shell reads it against and this one agree on every type either
+ * declares. Not [catalogSchema] itself, which declares a detail by reading
+ * this very parameter.
+ */
+const addressSchema = computed(
+  (): DomainSchema => ({
+    key: 'brickzuke',
+    label: 'Brickzuke',
+    entities: [...standingEntities.value, ...detailEntities.value]
+  }) as DomainSchema
+)
+
 export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
   key: 'brickzuke',
   label: 'Brickzuke',
@@ -2631,758 +3312,7 @@ export const catalogSchema: ComputedRef<DomainSchema> = computed(() => ({
   formatCount: abbreviate,
   // Each with its sentence on, for the home screen: see [typeDescriptions].
   entities: described([
-    {
-      key: 'categories',
-      label: 'Categories',
-      // The field every other record carries a category's id in — what an
-      // item row holds in `category`, and what pressing a category writes.
-      // Declaring it is what lets the header say `category:Brick (5)` where
-      // the query says `category:"5"`: the shell reads the term back through
-      // this field, against this type, and shows what the record is called.
-      // Nothing else in the shell acts on it — a drill needs a column asking
-      // for one, and brickzuke's columns press for themselves.
-      scope: 'category',
-      // The catalogue's count and theirs together, this being the one table
-      // that lists both. Reading `userCounts` here is also what rebuilds the
-      // schema after one of theirs is written, which is what makes the new row
-      // appear — see [userCounts].
-      count: population(
-        (selectedCounts.value?.categories ?? 0) + (userCounts.value.userCategories ?? 0)
-      ),
-      /*
-       * The one catalogue type that can be added to and taken from. What is
-       * made is a category of theirs, which is a row of this table; what can
-       * be deleted is only such a row — the handler leaves BrickLink's alone
-       * whatever is ticked. See [userWrites].
-       */
-      create: 'New category',
-      delete: 'Delete',
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: categoryColumns,
-      // Every labelled column, in the order the table shows them — see the
-      // note on `items` below. Which of them a table *opens* on is not this
-      // list's business: `openingOrder` says that.
-      sorts: [
-        {
-          key: 'type',
-          label: 'Type'
-        },
-        {
-          key: 'items',
-          label: 'Items'
-        },
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      key: 'colors',
-      label: 'Colors',
-      // As above. BrickLink's colour id and not brickzuke's, that being the
-      // one an inventory row and a colour's listing are addressed by — so
-      // `colorid:"41"` reads as Aqua in both.
-      scope: 'colorid',
-      count: population(selectedCounts.value?.colors),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: colorColumns,
-      card: 'picture',
-      sorts: [
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'items',
-          label: 'Parts'
-        },
-        {
-          key: 'sets',
-          label: 'Sets'
-        },
-        {
-          key: 'wanted',
-          label: 'Wanted'
-        },
-        {
-          key: 'forSale',
-          label: 'For sale'
-        },
-        {
-          key: 'lots',
-          label: 'Lots'
-        },
-        {
-          key: 'quantity',
-          label: 'Quantity'
-        },
-        {
-          key: 'yearFrom',
-          label: 'Year from'
-        },
-        {
-          key: 'yearTo',
-          label: 'Year to'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      key: 'itemTypes',
-      label: 'Item types',
-      // As above, for the one-letter code items, categories and colour items
-      // are all narrowed by: `type:"P"` says Part, which is a good deal more
-      // than P says.
-      scope: 'type',
-      count: population(tableCount('itemTypes')),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: itemTypeColumns,
-      sorts: [
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'items',
-          label: 'Items'
-        },
-        {
-          key: 'categories',
-          label: 'Categories'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      key: 'items',
-      label: 'Items',
-      // The field every other record carries this item's id in — `id`, on a
-      // lot of any store's or a set's own inventory, because that is what
-      // `toRow` names it and an expression field is read verbatim. Declaring
-      // it is what lets the header say `item: Tile 6 x 6` where the query
-      // says `id:"21971"` — `scopeLabel` says "item" in place of the field's
-      // own bare name, which reads as nothing to a reader.
-      scope: 'id',
-      scopeLabel: 'item',
-      // And kept on this table's own list, where every other type's scope is
-      // lifted off it: the items under `id:979` are the set and its parts,
-      // not every item — see `itemAddress` in [catalogSource] and [OF_ITEM]
-      // in reach for how the source reads the term.
-      keepsScope: true,
-      // The catalogue's count and theirs, this table listing both — and
-      // reading `userCounts` is what rebuilds the schema after one of theirs
-      // is written. See [userCounts].
-      count: population((selectedCounts.value?.items ?? 0) + (userCounts.value.userItems ?? 0)),
-      /*
-       * The second catalogue type that can be added to and taken from. What
-       * is made is an item of theirs, a row of this table; what can be
-       * deleted is only such a row — see [userWrites].
-       */
-      create: 'New item',
-      delete: 'Delete',
-      facets: [],
-      tabs: ['Information', 'Inventory', 'Images'],
-      samples: [],
-      columns: itemColumns,
-      // A card of these is its picture and its name (appfr 0.44.0): a piece, a
-      // set or a colour is told apart by what it looks like, and its numbers
-      // are the table's. The same on every type below that leads with a picture.
-      card: 'picture',
-      // Every labelled column, because every header in the original is a
-      // button that sorts by it — which is how every type here declares its
-      // sorts. A column with nothing to compare is the exception: an ordinal
-      // is the position under the current sort, and a picture is a picture.
-      sorts: [
-        {
-          key: 'type',
-          label: 'Type'
-        },
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'categoryName',
-          label: 'Category'
-        },
-        {
-          key: 'year',
-          label: 'Year'
-        },
-        // Sorted over what was known when the scan ran, which is the sets
-        // opened so far — the rest have no number to compare and sort as an
-        // empty cell does.
-        {
-          key: 'parts',
-          label: 'Parts'
-        },
-        // As with `parts`: sorted over what the fold over held lots knew when
-        // the scan ran — see [storeInventoryCounts].
-        {
-          key: 'storeInventory',
-          label: 'Store inventories'
-        },
-        {
-          key: 'weight',
-          label: 'Weight'
-        },
-        {
-          key: 'dimensions',
-          label: 'Dimensions'
-        },
-        {
-          key: 'note',
-          label: 'Note'
-        }
-      ]
-    },
-    /**
-     * The rest of what brickzuke has tables for: the parts a set is made of
-     * and the lots a seller has for sale, BrickLink's stores and where in the
-     * world they are, and the cross-sections the original slices all of it by.
-     *
-     * These are `view/stores/models.ts`'s. That is the older of brickzuke's
-     * two models and it lists nine tables beside the four `model.ts` counts —
-     * a schema built from the second file alone drops the stores, the
-     * countries and the inventories, and states the catalogue as the bulk
-     * downloads rather than as the catalogue.
-     *
-     * In that file's order, and counted by [catalogCounts] rather than by
-     * `setCounts` — the latter counts the four stores the bulk downloads fill,
-     * and every one of these is filled by browsing instead: a set opened, a
-     * country asked about. So the number on the card is how much of each has
-     * been fetched so far, which is exactly what its table shows.
-     *
-     * Until something has been fetched that number is zero, and zero is drawn
-     * as no count at all: a card reading `0` for a type nobody has asked about
-     * states a number brickzuke never gave. That is the same rule `population`
-     * follows for the bulk four while their counts are still running.
-     */
-    {
-      key: 'itemInventories',
-      label: 'Item inventories',
-      count: browsed('itemInventories'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      // Less the set, once the query is one set's: see
-      // [INVENTORY_LINES_SETTLED_BY].
-      columns: informative(itemInventoryColumns, openExpr.value, INVENTORY_LINES_SETTLED_BY),
-      card: 'picture',
-      sorts: [
-        {
-          key: 'type',
-          label: 'Type'
-        },
-        {
-          key: 'name',
-          label: 'Item'
-        },
-        {
-          key: 'record',
-          label: 'Set'
-        },
-        {
-          key: 'categoryName',
-          label: 'Category'
-        },
-        {
-          key: 'color',
-          label: 'Color'
-        },
-        {
-          key: 'quantity',
-          label: 'Quantity'
-        }
-      ]
-    },
-    {
-      key: 'itemVariants',
-      label: 'Item variants',
-      // The field an inventory row carries its variant in, which is what
-      // pressing `Sets` writes — so `variant:"3001-5"` reads as the brick
-      // rather than as the pair of numbers it is.
-      scope: 'variant',
-      count: browsed('itemVariants'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: itemVariantColumns,
-      card: 'picture',
-      sorts: [
-        {
-          key: 'type',
-          label: 'Type'
-        },
-        {
-          key: 'name',
-          label: 'Item'
-        },
-        {
-          key: 'categoryName',
-          label: 'Category'
-        },
-        {
-          key: 'color',
-          label: 'Color'
-        },
-        {
-          key: 'sets',
-          label: 'Sets'
-        }
-      ]
-    },
-    {
-      // A seller's lots, which is not the `inventory` type this schema also
-      // declares: that one is the parts BrickLink says one set is made of, and
-      // exists only while an item is open. This is what stores have for sale,
-      // and it is a table in its own right — hence both, under the two names
-      // the original gives them.
-      key: 'inventories',
-      label: 'Store inventories',
-      count: browsed('inventories'),
-      facets: [
-        {
-          kind: 'range',
-          key: 'quantity',
-          label: 'Quantity',
-          min: 0,
-          max: 1_000
-        },
-        {
-          kind: 'range',
-          key: 'priceValue',
-          label: 'Price',
-          min: 0,
-          max: 1_000
-        }
-      ],
-      tabs: [],
-      samples: [],
-      columns: referencedIn(
-        pricedIn(informative(storeInventoryColumns, openExpr.value), priceCurrency.value)
-      ),
-      sorts: [
-        {
-          key: 'priceValue',
-          label: 'Price'
-        },
-        {
-          key: 'itemName',
-          label: 'Item'
-        },
-        {
-          key: 'categoryName',
-          label: 'Category'
-        },
-        {
-          key: 'description',
-          label: 'Remark'
-        },
-        {
-          key: 'colorName',
-          label: 'Color'
-        },
-        {
-          key: 'countryName',
-          label: 'Country'
-        },
-        {
-          key: 'storeName',
-          label: 'Store'
-        },
-        {
-          key: 'conditionName',
-          label: 'Condition'
-        },
-        {
-          key: 'quantity',
-          label: 'Quant.'
-        },
-        {
-          key: 'cartQuantity',
-          label: 'Cart'
-        },
-        {
-          key: 'feedback',
-          label: 'Feedback'
-        },
-        {
-          key: 'modPrice',
-          label: 'Mod. price'
-        },
-        {
-          key: RATIO,
-          label: 'Price ratio'
-        }
-      ].filter((sort) => sort.key !== RATIO || referencePriceChosen() !== 'off')
-    },
-    {
-      // BrickLink's own one-letter code, `N` or `U`, which is what a lot
-      // carries — so `condition:"N"` reads as New on the lots table too.
-      key: 'conditions',
-      label: 'Conditions',
-      scope: 'condition',
-      // Two, always: BrickLink sells in New and Used and nothing
-      // else, so this is a fixed pair rather than a population
-      // anything counts — see `conditionRows`.
-      count: '2',
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: conditionColumns,
-      sorts: [
-        {
-          key: 'name',
-          label: 'Condition'
-        },
-        {
-          key: 'lots',
-          label: 'Lots'
-        },
-        {
-          key: 'quantity',
-          label: 'Quantity'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      // The field an item row carries its year in, so `year:"1958"` states the
-      // year on both tables and the number of items behind it on this one.
-      key: 'years',
-      label: 'Years',
-      scope: 'year',
-      count: browsed('years'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: yearColumns,
-      sorts: [
-        {
-          key: 'year',
-          label: 'Year'
-        },
-        {
-          key: 'items',
-          label: 'Items'
-        }
-      ]
-    },
-    {
-      // The field a country carries its region in.
-      key: 'regions',
-      label: 'Regions',
-      scope: 'region',
-      count: browsed('regions'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: regionColumns,
-      sorts: [
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'countries',
-          label: 'Countries'
-        },
-        {
-          key: 'stores',
-          label: 'Stores'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      // The code a seller and a lot both carry, so `country:"DE"` reads as
-      // Germany on the stores table and on the lots.
-      key: 'countries',
-      label: 'Countries',
-      scope: 'country',
-      count: browsed('countries'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: informative(countryColumns, openExpr.value),
-      sorts: [
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'stores',
-          label: 'Stores'
-        },
-        {
-          key: 'region',
-          label: 'Region'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      // The key a seller carries its province under — the country code and
-      // the name together, since a name alone is not one province.
-      key: 'provinces',
-      label: 'Provinces',
-      scope: 'province',
-      count: browsed('provinces'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: informative(provinceColumns, openExpr.value),
-      sorts: [
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'countryName',
-          label: 'Country'
-        },
-        {
-          key: 'stores',
-          label: 'Stores'
-        },
-        {
-          key: 'items',
-          label: 'Items'
-        },
-        {
-          key: 'region',
-          label: 'Region'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    {
-      // The seller's username, which is what a lot carries and what pressing a
-      // store on the lots table writes.
-      key: 'stores',
-      label: 'Stores',
-      scope: 'store',
-      count: browsed('stores'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: informative(storeColumns, openExpr.value),
-      sorts: [
-        {
-          key: 'country',
-          label: 'Country'
-        },
-        {
-          key: 'provinceName',
-          label: 'Province'
-        },
-        {
-          key: 'name',
-          label: 'Name'
-        },
-        {
-          key: 'items',
-          label: 'Items'
-        },
-        {
-          key: 'instantCheckout',
-          label: 'Instant Checkout'
-        },
-        {
-          key: 'priceModifier',
-          label: 'Price mod.'
-        }
-      ]
-    },
-    /*
-     * A seller's terms, after the seller. Neither declares a scope: a method
-     * and a rate are things a seller has, not things anything else carries
-     * the id of, and both are reached by narrowing to the seller.
-     */
-    {
-      key: 'shippingMethods',
-      label: 'Shipping methods',
-      count: browsed('shippingMethods'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: informative(shippingMethodColumns, openExpr.value),
-      sorts: [
-        {
-          key: 'storeName',
-          label: 'Seller'
-        },
-        {
-          key: 'countryName',
-          label: 'Country'
-        },
-        {
-          key: 'name',
-          label: 'Method'
-        },
-        {
-          key: 'reach',
-          label: 'Offered to'
-        },
-        {
-          key: 'note',
-          label: 'Note'
-        },
-        {
-          key: 'shipsTo',
-          label: 'Ships to'
-        }
-      ]
-    },
-    {
-      key: 'shippingCosts',
-      label: 'Shipping costs',
-      count: browsed('shippingCosts'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: informative(shippingCostColumns, openExpr.value),
-      sorts: [
-        {
-          key: 'storeName',
-          label: 'Seller'
-        },
-        {
-          key: 'countryName',
-          label: 'Country'
-        },
-        {
-          key: 'destination',
-          label: 'Destination'
-        },
-        {
-          key: 'applies',
-          label: 'To you'
-        },
-        {
-          key: 'label',
-          label: 'Method'
-        },
-        {
-          key: 'minWeight',
-          label: 'From (g)'
-        },
-        {
-          key: 'maxWeight',
-          label: 'Up to (g)'
-        },
-        {
-          key: 'cost',
-          label: 'Cost'
-        },
-        {
-          key: 'currency',
-          label: 'Currency'
-        },
-        {
-          key: 'minValue',
-          label: 'Order from'
-        },
-        {
-          key: 'maxValue',
-          label: 'Order up to'
-        },
-        {
-          key: 'source',
-          label: 'As written'
-        }
-      ]
-    },
-    {
-      key: 'images',
-      label: 'Images',
-      count: browsed('images'),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: imageColumns,
-      card: 'picture',
-      sorts: [
-        {
-          key: 'name',
-          label: 'Item'
-        },
-        {
-          key: 'record',
-          label: 'Record'
-        }
-      ]
-    },
-    /*
-     * The knobs, last on the wall.
-     *
-     * A type like any other, which is the point of putting them here rather
-     * than behind a gear: they are records with names and values, and the
-     * shell already draws records with names and values. It sorts, it filters,
-     * it has a card — `Settings 2` beside `Colors 213` — and a reader who
-     * wants to know what brickzuke will do on their behalf looks it up the way
-     * they look anything else up.
-     *
-     * Declared unconditionally, unlike the three below it: a setting is not a
-     * detail of whatever is open, and the one time somebody wants this card is
-     * when something is behaving in a way they would like to change.
-     */
-    {
-      key: 'settings',
-      label: 'Settings',
-      // The field a row carries its own key in, so the value cell can find the
-      // setting it is drawing from the row alone.
-      scope: 'setting',
-      count: population(SETTINGS.length),
-      facets: [],
-      tabs: [],
-      samples: [],
-      columns: settingsColumns,
-      sorts: [
-        {
-          key: 'name',
-          label: 'Setting'
-        }
-      ]
-    },
-    /*
-     * And the types nobody scraped, last on the wall: somebody's own
-     * categories, items and sets, the shopping lists they buy the parts from,
-     * and the carts they put lots in. Standing types like the catalogue's own
-     * — each with a card, a table and a population — and the first here that
-     * are also written from the screen that draws them. See [userSchema].
-     */
-    ...standingUserEntities(),
+    ...standingEntities.value,
     ...(openItemRecords.value || recordNamed.value ? [itemRecordsEntity] : []),
     ...(openInventory.value ? [inventoryEntity.value] : []),
     ...(openColorItems.value ? [colorItemsEntity] : []),

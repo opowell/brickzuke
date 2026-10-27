@@ -4,16 +4,17 @@
  *
  * Colours, categories and item types are not the residue of browsing, as the
  * lines and pictures are — see [catalogFill]. They are BrickLink's catalogue
- * download, three files, and until now only the old view's Update BrickLink
+ * download, three files, and once only the old screen's Update BrickLink
  * button asked for them. A browser that had never pressed it — a second one,
  * or the same one after its site data went — opened the Colors table on
  * "Nothing matches this query" and said nothing of why.
  *
  * So the table asks for its own, once a session, and only while its store is
- * empty: a store that has rows is left to the button, which is how it is
- * brought up to date. The categories need the item types first, because the
- * download states no type of its own and the tree pages that do are fetched
- * one item type at a time — see `fetchBrickLink`, which this follows.
+ * empty: a store that has rows is left to Settings' refresh actions, which
+ * are how it is brought up to date — see [catalogRefresh]. The categories
+ * need the item types first, because the download states no type of its own
+ * and the tree pages that do are fetched one item type at a time — see
+ * `fetchBrickLink`, which this follows.
  */
 import { ref } from 'vue'
 import { installResponseListener } from '../assets/js/init-brick-link-worker'
@@ -73,7 +74,7 @@ async function stored(viewType: number): Promise<number> {
 }
 
 /** The tables up after a download: the held rows go, and the counts are taken again. */
-function landed() {
+export function landed() {
   forgetCatalogRows()
   void setCounts()
   catalogDownloaded.value++

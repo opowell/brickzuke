@@ -1,7 +1,6 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml } from '~/assets/js/utils'
-import { useQueryStore } from '../query'
 import { ONE_YEAR } from '@/assets/js/timesToMs'
 
 interface Category {
@@ -17,17 +16,6 @@ export const useCatalogPageStore = defineStore('catalogPageStore', {
     loading: false,
   }),
   getters: {
-    filteredCategories: (state) => {
-      const queryStore = useQueryStore()
-      const {
-        s 
-      } = storeToRefs(queryStore)
-      const search = s.value
-      if (!search) {
-        return state.categories
-      }
-      return state.categories.filter((category) => category.name.includes(search))
-    },
     categoriesMap: (state) => {
       const map = new Map<string, Category>()
       state.categories.forEach((category: Category) => map.set(category.id, category))

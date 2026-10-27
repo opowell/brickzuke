@@ -154,7 +154,7 @@ describe('a query that names a record', () => {
     // which record by naming it at all, so a second id trailing the name is
     // noise (appfr 0.27.2). The id stays in the expression field and in a
     // pasted URL, but it is no longer what the header says.
-    expect(shell.text()).toContain('category: Brick')
+    expect(shell.text()).toContain('Category: Brick')
     expect(shell.text()).not.toContain('Brick (1)')
   })
 })
@@ -199,7 +199,7 @@ describe('items schema', () => {
     await nextTick()
     // The type picker is the shell's own button now, and says the chosen
     // type on its face — its list only goes up when it is pressed.
-    expect(shell.find('.dc-header__scope-select .dc-pick__button').text()).toBe('Items · 199k')
+    expect(shell.find('.dc-actions__type .dc-pick__button').text()).toBe('Items · 199k')
   })
 
   it('draws the eight columns the table has today, the parts count, and two more', () => {

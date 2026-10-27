@@ -1,9 +1,6 @@
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
-import { extractValuesFromHtml, sortItems } from '~/assets/js/utils'
-import { useCatalogItemPageStore } from './catalog-item-page'
-import { useCatalogItemInvPageStore } from './catalog-item-inv-page'
-import { useModelsStore } from '../models'
+import { extractValuesFromHtml } from '~/assets/js/utils'
 import { computed, ref } from 'vue'
 import { ONE_MONTH } from '@/assets/js/timesToMs'
 import { getDbConnection } from '../../../idb/idb'
@@ -158,101 +155,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
   const itemsArray = computed(() => {
     const values = Array.from(items.value.values()).flatMap((map) => Array.from(map.values()))
     return Array.from(values)
-  })
-  const filteredItems = computed(() => {
-    const catalogItemPage = useCatalogItemPageStore()
-    const catalogItemPageRefs = storeToRefs(catalogItemPage)
-    const singleItem = catalogItemPageRefs.singleItem
-    let out = itemsArray.value
-    const modelsStore = useModelsStore()
-    const {
-      filters, search, sorts 
-    } = storeToRefs(modelsStore)
-    if (singleItem.value) {
-      const catalogItemInvPage = useCatalogItemInvPageStore()
-      const invItems = catalogItemInvPage.itemInventories
-        .get(singleItem.value.itemType)
-        ?.get(singleItem.value.itemNumber)
-      if (invItems && items.value) {
-        out = []
-        const uniqueItems = invItems.filter((i, index: number) => {
-          const firstIndex = invItems.findIndex(
-            (j) =>
-              j.itemVariant.itemType === i.itemVariant.itemType &&
-              j.itemVariant.itemId === i.itemVariant.itemId,
-          )
-          return index === firstIndex
-        })
-        const filteredCategories = filters.value.filter((f) => f.key === 'category')
-        const includedCategoryIds = filteredCategories.map((f) => f.value)
-        uniqueItems.forEach((invItem) => {
-          const typeMap = items.value.get(invItem.itemVariant.itemType)
-          if (!typeMap) {
-            return
-          }
-          const item = typeMap.get(invItem.itemVariant.itemId)
-          if (!item) {
-            return
-          }
-          if (includedCategoryIds.length > 0) {
-            if (!includedCategoryIds.includes(invItem.itemVariant.catString)) {
-              return
-            }
-          }
-          out.push({
-            ...item,
-            image: invItem.itemVariant.thumbnail,
-          })
-        })
-      }
-      // return out;
-    }
-    if ((!search.value || search.value === '') && filters.value.length === 0) {
-      return out
-    }
-    const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
-    const caseMatch = search.value !== lowerCaseSearch
-    const filteredCategories = filters.value.filter((f) => f.key === 'category')
-    const includedCategoryIds = filteredCategories.map((f) => f.value)
-    const filteredItemTypes = filters.value.filter((f) => f.key === 'itemType')
-    const includedItemTypeIds = filteredItemTypes.map((f) => f.value)
-    out = out.filter((item) => {
-      if (search.value) {
-        if (includedCategoryIds.length > 0) {
-          if (!includedCategoryIds.includes(item['Category ID'])) {
-            return false
-          }
-        }
-        if (caseMatch) {
-          if (item.Name.includes(search.value)) {
-            return true
-          }
-        } else {
-          if (lowerCaseSearch && item.Name.toLowerCase().includes(lowerCaseSearch)) {
-            return true
-          }
-        }
-        if (item['Category Name'].includes(search.value)) {
-          return true
-        }
-        return false
-      }
-      if (!singleItem.value) {
-        if (includedCategoryIds.length > 0) {
-          if (!includedCategoryIds.includes(item['Category ID'])) {
-            return false
-          }
-        }
-      }
-      if (includedItemTypeIds.length > 0) {
-        if (!includedItemTypeIds.includes(item.itemType)) {
-          return false
-        }
-      }
-      return true
-    })
-    sortItems(out, sorts.value)
-    return out
   })
   async function fetchItemPage(itemType: string) {
     return await makeTextCall(
@@ -461,7 +363,6 @@ export const useCatalogDownloadPageStore = defineStore('catalogDownloadPageStore
     fetchCatalogTree,
     fetchItemPage,
     fetchViewType,
-    filteredItems,
     items,
     itemTypeMap,
     itemsArray,

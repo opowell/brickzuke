@@ -1,9 +1,7 @@
 import { ONE_WEEK, ONE_YEAR } from '@/assets/js/timesToMs'
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
-import { useModelsStore } from '../models'
-import { useCatalogItemPageStore } from './catalog-item-page'
+import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { putAll } from '~/../idb/db'
 import { getDbConnection } from '~/../idb/idb'
 import STORES from '~/../idb/stores'
@@ -62,132 +60,6 @@ export const useStoresPageStore = defineStore('storesPageStore', {
     },
     storesArray(state): Store[] {
       return Array.from(state.storesMap.values()).flat()
-    },
-    filteredRegions: (state): Region[] => {
-      const out = Array.from(state.regionsMap.values())
-      const queryStore = useModelsStore()
-      const {
-        search 
-      } = storeToRefs(queryStore)
-      if (!search.value || search.value === '') {
-        return out
-      }
-      const lowerCaseSearch = search.value.toLowerCase()
-      const caseMatch = search.value !== lowerCaseSearch
-      return out.filter((region) => {
-        if (caseMatch) {
-          // @ts-expect-error undefined case already handled above
-          return region.name.includes(search.value)
-        }
-        return region.name.toLowerCase().includes(lowerCaseSearch)
-      })
-    },
-    filteredCountries(): Country[] {
-      const queryStore = useModelsStore()
-      const {
-        search, filters, sorts 
-      } = storeToRefs(queryStore)
-      let out = [...this.countriesArray]
-      const catalogItemPageStore = useCatalogItemPageStore()
-      const {
-        filteredInventories 
-      } = storeToRefs(catalogItemPageStore)
-      if (filteredInventories.value && filteredInventories.value.length > 0) {
-        const inventoryCountries = filteredInventories.value.map((i) => i.sellerCountryCode)
-        out = out.filter((c) => inventoryCountries.includes(c.countryCode))
-      }
-      if ((search.value && search.value !== '') || filters.value.length) {
-        const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
-        const caseMatch = search.value !== lowerCaseSearch
-        const filteredRegions = filters.value.filter((f) => f.key === 'region')
-        const includedRegionIds = filteredRegions.map((f) => f.value)
-        out = out.filter((item) => {
-          if (search.value && caseMatch) {
-            if (!item.countryName.includes(search.value)) {
-              return false
-            }
-            if (includedRegionIds.length > 0) {
-              return includedRegionIds.includes(item.regionId)
-            }
-            return true
-          }
-          if (lowerCaseSearch && !item.countryName.toLowerCase().includes(lowerCaseSearch)) {
-            return false
-          }
-          if (includedRegionIds.length > 0) {
-            return includedRegionIds.includes(item.regionId)
-          }
-          return true
-        })
-      }
-      sortItems(out, sorts.value)
-      return out
-    },
-    filteredStores(): Store[] {
-      const queryStore = useModelsStore()
-      const {
-        search, filters, sorts 
-      } = storeToRefs(queryStore)
-      let out = [...this.storesArray]
-      const catalogItemPageStore = useCatalogItemPageStore()
-      const {
-        filteredInventories 
-      } = storeToRefs(catalogItemPageStore)
-
-      if (filteredInventories.value) {
-        out = filteredInventories.value?.map((inventory) => {
-          return {
-            name: inventory.sellerStoreName,
-            id: inventory.strSellerUsername,
-            countryID: inventory.sellerCountryCode,
-          }
-        })
-      }
-      const filteredCountries = filters.value.filter((f) => f.key === 'country')
-      const includedCountryIds = filteredCountries.map((f) => f.value)
-      if (includedCountryIds.length > 0) {
-        out = []
-        includedCountryIds.forEach((countryId) => {
-          const stores = this.storesMap.get(countryId)
-          if (!stores) {
-            return
-          }
-          out.push(...stores)
-        })
-      }
-      if ((search.value && search.value !== '') || filters.value.length > 0) {
-        const lowerCaseSearch = search.value ? search.value.toLowerCase() : undefined
-        const caseMatch = search.value !== lowerCaseSearch
-        const filteredRegions = filters.value.filter((f) => f.key === 'region')
-        const includedRegionIds = filteredRegions.map((f) => f.value)
-        out = out.filter((item) => {
-          const country = this.countriesMap.get(item.countryID)
-          if (search.value && caseMatch) {
-            if (!item.name.includes(search.value)) {
-              return false
-            }
-            if (includedRegionIds.length > 0) {
-              if (!country) {
-                return false
-              }
-              return includedRegionIds.includes(country.regionId)
-            }
-            return true
-          }
-          if (lowerCaseSearch && !item.name.toLowerCase().includes(lowerCaseSearch)) {
-            return false
-          }
-          if (includedRegionIds.length > 0) {
-            if (!country) {
-              return false
-            }
-            return includedRegionIds.includes(country.regionId)
-          }
-          return true
-        })
-      }
-      sortItems(out, sorts.value)
-      return out
     },
   },
   actions: {

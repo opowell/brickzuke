@@ -6,7 +6,6 @@ import {Call,
   processQueue,
   type EventDetail,} from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
-import { useModelsStore } from '../models'
 import { ONE_DAY, ONE_WEEK } from '@/assets/js/timesToMs'
 import { put } from '~/../idb/db'
 import { getDbConnection } from '~/../idb/idb'
@@ -215,43 +214,6 @@ export const useCatalogItemPageStore = defineStore('catalogItemPageStore', {
     itemsMap: new Map<string, Item>(),
     itemVariants: new Map<string, Map<string, Color>>(),
   }),
-  getters: {
-    singleItem(state): Item | undefined {
-      const {
-        itemIds 
-      } = useModelsStore()
-      if (!itemIds || itemIds.length !== 1) {
-        return
-      }
-      return state.itemsMap.get(itemIds[0])
-    },
-    filteredImages(state) {
-      if (this.singleItem) {
-        const {
-          itemIds 
-        } = useModelsStore()
-        if (!itemIds || itemIds.length !== 1) {
-          return
-        }
-        const images = state.imagesMap.get(itemIds[0])
-        return images
-      }
-      return []
-    },
-    filteredInventories(state) {
-      if (this.singleItem) {
-        const {
-          itemIds 
-        } = useModelsStore()
-        if (!itemIds || itemIds.length !== 1) {
-          return
-        }
-        const inventories = state.inventoriesMap.get(itemIds[0])
-        return inventories
-      }
-      return []
-    },
-  },
   actions: {
     async fetchImages(itemNumber: string, itemId: string, itemType: string) {
       return await makeJsonCall(

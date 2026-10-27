@@ -18,10 +18,10 @@
  */
 import { pressOptions } from 'header-content-layout'
 import type { ColumnDef, ShellRow } from 'header-content-layout'
-import { PARAM_EXPR, parseExpression } from 'header-content-layout'
+import { parseExpression } from 'header-content-layout'
 import type { PropType } from 'vue'
 import { computed, watch } from 'vue'
-import router from '@/router'
+import { shownExpr } from './catalogSchema'
 import { formatInteger } from '@/assets/js/utils'
 import { naming } from './naming'
 import {ensureStoreInventories,
@@ -51,8 +51,8 @@ const props = defineProps({
 
 const record = computed(() => String(props.row.fields.record ?? ''))
 
-/** The expression the shell is showing, which is the one in the URL. */
-const expr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
+/** The expression the shell is showing, in the columns' own names. */
+const expr = shownExpr
 
 /** The stores the plain `store:"…"` terms in the query name — any of them. */
 const addressedStores = computed(() =>

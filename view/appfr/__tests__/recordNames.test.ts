@@ -143,7 +143,7 @@ describe('a record named in the query', () => {
     // 0.27.2 drops a trailing id from a resolved part). The id stays in the
     // expression field, which the shell still writes out under the empty
     // result.
-    expect(shell.text()).toContain(`record: ${NAME}`)
+    expect(shell.text()).toContain(`Record: ${NAME}`)
     expect(shell.text()).not.toContain(`${NAME} (${RECORD})`)
     expect(shell.text()).toContain(`record:"${RECORD}"`)
   })

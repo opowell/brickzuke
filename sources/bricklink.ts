@@ -13,10 +13,10 @@ export async function fetchBrickLink() {
 }
 
 export async function fetchCatalogPage() {
-  catalogPage.fetchPage()
+  await catalogPage.fetchPage()
 }
 
-export function updateCatalogTree() {
+export async function updateCatalogTree() {
   const catalogDownloadPage = useCatalogDownloadPageStore()
-  catalogDownloadPage.updateCatalogTree()
+  await catalogDownloadPage.updateCatalogTree()
 }

@@ -14,8 +14,8 @@
  * never fetched were never counted.
  */
 import { ref, watchEffect } from 'vue'
-import { PARAM_ENTITY, PARAM_EXPR, parseExpression } from 'header-content-layout'
-import router from '@/router'
+import { parseExpression } from 'header-content-layout'
+import { openEntity, shownExpr } from './catalogSchema'
 import { colorScope } from '../stores/bricklink/catalog-list-color-page'
 import { colorScopeVersion, readColorScope } from './colorItemsFetch'
 import { naming } from './naming'
@@ -45,14 +45,14 @@ export const colorItemsNotice = ref('')
 watchEffect(async () => {
   // Both read before anything is awaited, so both are tracked: the route
   // changes when a colour is opened, and the version when its pages land.
-  const query = router.currentRoute.value.query
+  const entity = openEntity.value
+  const expr = shownExpr.value
   void colorScopeVersion.value
 
-  if (query[PARAM_ENTITY] !== 'colorItems') {
+  if (entity !== 'colorItems') {
     colorItemsNotice.value = ''
     return
   }
-  const expr = String(query[PARAM_EXPR] ?? '')
   const colorId = termValue(expr, 'colorid')
   if (!colorId) {
     colorItemsNotice.value = ''

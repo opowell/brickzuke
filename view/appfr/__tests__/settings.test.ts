@@ -19,7 +19,11 @@ describe('the ship-to country', () => {
       'referencePercentile',
       'referenceStore',
       'dynamicPageSizes',
-      'pageSize'
+      'pageSize',
+      'refreshCatalog',
+      'refreshCategoryTypes',
+      'refreshColorGuide',
+      'refreshItemTypes'
     ])
   })
 

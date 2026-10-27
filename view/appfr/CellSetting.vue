@@ -26,6 +26,9 @@
  *
  * A choice's are the setting's own, and there is no blank among them: the
  * first declared is the default, and the picker shows it from the start.
+ *
+ * An action is a button, held down while what it started is still running so
+ * a second press does not queue the same requests twice.
  */
 import type { ColumnDef, ShellRow } from 'header-content-layout'
 import type { PropType } from 'vue'
@@ -92,7 +95,7 @@ const choices = computed(() => {
   const kind = setting.value?.kind
   const offered =
     kind === 'cart' ? cartChoices.value : kind === 'profile' ? profileChoices.value : countries.value
-  const current = picked.value ? setting.value!.value.value : ''
+  const current = pickedSetting(setting.value) ? setting.value.value.value : ''
   const known = offered.some((choice) => choice.value === String(current))
   return [
     {
@@ -106,6 +109,21 @@ const choices = computed(() => {
     ...offered
   ]
 })
+
+/** While an action's run is under way. */
+const running = ref(false)
+
+async function run() {
+  if (setting.value?.kind !== 'action' || running.value) {
+    return
+  }
+  running.value = true
+  try {
+    await setting.value.run()
+  } finally {
+    running.value = false
+  }
+}
 
 function write(event: Event) {
   const field = event.target as HTMLInputElement | HTMLSelectElement
@@ -127,8 +145,15 @@ function write(event: Event) {
   >
     <!-- A name there are too many of to list — a seller's username — is
          typed, and written on `change` for the reason a number is. -->
+    <button
+      v-if="setting.kind === 'action'"
+      type="button"
+      :disabled="running"
+      @click="run"
+    >{{ running ? 'Updating…' : setting.label }}</button
+    >
     <input
-      v-if="setting.kind === 'text'"
+      v-else-if="setting.kind === 'text'"
       class="setting__text"
       type="text"
       :value="setting.value.value"

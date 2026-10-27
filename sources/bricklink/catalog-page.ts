@@ -7,7 +7,7 @@ import stores from '../../idb/stores'
 import type { BrickLinkCategory, BrickLinkItemType } from '@/stores/bricklink/catalog-download-page'
 
 async function fetchPage() {
-  makeTextCall(
+  await makeTextCall(
     Call.GET_CATALOG_PAGE,
     'https://www.bricklink.com/catalog.asp',
     {

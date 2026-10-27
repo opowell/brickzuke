@@ -8,12 +8,13 @@
  * and published as records so the shell can draw them as a table like any
  * other type.
  *
- * Five kinds: numbers, which have one obvious control and one obvious
+ * Six kinds: numbers, which have one obvious control and one obvious
  * validation; a country, which is one of the directory's own and so is picked
  * rather than typed; a record of somebody's own — a cart, a price modifier
  * profile — picked the same way; a choice among a few values declared here,
- * which has a default rather than a blank; and a line of text, for a name
- * there are too many of to pick from. Which kind a setting is decides which
+ * which has a default rather than a blank; a line of text, for a name there
+ * are too many of to pick from; and an action, which holds no value at all but
+ * is a button that does something once. Which kind a setting is decides which
  * control the value cell draws — see [CellSetting].
  */
 import { useStorage } from '@vueuse/core'
@@ -269,6 +270,18 @@ export interface TextSetting extends SettingBase {
   value: Ref<string>
 }
 
+/**
+ * Not a knob but a button, for something done on request rather than held —
+ * bringing a catalogue download up to date, which nothing else does once its
+ * store has rows. See [catalogRefresh].
+ */
+export interface ActionSetting extends SettingBase {
+  kind: 'action'
+  /** What the button says. */
+  label: string
+  run: () => Promise<void>
+}
+
 /** One knob, as the table draws it. */
 export type Setting =
   | NumberSetting
@@ -277,6 +290,7 @@ export type Setting =
   | ProfileSetting
   | ChoiceSetting
   | TextSetting
+  | ActionSetting
 
 /** The kinds drawn as a picker rather than a number field. */
 export function pickedSetting(setting: Setting | undefined): setting is CountrySetting | CartSetting | ProfileSetting | ChoiceSetting {
@@ -422,6 +436,41 @@ export const SETTINGS: Setting[] = [
     min: 1,
     max: MOST_ROWS,
     unit: 'rows'
+  },
+  // Loaded when pressed: the refreshes reach for the extension and the
+  // catalogue store, which nothing that only reads a setting needs.
+  {
+    kind: 'action',
+    key: 'refreshCatalog',
+    name: 'BrickLink catalogue',
+    detail:
+      'Downloads BrickLink’s item types, categories, colours and part-colour codes again, and which item type each category is listed under.',
+    label: 'Update',
+    run: () => import('./catalogRefresh').then((refresh) => refresh.refreshCatalog())
+  },
+  {
+    kind: 'action',
+    key: 'refreshCategoryTypes',
+    name: 'BrickLink categories',
+    detail: 'Reads again which item type each category is listed under, one item type at a time.',
+    label: 'Update',
+    run: () => import('./catalogRefresh').then((refresh) => refresh.refreshCategoryTypes())
+  },
+  {
+    kind: 'action',
+    key: 'refreshColorGuide',
+    name: 'BrickLink colour guide',
+    detail: 'Reads each colour’s swatch off BrickLink’s colour guide again.',
+    label: 'Update',
+    run: () => import('./catalogRefresh').then((refresh) => refresh.refreshColorGuide())
+  },
+  {
+    kind: 'action',
+    key: 'refreshItemTypes',
+    name: 'BrickLink item types',
+    detail: 'Reads the item types off BrickLink’s catalogue page again.',
+    label: 'Update',
+    run: () => import('./catalogRefresh').then((refresh) => refresh.refreshItemTypes())
   }
 ]
 
@@ -446,6 +495,9 @@ export function settingFor(key: string): Setting | undefined {
 export function setSetting(key: string, value: number | string): void {
   const setting = settingFor(key)
   if (!setting) {
+    return
+  }
+  if (setting.kind === 'action') {
     return
   }
   if (setting.kind === 'text') {

@@ -1,111 +1,15 @@
 <template>
-  <!-- Prototype: ?appfr=1 swaps TableComponent for header-content-layout. -->
-  <ItemsShell v-if="useAppfr" />
-  <template v-else>
-    <TheHeader />
-    <div v-if="!selectedItemType">
-      <button @click="fetchBrickLink">Update BrickLink</button>
-      <button @click="updateCatalogTree">Update BrickLink Categories</button>
-      <button @click="fetchBrickLinkColorGuide">Update BrickLink Color Guide</button>
-      <button @click="fetchCatalogPage">Update BrickLink Item Types</button>
-    </div>
-    <TheContent />
-    <PulseMonitor />
-  </template>
+  <ItemsShell />
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import TheHeader from './components/TheHeader.vue'
 import ItemsShell from './components/ItemsShell.vue'
-import TheContent from './components/TheContent.vue'
-import PulseMonitor from './components/PulseMonitor.vue'
 import { initStorageUsageFunction } from './assets/js/init-storage-usage-function'
-import { fetchCatalogPage, fetchBrickLink, updateCatalogTree } from '../sources/bricklink'
-import { makeCall as fetchBrickLinkColorGuide } from '../sources/bricklink/color-guide'
-import { filters, itemTypes, pauseRedirect, search, selectedItemType, selectedItemTypeId, setCounts, shellOwnsUrl, updateView } from '../model'
-import { useRoute, useRouter } from 'vue-router'
-import { getDbConnection } from '../idb/idb'
-import { loadCategory } from '../idb/category'
-const router = useRouter()
-const route = useRoute()
-const useAppfr = shellOwnsUrl
+import { setCounts } from '../model'
 
-const filterDisplayLabelMap = {
-  category: 'Category',
-  color: 'Color',
-  itemType: 'Item type',
-  item: 'Item',
-}
-
-async function getFilterDisplayValue(key: string, value: string): Promise<string | undefined> {
-  const db = await getDbConnection()
-  switch (key) {
-    case 'category':
-    {
-      const category = await loadCategory(db, Number.parseInt(value))
-      return category.name || value
-    }
-  }
-  db.close()
-}
-
-async function processUrl() {
-  console.log('processUrl', route, route?.query)
-  if (!route?.query) {
-    return
-  }
-  // The shell's `v` is a view and its `s` is a sort field. Reading them as a
-  // selected type and a search would import the shell's query as nonsense.
-  if (shellOwnsUrl.value) {
-    return
-  }
-  pauseRedirect.value = true
-  const queryView = route.query.v?.toString()
-  if (queryView) {
-    const type = itemTypes.value.find(t => t.id === queryView)
-    if (type) {
-      selectedItemType.value = type
-    }
-  }
-  search.value = route.query.s?.toString()
-  selectedItemTypeId.value = route.query.v?.toString()
-  const filtersString = route.query.f?.toString()
-  filters.value = []
-  if (filtersString) {
-    const filterStrings = filtersString.split(',')
-    for (let i = 0; i < filterStrings.length; i++) {
-      const fs = filterStrings[i]
-      const parts = fs.split('_')
-      filters.value.push({
-        key: parts[0],
-        value: parts[1],
-        label: filterDisplayLabelMap[parts[0] as keyof typeof filterDisplayLabelMap] || parts[0],
-        displayValue: await getFilterDisplayValue(parts[0], parts[1]),
-      })
-    }
-  }
-  // const sortsString = route.query.b?.toString()
-  // if (sortsString) {
-  //   sorts.value = sortsString.split(',').map((bs) => {
-  //     const parts = bs.split('_')
-  //     return {
-  //       key: parts[0],
-  //       dir: parts[1],
-  //     }
-  //   })
-  // } else {
-  //   sorts.value = []
-  // }
-  pauseRedirect.value = false
-  updateView()
-}
-
-onMounted(async () => {
+onMounted(() => {
   initStorageUsageFunction()
-  // initBrickLinkWorker()
-  await router.isReady()
-  await processUrl()
   setCounts()
 })
 </script>
@@ -125,10 +29,7 @@ onMounted(async () => {
  *
  * `light-dark()` chooses by `color-scheme`, so that is still the whole switch:
  * the inputs and scrollbars, which stay the browser's own, follow it as well.
- *
- * `data-theme` is written onto <html> by view/assets/js/color-mode.ts, always
- * as a concrete `light` or `dark`. The media query is what holds before that
- * script has run, so the first paint is already the right one.
+ * The scheme is the operating system's.
  */
 :root {
   color-scheme: light;
@@ -139,21 +40,25 @@ onMounted(async () => {
   --bz-button: light-dark(#e5e5e5, #313131);
   --bz-button-hover: light-dark(#d4d4d4, #3c3c3c);
   --bz-button-border: light-dark(#cecece, #3c3c3c);
+  --bz-field: light-dark(#ffffff, #181818);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root {
     color-scheme: dark;
   }
 }
 
-:root[data-theme='dark'] {
-  color-scheme: dark;
-}
-
 body {
+  margin: 0;
   background: var(--bz-bg);
   color: var(--bz-fg);
+}
+
+/* The shell is the whole window, and its results are the only thing that
+   scrolls: the page never does, so the bar and the table's headings stay. */
+body:has(.items-shell) {
+  overflow: hidden;
 }
 
 /* Outside the shell: ItemsShell states the same button for the shell's own. */

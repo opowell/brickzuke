@@ -478,7 +478,6 @@ async function narrowedItems(shown: number, expr: string): Promise<Preview> {
       sort: order.sort,
       dir: order.dir,
       expr,
-      facets: {},
       page: 1
     },
     schema,

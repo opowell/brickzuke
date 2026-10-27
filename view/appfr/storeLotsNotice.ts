@@ -15,8 +15,8 @@
  * known exactly rather than only in pages never asked for.
  */
 import { ref, watchEffect } from 'vue'
-import { PARAM_ENTITY, PARAM_EXPR, parseExpression } from 'header-content-layout'
-import router from '@/router'
+import { parseExpression } from 'header-content-layout'
+import { openEntity, shownExpr } from './catalogSchema'
 import { readStoreScope, storeScopeVersion } from './storeLotsFetch'
 import { naming } from './naming'
 
@@ -40,14 +40,14 @@ export const storeLotsNotice = ref('')
 watchEffect(async () => {
   // Both read before anything is awaited, so both are tracked: the route
   // changes when a store is opened, and the version when its pages land.
-  const query = router.currentRoute.value.query
+  const entity = openEntity.value
+  const expr = shownExpr.value
   void storeScopeVersion.value
 
-  if (query[PARAM_ENTITY] !== 'inventories') {
+  if (entity !== 'inventories') {
     storeLotsNotice.value = ''
     return
   }
-  const expr = String(query[PARAM_EXPR] ?? '')
   const store = termValue(expr, 'store')
   // A record names an item, and then these rows are that item's lots off its
   // own page — one request, nothing capped, nothing to say.

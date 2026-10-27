@@ -10,7 +10,6 @@ import { ref, watch } from 'vue'
 import { formatExpression, matchesExpression, parseExpression } from 'header-content-layout'
 import type {DataSource,
   EntitySchema,
-  FacetValue,
   FieldTerm,
   QueryRequest,
   QueryResult,
@@ -2586,34 +2585,6 @@ export function sorted(
 }
 
 /**
- * The min/max window a range facet narrowed a field to, read straight off the
- * query — a store's own inventory has a quantity and a price to bound, and an
- * item's has a quantity, so both are told by the same window rather than by a
- * term the query language would have to grow a new syntax for.
- */
-function activeRanges(request: QueryRequest): [string, Extract<FacetValue, { kind: 'range' }>][] {
-  return Object.entries(request.query.facets ?? {}).filter(
-    (entry): entry is [string, Extract<FacetValue, { kind: 'range' }>] =>
-      entry[1].kind === 'range' && (entry[1].min !== null || entry[1].max !== null)
-  )
-}
-
-function facetMatcher(request: QueryRequest): (row: ShellRow) => boolean {
-  const ranges = activeRanges(request)
-  if (!ranges.length) {
-    return () => true
-  }
-  return (row) =>
-    ranges.every(([key, range]) => {
-      const value = row.fields[key]
-      if (typeof value !== 'number') return true
-      if (range.min !== null && value < range.min) return false
-      if (range.max !== null && value > range.max) return false
-      return true
-    })
-}
-
-/**
  * The small types, filtered and ordered the way the shell asked for them.
  *
  * The lots with their price ratio on them as well, worked out over the lots
@@ -2634,13 +2605,12 @@ async function present(
   matches: (row: ShellRow) => boolean = matcherFor(request),
   addressed: readonly string[] = itemAddress(request)
 ): Promise<ShellRow[]> {
-  const inRange = facetMatcher(request)
-  let kept = rows.filter((row) => matches(row) && inRange(row))
+  let kept = rows.filter(matches)
   if (entityKey(request) === 'inventories' && referencePriceChosen() !== 'off') {
     kept = await referenced(kept)
     if (asksRatio(request)) {
       const rated = ratioMatcher(request, matches, addressed)
-      kept = kept.filter((row) => rated(row) && inRange(row))
+      kept = kept.filter(rated)
     }
   }
   return sorted(kept, request.query.sort, request.query.dir)
@@ -2982,7 +2952,6 @@ const HELD_LOTS = 1_000_000
 function orderKey(request: QueryRequest): string {
   return JSON.stringify([
     request.query.expr,
-    request.query.facets ?? {},
     request.query.sort,
     request.query.dir,
     referencePriceChosen(),
@@ -3216,9 +3185,8 @@ function walkLots(key: string, request: QueryRequest): LotWalk {
     const counted = lotsCounted()
     const matches = matcherBesides(request, 'record', 'store')
     const rated = asksRatio(request) ? ratioMatcher(request, matches, ['record', 'store']) : matches
-    const inRange = facetMatcher(request)
     const sort = request.query.sort
-    const ratios = await lotRatios(request, matches, inRange, going)
+    const ratios = await lotRatios(request, matches, going)
     if (!going()) {
       return undefined
     }
@@ -3233,7 +3201,7 @@ function walkLots(key: string, request: QueryRequest): LotWalk {
       const kept: ShellRow[] = []
       rows.forEach((lot, at) => {
         const row = ratios.references ? withRatio(lot, ratios.references) : lot
-        if ((ratios.references ? rated(row) : matches(row)) && inRange(row)) {
+        if (ratios.references ? rated(row) : matches(row)) {
           ratios.spread?.note(row.fields)
           const source = lots[at]
           found.push('invId' in source ? source : source.id)
@@ -3379,7 +3347,6 @@ interface LotRatios {
 async function lotRatios(
   request: QueryRequest,
   matches: (row: ShellRow) => boolean,
-  inRange: (row: ShellRow) => boolean,
   open: () => boolean
 ): Promise<LotRatios> {
   const chosen = referencePriceChosen()
@@ -3407,7 +3374,7 @@ async function lotRatios(
   let finished = true
   await eachLotRows((rows) => {
     for (const row of rows) {
-      if (matches(row) && inRange(row)) {
+      if (matches(row)) {
         spread.note(row.fields)
       }
     }
@@ -3449,7 +3416,6 @@ let heldPercentiles: { key: string; references: ReadonlyMap<string, number> } | 
 async function percentileKey(request: QueryRequest): Promise<string> {
   return JSON.stringify([
     request.query.expr,
-    request.query.facets ?? {},
     referencePercentile.value,
     await lotsCounted(),
     readStoreInventories().length
@@ -3468,7 +3434,7 @@ export const catalogSource: DataSource = {
    */
   async query(request: QueryRequest): Promise<QueryResult> {
     const key = entityKey(request)
-    const unfiltered = !request.query.expr.trim() && !activeRanges(request).length
+    const unfiltered = !request.query.expr.trim()
     if (unfiltered) {
       return {
         rows: [],
@@ -3516,9 +3482,7 @@ export const catalogSource: DataSource = {
       }
     }
 
-    const reached = request.limit === 0 && !activeRanges(request).length
-      ? await itemsReached(request)
-      : undefined
+    const reached = request.limit === 0 ? await itemsReached(request) : undefined
     if (reached !== undefined) {
       return {
         rows: [],

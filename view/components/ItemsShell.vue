@@ -1,12 +1,10 @@
 <script setup lang="ts">
 /**
- * Prototype: the `items` table drawn by header-content-layout instead of
- * TableComponent. Reachable at `?appfr=1`.
+ * brickzuke's tables, drawn by header-content-layout.
  *
- * The shell owns the address bar here: `createVueRouterAdapter` makes every
- * query change an ordinary navigation, so the query is a link someone can
- * paste and the back button works. brickzuke's own writer stands down while
- * this is up — see `shellOwnsUrl` in model.ts.
+ * The shell owns the address bar: `createVueRouterAdapter` makes every query
+ * change an ordinary navigation, so the query is a link someone can paste and
+ * the back button works.
  *
  * It is also meant to look like the table it replaces, which is to say like
  * nothing. `theme="mono-size"` is the shell at its plainest: it takes the
@@ -54,7 +52,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { refreshCount, refreshCounts } from '../appfr/catalogCounts'
 import { startHomeFill, stopHomeFill } from '../appfr/homeFill'
-import { catalogSchema } from '../appfr/catalogSchema'
+import { catalogSchema, openEntity, shownExpr } from '../appfr/catalogSchema'
 import { catalogSource } from '../appfr/catalogSource'
 import { colorItemsNotice } from '../appfr/colorItemsNotice'
 import { storeLotsNotice } from '../appfr/storeLotsNotice'
@@ -85,10 +83,7 @@ const route = createVueRouterAdapter(router)
  * URL that states no sort falls back to the one that type opens in, rather
  * than to one name-ascending default for every table.
  */
-const urlEntity = computed(() => {
-  const named = router.currentRoute.value.query[PARAM_ENTITY]
-  return typeof named === 'string' ? named : null
-})
+const urlEntity = computed(() => openEntity.value ?? null)
 
 const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
 
@@ -96,8 +91,7 @@ const shellDefaults = computed(() => shellDefaultsFor(urlEntity.value))
  * The sellers' lots a table under this query is read through, fetched while
  * it is up — the fill the home screen runs, run for the table. See [tableReach].
  */
-const urlExpr = computed(() => String(router.currentRoute.value.query[PARAM_EXPR] ?? ''))
-const tableReach = useTableReach(urlEntity, urlExpr)
+const tableReach = useTableReach(urlEntity, shownExpr)
 
 /**
  * A colour or a seller too long to fetch whole says so under the pager's
@@ -150,22 +144,33 @@ watch(
 
 /**
  * The shell's own writer, so the query it reads back is the query written here
- * — and so `appfr=1`, which is not the shell's, is left alone. It replaces
+ * — and so a parameter that is not the shell's is left alone. It replaces
  * rather than pushes, so Back from the table reaches the home screen instead of
  * a cards view nobody asked for.
  */
 let shownEntity = parseQuery(window.location.search, catalogSchema.value, shellDefaults.value)
   .entity
 
+/** A search as it reads, whichever characters the router chose to escape. */
+function decoded(search: string): string {
+  try {
+    return decodeURIComponent(search.replace(/\+/g, ' '))
+  } catch {
+    return search
+  }
+}
+
 function onQueryChange(query: ShellQuery) {
   const opened = openedQuery(query, shownEntity)
   shownEntity = query.entity
-  if (opened === query) {
+  // Written back whenever it is not the shell's own spelling either: a press
+  // here navigates in keys — see [shownParams] — and a pasted link may be in
+  // keys too, where the address the shell writes is in its shortcuts.
+  const search = serializeQuery(opened, catalogSchema.value, shellDefaults.value, window.location.search)
+  if (opened === query && decoded(search) === decoded(window.location.search)) {
     return
   }
-  void router.replace(
-    '/' + serializeQuery(opened, catalogSchema.value, shellDefaults.value, window.location.search)
-  )
+  void router.replace('/' + search)
 }
 
 /*
@@ -200,7 +205,7 @@ async function onCreate(entity: EntitySchema) {
   try {
     const made = await createRecordFor(
       entity,
-      String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
+      shownExpr.value
     )
     if (made) {
       openOn(entity.key, 'record', made)
@@ -275,10 +280,10 @@ const liveSource = computed<DataSource>(() => {
  * set is made of.
  */
 const openSet = computed(() => {
-  if (router.currentRoute.value.query[PARAM_ENTITY] !== 'inventory') {
+  if (urlEntity.value !== 'inventory') {
     return ''
   }
-  const expr = String(router.currentRoute.value.query[PARAM_EXPR] ?? '')
+  const expr = shownExpr.value
   // Not `-record:`, which is a set the parts are *not* from.
   return /(?:^|\s)record[:=]"?([A-Za-z0-9-]+)"?/.exec(expr)?.[1] ?? ''
 })
@@ -353,9 +358,9 @@ function offeredViews({
  *
  * The key is the query and the window: a new one is a page fitted afresh, and
  * anything the last page learned about what fits is let go with it. Only what
- * the shell reads — not `appfr=1`, which is brickzuke's — so the fit is not
- * begun again over a change that redraws nothing. The page is watched apart
- * from it: stepping to another page keeps the length, see [usePageFit].
+ * the shell reads, so the fit is not begun again over a change that redraws
+ * nothing. The page is watched apart from it: stepping to another page keeps
+ * the length, see [usePageFit].
  */
 const shellRoot = ref<HTMLElement | null>(null)
 const fitPages = computed(() => dynamicPageSizesOn() && urlEntity.value !== null)
@@ -413,6 +418,12 @@ const plainTokens = {
   '--dc-accent-contrast': 'var(--bz-bg)',
   '--dc-raised': 'var(--bz-raised)',
   '--dc-raised-ink': 'var(--bz-fg)',
+  // What a table's headings are laid on, the rows scrolling under them.
+  '--dc-ground': 'var(--bz-bg)',
+  // The search field's fill and resting edge, so it is a field on the bar
+  // rather than more of it, and can be found before it is focused.
+  '--dc-search-fill': 'var(--bz-field)',
+  '--dc-search-border': 'light-dark(#c4c4c4, #4a4a4a)',
   '--dc-ok': 'light-dark(oklch(0.48 0.13 150), oklch(0.74 0.13 150))',
   '--dc-danger': 'light-dark(oklch(0.5 0.18 25), oklch(0.68 0.17 25))',
 }
@@ -553,12 +564,8 @@ const plainTokens = {
  * menu's ground, and the shell's own tint on the one the pointer is over,
  * which is the whole of what an option says. `:where` so the exemption
  * weighs nothing and the rule stays where it was against the shell's own.
- *
- * Nor the name at the start of the bar (appfr 0.64.0), which is a button so
- * that pressing it goes home, but is the name before it is a press: set as
- * the shell sets it, with the shell's own tint on the way past.
  */
-.items-shell :deep(button:where(:not(.dc-menu__item, .dc-header__domain))) {
+.items-shell :deep(button:where(:not(.dc-menu__item))) {
   appearance: none;
   background: var(--bz-button);
   border: 1px solid var(--bz-button-border);
@@ -580,14 +587,16 @@ const plainTokens = {
 }
 
 /*
- * Except a button that is nothing but a picture, which takes no padding at
- * all.
+ * Except a button that is nothing but a picture, which takes two pixels all
+ * round.
  *
  * The room above is measured for a word — a name in a cell, a count on a bar —
- * and a picture is not one: it has its own edges and needs no room made around
- * them. Three pixels one way and eight the other put a frame around every
- * thumbnail in the app, and on the home screen's walls of them the frames were
- * more of the screen than the pictures were.
+ * and a picture is not one: it has its own edges and needs little room made
+ * around them. Three pixels one way and eight the other put a frame around
+ * every thumbnail in the app, and on the home screen's walls of them the frames
+ * were more of the screen than the pictures were. None at all ran the picture
+ * into the button's border, so two keeps the edge visible without the frame.
+ * The picture's corners are rounded to sit inside the button's.
  *
  * `:only-child` is what says "on its own": a card whose press holds a picture
  * *and* a name still wants the room, the name being the part that needs it.
@@ -598,10 +607,14 @@ const plainTokens = {
  * under it.
  */
 .items-shell :deep(button:has(> img:only-child)) {
-  padding: 0;
+  padding: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.items-shell :deep(button > img:only-child) {
+  border-radius: 3px;
 }
 
 /*
@@ -671,7 +684,7 @@ const plainTokens = {
  * the press takes it out — the `text-decoration: none` here cancelled the
  * strike and left only the fade.
  */
-.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing, .dc-menu__item, .dc-header__domain, .dc-term))) {
+.items-shell :deep(button:hover:not(:disabled):where(:not(.dc-scope, .dc-standing, .dc-menu__item, .dc-term))) {
   background: var(--bz-button-hover);
   border: 1px solid var(--bz-button-border);
   border-radius: 4px;

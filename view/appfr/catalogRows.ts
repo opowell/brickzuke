@@ -441,7 +441,7 @@ async function settingRows(): Promise<ShellRow[]> {
       // the cell that writes a value can find its setting from the row alone.
       setting: setting.key,
       name: setting.name,
-      value: setting.value.value,
+      value: setting.kind === 'action' ? undefined : setting.value.value,
       // Said after the value wherever the cell's text stands for the cell —
       // the home screen's pill, the hover — as the cell itself says it.
       unit: 'unit' in setting ? setting.unit : undefined,

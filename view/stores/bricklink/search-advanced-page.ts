@@ -1,6 +1,5 @@
 import { ONE_YEAR } from '@/assets/js/timesToMs'
-import { defineStore, storeToRefs } from 'pinia'
-import { useQueryStore } from '../query'
+import { defineStore } from 'pinia'
 import { Call, makeTextCall } from '~/assets/js/make-call'
 import { extractValueFromHtml } from '~/assets/js/utils'
 
@@ -12,30 +11,6 @@ export const useSearchAdvancedPageStore = defineStore('searchAdvancedPageStore',
     regionsMap: new Map<string, string>(),
     loaded: false,
   }),
-  getters: {
-    filteredRegions: (state) => {
-      const out = Array.from(state.regionsMap, ([key, value]) => ({
-        id: key,
-        name: value,
-      }))
-      const queryStore = useQueryStore()
-      const {
-        s 
-      } = storeToRefs(queryStore)
-      const search = s.value
-      if (!search) {
-        return out
-      }
-      const lowerCaseSearch = search.toLowerCase()
-      const caseMatch = search !== lowerCaseSearch
-      return out.filter((region) => {
-        if (caseMatch) {
-          return region.name.includes(search)
-        }
-        return region.name.toLowerCase().includes(lowerCaseSearch)
-      })
-    },
-  },
   actions: {
     async fetch() {
       makeTextCall(

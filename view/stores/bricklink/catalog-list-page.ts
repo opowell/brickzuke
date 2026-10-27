@@ -1,4 +1,3 @@
-import { useCatalogItemInvPageStore } from '@/stores/bricklink/catalog-item-inv-page'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import {Call,
@@ -9,8 +8,6 @@ import {Call,
   queueCall,
   type EventDetail,} from '~/assets/js/make-call'
 import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
-import { useModelsStore } from '../models'
-import { useCatalogItemPageStore } from './catalog-item-page'
 import { listPageOptions, pageCount, parseRows, type CatalogListRow } from './catalog-list'
 import { ONE_MONTH, ONE_WEEK, ONE_YEAR } from '@/assets/js/timesToMs'
 
@@ -78,103 +75,11 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
   const categories = ref<BrickLinkCategory[]>([])
   const categoriesMap = ref(new Map<string, BrickLinkCategory>())
 
-  // computed
-  const filteredCategories = computed(() => {
-    // const queryStore = useQueryStore()
-    let out = categories.value
-    // const catalogItemPage = useCatalogItemPageStore()
-    // if (catalogItemPage.singleItem) {
-    //   out = out.filter((category) => {
-    //     // @ts-ignore
-    //     return catalogItemPage.singleItem.categories.includes(category.catID)
-    //   })
-    // }
-    const modelsStore = useModelsStore()
-    const search = modelsStore.search
-    if (search && search !== '') {
-      const lowerCaseSearch = search.toLowerCase()
-      const caseMatch = search !== lowerCaseSearch
-      out = out.filter((category) => {
-        if (caseMatch) {
-          return category.name.includes(search)
-        }
-        return category.name.toLowerCase().includes(lowerCaseSearch)
-      })
-    }
-    // const view = queryStore.views.get('categories')
-    // const filters = queryStore.filtersOfType('categories')
-    // const selectedIds = filters.map((f) => f.item)
-    // switch (view) {
-    //   case 'selected':
-    //     out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
-    //     break
-    //   case 'none':
-    //     if (queryStore.somethingOpen) {
-    //       out = []
-    //     }
-    //     break
-    // }
-    // if (
-    //   queryStore.somethingOpen &&
-    //   !['selected', 'all'].includes(queryStore.views.get('categories'))
-    // ) {
-    //   out = []
-    // } else if (selectedIds.length > 0) {
-    //   out = out.filter((c) => selectedIds.length === 0 || selectedIds.includes(c.catID))
-    // }
-    const itemTypeFilters = modelsStore.filters
-      .filter((f) => f.key === 'itemType')
-      .map((f) => f.value)
-    out = out.filter((category) => {
-      if (itemTypeFilters.length > 0) {
-        if (itemTypeFilters.includes(category.catType)) {
-          return true
-        }
-      }
-      const catalogItemPage = useCatalogItemPageStore()
-      if (catalogItemPage.singleItem) {
-        const catalogInvItemPage = useCatalogItemInvPageStore()
-        const typeMap = catalogInvItemPage.itemVariants.get(catalogItemPage.singleItem.itemType)
-        if (typeMap) {
-          const invItems = typeMap.get(catalogItemPage.singleItem.itemNumber)
-          if (invItems) {
-            return invItems.map((ii) => ii.catString).includes(category.catID)
-          }
-          return false
-        }
-      }
-      return true
-    })
-    return out.map((category) => {
-      const catParts = parts.value.get(category.catID)
-      let image = null
-      if (!catParts) {
-        return category
-      }
-      const firstPartWithImage = catParts.find((part) => !!part.image)
-      if (!firstPartWithImage) {
-        return category
-      }
-      image = firstPartWithImage.image
-      return {
-        ...category,
-        image,
-      }
-    })
-  })
   const partsByCategory = computed(() => {
     return (categoryId: string) => parts.value.get(categoryId)
   })
   const categoryIds = computed(() => {
     return categories.value.map((c) => c.catID)
-  })
-  const filteredItemTypes = computed(() => {
-    return itemTypes.value.map((type) => {
-      return {
-        ...type,
-        categories: categories.value.filter((c) => c.catType === type.catType).length,
-      }
-    })
   })
 
   // watchers
@@ -292,8 +197,6 @@ export const useCatalogListPageStore = defineStore('catalogListPageStore', () =>
     itemTypes,
     categories,
     categoriesMap,
-    filteredCategories,
-    filteredItemTypes,
     partsByCategory,
     fetch,
     handleFetchResponse,

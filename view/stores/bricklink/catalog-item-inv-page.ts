@@ -1,10 +1,8 @@
-import { defineStore, storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
 import { Call, makeTextCall, type EventDetail } from '~/assets/js/make-call'
-import { extractValueFromHtml, extractValuesFromHtml, sortItems } from '~/assets/js/utils'
-import { useCatalogItemPageStore } from './catalog-item-page'
+import { extractValueFromHtml, extractValuesFromHtml } from '~/assets/js/utils'
 import { ONE_DAY } from '@/assets/js/timesToMs'
-import { useModelsStore } from '../models'
 import { putAll } from '~/../idb/db'
 import { getDbConnection } from '~/../idb/idb'
 import STORES from '~/../idb/stores'
@@ -101,83 +99,6 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
       ONE_DAY,
     )
   }
-  const filteredItemVariants = computed<ItemVariant[] | undefined>(() => {
-    const catalogItemPage = useCatalogItemPageStore()
-    const catalogItemPageRefs = storeToRefs(catalogItemPage)
-    const singleItem = catalogItemPageRefs.singleItem
-    if (!singleItem.value) {
-      return
-    }
-    let variants = itemVariants.value
-      .get(singleItem.value.itemType)
-      ?.get(singleItem.value.itemNumber)
-    console.log('filteredItemVariants', singleItem.value?.itemType, singleItem.value?.itemNumber)
-    const modelsStore = useModelsStore()
-    const {
-      filters, sorts 
-    } = storeToRefs(modelsStore)
-    console.log('filteredItemVariants', itemVariants.value, variants, filters)
-    const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
-    const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
-    variants = variants?.filter((variant) => {
-      if (colorFilters.length > 0) {
-        if (!variant.colorId) {
-          return false
-        }
-        if (!colorFilters.includes(variant.colorId)) {
-          return false
-        }
-      }
-      if (categoryFilters.length > 0) {
-        if (!categoryFilters.includes(variant.catString)) {
-          return false
-        }
-      }
-      return true
-    })
-    if (!!variants) {
-      sortItems(variants, sorts.value)
-    }
-    return variants
-  })
-  const filteredItemInventories = computed<ItemInventory[] | undefined>(() => {
-    const catalogItemPage = useCatalogItemPageStore()
-    const catalogItemPageRefs = storeToRefs(catalogItemPage)
-    const singleItem = catalogItemPageRefs.singleItem
-    if (!singleItem.value) {
-      return
-    }
-    let invItems = itemInventories.value
-      .get(singleItem.value.itemType)
-      ?.get(singleItem.value.itemNumber)
-    const modelsStore = useModelsStore()
-    const {
-      filters, sorts 
-    } = storeToRefs(modelsStore)
-    const colorFilters = filters.value.filter((f) => f.key === 'color').map((f) => f.value)
-    const categoryFilters = filters.value.filter((f) => f.key === 'category').map((f) => f.value)
-    invItems = invItems?.filter((invItem) => {
-      const variant = invItem.itemVariant
-      if (colorFilters.length > 0) {
-        if (!variant.colorId) {
-          return false
-        }
-        if (!colorFilters.includes(variant.colorId)) {
-          return false
-        }
-      }
-      if (categoryFilters.length > 0) {
-        if (!categoryFilters.includes(variant.catString)) {
-          return false
-        }
-      }
-      return true
-    })
-    if (!!invItems) {
-      sortItems(invItems, sorts.value)
-    }
-    return invItems
-  })
   async function handlePageResponse(detail: EventDetail) {
     const urlParams = extractValuesFromHtml(detail.request.url, ['?', ''], ['=', ''])
     const itemType = urlParams[0]
@@ -286,7 +207,5 @@ export const useCatalogItemInvPageStore = defineStore('catalogItemInvPageStore',
     handlePageResponse,
     itemInventories,
     itemVariants,
-    filteredItemVariants,
-    filteredItemInventories,
   }
 })
