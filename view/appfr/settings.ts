@@ -51,6 +51,30 @@ export const reachPatience = useStorage('brickzuke-reach-patience', 15)
 export const reachGapMs = useStorage('brickzuke-reach-gap-ms', 1_500)
 
 /**
+ * The least time the extension leaves between one request to BrickLink and
+ * the next, in milliseconds — with a third of it again at random on top.
+ *
+ * Unlike the pause above, which is one fill's own, this is every request that
+ * goes out: the fills, a screen being opened, a press. The extension holds
+ * each in a queue until BrickLink's turn comes, one at a time, so however many
+ * things want pages at once the site sees an even trickle — and it pauses on
+ * its own when the firewall answers with its bot check. www., store. and v2.
+ * are paced together, being one site behind one firewall.
+ */
+export const bricklinkGapMs = useStorage('brickzuke-bricklink-gap-ms', 1_500)
+
+/** The same for LEGO.com's shop — see [bricklinkGapMs]. */
+export const legoGapMs = useStorage('brickzuke-lego-gap-ms', 2_000)
+
+/** The gaps by site, as the extension takes them — see [fetchGapSync]. */
+export function fetchGaps(): Record<string, number> {
+  return {
+    'bricklink.com': Number(bricklinkGapMs.value),
+    'lego.com': Number(legoGapMs.value)
+  }
+}
+
+/**
  * The country an order would be posted to, as the code a seller and a lot both
  * carry — `DE` — or blank while nobody has said.
  *
@@ -323,6 +347,27 @@ export const SETTINGS: Setting[] = [
       'How long a narrowed home screen waits between one seller and the next while it fills itself in.',
     value: reachGapMs,
     min: 0,
+    max: 60_000,
+    unit: 'ms'
+  },
+  {
+    kind: 'number',
+    key: 'bricklinkGapMs',
+    name: 'Gap between BrickLink requests',
+    detail:
+      'The least time between one request to BrickLink and the next, whatever asks for it. Longer is kinder to BrickLink and less likely to meet its bot check.',
+    value: bricklinkGapMs,
+    min: 250,
+    max: 60_000,
+    unit: 'ms'
+  },
+  {
+    kind: 'number',
+    key: 'legoGapMs',
+    name: 'Gap between LEGO.com requests',
+    detail: 'The least time between one request to LEGO.com’s shop and the next.',
+    value: legoGapMs,
+    min: 250,
     max: 60_000,
     unit: 'ms'
   },

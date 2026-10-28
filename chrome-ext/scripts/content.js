@@ -17,3 +17,8 @@ document.addEventListener('bzClientToServer', async function (event) {
     }),
   )
 })
+
+// The app pushes its settings for the extension when it hears this — see
+// `installFetchGapSync` — in case it said them before this script was here to
+// carry them.
+document.dispatchEvent(new CustomEvent('bzExtensionReady'))

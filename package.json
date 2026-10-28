@@ -14,7 +14,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "sync:ext": "cp node_modules/polite-queue/dist/index.js chrome-ext/lib/polite-queue.js"
   },
   "dependencies": {
     "@vueuse/core": "^14.0.0",
@@ -22,6 +23,7 @@
     "idb": "^8.0.3",
     "mathjs": "^14.4.0",
     "pinia": "^3.0.1",
+    "polite-queue": "github:opowell/polite-queue#v0.1.0",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

@@ -5,6 +5,7 @@ import { getDbConnection } from '../../../idb/idb'
 import stores from '../../../idb/stores'
 import { ONE_WEEK } from './timesToMs'
 import { noteAnswer, noteBotCheck } from './bot-check'
+import { FETCH_GAPS_MESSAGE } from './fetch-gap-sync'
 
 let listening = false
 
@@ -52,6 +53,11 @@ export function installResponseListener() {
   listening = true
   // @ts-expect-error addEventListener
   document.addEventListener('bzServerToClient', async function (e: CustomEvent) {
+    // The extension saying it heard the gaps: not an answer from BrickLink,
+    // so it must not clear a standing bot check as one.
+    if (e.detail.request?.type === FETCH_GAPS_MESSAGE) {
+      return
+    }
     console.log('got response', e)
     // A write's answer is for the press that made it — see `sendOnce` — and
     // is not a page: kept here, it would be replayed as one.

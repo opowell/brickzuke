@@ -140,6 +140,10 @@ export function sendOnce(
           extraParams: {
             serial,
           },
+          // Never folded into another request like it, and ahead of every
+          // read waiting for BrickLink's turn — see the extension's queue.
+          write: true,
+          priority: 1,
         },
       }),
     )

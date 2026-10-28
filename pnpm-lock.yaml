@@ -23,6 +23,9 @@ importers:
       pinia:
         specifier: ^3.0.1
         version: 3.0.2(typescript@5.8.3)(vue@3.5.13(typescript@5.8.3))
+      polite-queue:
+        specifier: github:opowell/polite-queue#v0.1.0
+        version: https://codeload.github.com/opowell/polite-queue/tar.gz/396fb8cf047aaccfc5b89b3ded2caaecf46484c1
       vue:
         specifier: ^3.5.13
         version: 3.5.13(typescript@5.8.3)
@@ -2010,6 +2013,10 @@ packages:
   polished@4.3.1:
     resolution: {integrity: sha512-OBatVyC/N7SCW/FaDHrSd+vn0o5cS855TOmYi4OkdWUMSJCET/xip//ch8xGUvtr3i44X9LVyWwQlRMTN3pwSA==}
     engines: {node: '>=10'}
+
+  polite-queue@https://codeload.github.com/opowell/polite-queue/tar.gz/396fb8cf047aaccfc5b89b3ded2caaecf46484c1:
+    resolution: {tarball: https://codeload.github.com/opowell/polite-queue/tar.gz/396fb8cf047aaccfc5b89b3ded2caaecf46484c1}
+    version: 0.1.0
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -4518,6 +4525,8 @@ snapshots:
   polished@4.3.1:
     dependencies:
       '@babel/runtime': 7.27.1
+
+  polite-queue@https://codeload.github.com/opowell/polite-queue/tar.gz/396fb8cf047aaccfc5b89b3ded2caaecf46484c1: {}
 
   possible-typed-array-names@1.1.0: {}
 

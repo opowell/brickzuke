@@ -3,11 +3,13 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
+import { installFetchGapSync } from './assets/js/fetch-gap-sync'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+installFetchGapSync()
 
 // Mounted only once the router has resolved the address bar. Until then
 // `currentRoute` is the start location — a bare `/` with no query — and the

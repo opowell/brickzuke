@@ -11,6 +11,8 @@ describe('the ship-to country', () => {
     expect(SETTINGS.map((setting) => setting.key)).toEqual([
       'reachPatience',
       'reachGapMs',
+      'bricklinkGapMs',
+      'legoGapMs',
       'shipTo',
       'activeCart',
       'activeProfile',
